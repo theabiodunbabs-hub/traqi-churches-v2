@@ -170,15 +170,28 @@ export function accessFor(state: SeedState, personId: string) {
     if (bv?.size) state.people.filter((x) => x.branchId && bv.has(x.branchId)).forEach((x) => ids.add(x.id));
     const v = perms.get("people.view");
     if (v instanceof Set) state.groups.filter((g) => v.has(g.id)).forEach((g) => g.memberIds.forEach((m) => ids.add(m)));
-    if (perms.has("followup.assign")) state.cases.forEach((c) => ids.add(c.personId));
+    // First-timers: everyone's for church-wide follow-up; a branch's own for branch staff
+    if (perms.get("followup.assign") === "church") state.cases.forEach((c) => ids.add(c.personId));
+    else if (branchPerms.get("followup.assign")?.size) {
+      const bs = branchPerms.get("followup.assign")!;
+      state.cases.forEach((c) => { const p = state.people.find((x) => x.id === c.personId); if (p?.branchId && bs.has(p.branchId)) ids.add(c.personId); });
+    }
     state.cases.filter((c) => c.assigneeId === personId).forEach((c) => ids.add(c.personId));
     return state.people.filter((p) => ids.has(p.id));
   }
 
+  /** A first-timer this person handles: church-wide follow-up sees all; branch staff see their branch's; anyone sees their own. */
+  function seesCase(c: { personId: string; assigneeId?: string }) {
+    if (c.assigneeId === personId || perms.get("followup.assign") === "church") return true;
+    const bs = branchPerms.get("followup.assign");
+    if (!bs?.size) return false;
+    const p = state.people.find((x) => x.id === c.personId);
+    return !!p?.branchId && bs.has(p.branchId);
+  }
   function canSeeContacts(target: Person) {
     if (target.id === personId) return true;
     if (perms.get("people.contacts") === "church") return true;
-    if (state.cases.some((c) => c.personId === target.id && (c.assigneeId === personId || perms.has("followup.assign")))) return true;
+    if (state.cases.some((c) => c.personId === target.id && seesCase(c))) return true;
     return can("people.contacts", { personId: target.id });
   }
 
@@ -206,7 +219,7 @@ export function accessFor(state: SeedState, personId: string) {
   const isMediaHead = state.groups.some((g) => g.tags?.includes("media") && g.leaderIds.includes(personId));
 
   return {
-    personId, can, perms, roleNames, scopedGroups, visiblePeople, canSeeContacts, canReadNote, isPastoral, isLead, isMemberOnly,
+    personId, can, perms, roleNames, seesCase, scopedGroups, visiblePeople, canSeeContacts, canReadNote, isPastoral, isLead, isMemberOnly,
     seesWelfare: seesWelfare || inWelfareTeam || leads.size > 0, handlesPlacement, leads, isWelfareHead, inWelfareTeam, leadsTraining, isMediaHead,
     canFinance: perms.has("finance.view") || perms.has("finance.count") || perms.has("finance.transfers") || branchPerms.has("finance.view"),
     myBranches, seesFollowupReports, branchPerms,
