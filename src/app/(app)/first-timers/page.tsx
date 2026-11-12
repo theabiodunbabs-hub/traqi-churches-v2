@@ -27,7 +27,7 @@ export default function FirstTimers() {
   if (!me || !access) return null;
 
   const canAssign = access.can("followup.assign");
-  const cases = state.cases.filter((c) => (canAssign && !mine) || c.assigneeId === me.id);
+  const cases = state.cases.filter((c) => (canAssign && !mine && access.seesCase(c)) || c.assigneeId === me.id);
   const unassigned = cases.filter((c) => !c.assigneeId);
   const overdue = cases.filter((c) => c.stage === "new" && c.assigneeId && hoursSince(c.createdAt) > 48);
   const back = cohort(state);
