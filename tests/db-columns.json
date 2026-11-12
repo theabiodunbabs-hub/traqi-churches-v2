@@ -1,0 +1,323 @@
+{
+ "absences": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "updated_at"
+ ],
+ "activity_log": [
+  "id",
+  "church_id",
+  "actor_id",
+  "action",
+  "target_table",
+  "target_id",
+  "before",
+  "after",
+  "at"
+ ],
+ "announcements": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "app_feedback": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "attendance_records": [
+  "id",
+  "church_id",
+  "data",
+  "meeting_id",
+  "person_id",
+  "updated_at"
+ ],
+ "care_notes": [
+  "id",
+  "church_id",
+  "person_id",
+  "level",
+  "body",
+  "author_id",
+  "shared_with",
+  "created_at"
+ ],
+ "churches": [
+  "id",
+  "name",
+  "slug",
+  "country",
+  "currency",
+  "time_zone",
+  "logo_url",
+  "brand_color",
+  "plan",
+  "trial_ends_at",
+  "created_at",
+  "attendance_goal",
+  "template",
+  "profile",
+  "verified",
+  "city"
+ ],
+ "class_sessions": [
+  "id",
+  "church_id",
+  "data",
+  "programme_id",
+  "updated_at"
+ ],
+ "download_log": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "enrolments": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "programme_id",
+  "updated_at"
+ ],
+ "events": [
+  "id",
+  "church_id",
+  "data",
+  "slug",
+  "status",
+  "created_by",
+  "updated_at"
+ ],
+ "followup_cases": [
+  "id",
+  "church_id",
+  "person_id",
+  "assignee_id",
+  "stage",
+  "due_at",
+  "escalation_level",
+  "created_at"
+ ],
+ "followup_contacts": [
+  "id",
+  "church_id",
+  "case_id",
+  "by_id",
+  "method",
+  "outcome",
+  "at",
+  "reached"
+ ],
+ "group_members": [
+  "group_id",
+  "person_id",
+  "church_id",
+  "is_leader",
+  "joined_at"
+ ],
+ "groups": [
+  "id",
+  "church_id",
+  "name",
+  "kind",
+  "purpose",
+  "parent_id",
+  "supervisor_id",
+  "overseer_id",
+  "tags",
+  "created_at",
+  "branch_id",
+  "extra"
+ ],
+ "headcounts": [
+  "id",
+  "church_id",
+  "data",
+  "meeting_id",
+  "updated_at"
+ ],
+ "households": [
+  "id",
+  "church_id",
+  "name",
+  "address",
+  "created_at"
+ ],
+ "invites": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "used_at",
+  "updated_at"
+ ],
+ "lodgements": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "meetings": [
+  "id",
+  "church_id",
+  "data",
+  "kind",
+  "date",
+  "updated_at"
+ ],
+ "message_templates": [
+  "id",
+  "church_id",
+  "data",
+  "owner_id",
+  "updated_at"
+ ],
+ "people": [
+  "id",
+  "church_id",
+  "first_name",
+  "last_name",
+  "gender",
+  "phone",
+  "whatsapp",
+  "email",
+  "birthday",
+  "location",
+  "occupation",
+  "photo_url",
+  "stage",
+  "household_id",
+  "household_role",
+  "is_child",
+  "first_visit",
+  "last_seen",
+  "custom",
+  "user_id",
+  "created_at",
+  "updated_at",
+  "tracked",
+  "heard_from",
+  "consent_at",
+  "consent_via",
+  "missed_in_a_row",
+  "inactive",
+  "is_leader",
+  "anniversary",
+  "feedback",
+  "prefs",
+  "confirmed_at",
+  "joined_via",
+  "branch_id",
+  "extra"
+ ],
+ "placements": [
+  "id",
+  "church_id",
+  "person_id",
+  "group_id",
+  "note",
+  "status",
+  "created_at",
+  "decided_by",
+  "decided_at"
+ ],
+ "platform_owners": [
+  "user_id"
+ ],
+ "prayer_requests": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "updated_at"
+ ],
+ "programmes": [
+  "id",
+  "church_id",
+  "data",
+  "updated_at"
+ ],
+ "registrations": [
+  "id",
+  "church_id",
+  "data",
+  "event_id",
+  "person_id",
+  "updated_at"
+ ],
+ "role_assignments": [
+  "id",
+  "church_id",
+  "person_id",
+  "role_id",
+  "scope_type",
+  "scope_group_ids",
+  "created_at",
+  "scope_ref",
+  "until",
+  "pending"
+ ],
+ "roles": [
+  "id",
+  "church_id",
+  "key",
+  "name",
+  "description",
+  "level",
+  "is_default",
+  "permissions"
+ ],
+ "service_counts": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "transfers": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
+ "welfare_minutes": [
+  "id",
+  "church_id",
+  "data",
+  "request_id",
+  "updated_at"
+ ],
+ "welfare_requests": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "raised_by",
+  "assignee_id",
+  "dept_group_id",
+  "stage",
+  "private",
+  "route",
+  "involve_welfare",
+  "updated_at"
+ ],
+ "wishes": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "updated_at"
+ ]
+}
