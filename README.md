@@ -157,5 +157,5 @@ src/app            screens (Next.js App Router)
 src/components     shell, UI kit, care and reach-out components
 src/lib            types, demo data, store, access rules, formatting
 supabase/          database migrations
-preview/           single-file preview build
+preview/           single-file preview build.
 ```
