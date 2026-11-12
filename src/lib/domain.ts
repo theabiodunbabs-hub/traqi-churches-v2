@@ -233,7 +233,7 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
   const out: Note[] = [];
   const sun = lastSunday();
   if (a.can("followup.assign")) {
-    const waiting = state.cases.filter((c) => c.stage === "new" && !c.assigneeId);
+    const waiting = state.cases.filter((c) => c.stage === "new" && !c.assigneeId && a.seesCase(c));
     if (waiting.length) out.push({ key: `assign-${waiting.length}`, title: `${waiting.length} first-timer${waiting.length > 1 ? "s" : ""} waiting to be assigned`, body: "Choose who will reach them.", href: "/first-timers", tone: "glow", at: waiting[0].createdAt });
     const cfg = followSettings(state);
     const fg = state.groups.find((g) => g.id === cfg.groupId);
