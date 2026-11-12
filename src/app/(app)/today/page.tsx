@@ -25,7 +25,7 @@ export default function Today() {
     if (!me || !access) return null;
     const church = state.church.name;
     const seeAll = access.can("followup.assign");
-    const cases = state.cases.filter((c) => seeAll || c.assigneeId === me.id);
+    const cases = state.cases.filter((c) => (seeAll && access.seesCase(c)) || c.assigneeId === me.id);
     const fresh = cases.filter((c) => c.stage === "new");
     const overdue = fresh.filter((c) => c.assigneeId && hoursSince(c.createdAt) > 48);
     const waiting = fresh.filter((c) => !c.assigneeId);
