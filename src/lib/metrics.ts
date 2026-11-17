@@ -7,8 +7,11 @@ export const holdersOf = (s: SeedState, key: RoleKey) => {
   return [...new Set(s.assignments.filter((a) => ids.has(a.roleId)).map((a) => a.personId))];
 };
 
-export const followTeam = (s: SeedState) =>
-  [...new Set(s.groups.filter((g) => g.tags?.includes("followup")).flatMap((g) => [...g.leaderIds, ...g.memberIds]))];
+/** The follow-up team: whoever the follow-up head picked, or the follow-up department until they pick. */
+export const followTeam = (s: SeedState) => {
+  const picked = s.groups.find((g) => g.tags?.includes("followup") && g.followup?.team)?.followup?.team;
+  return picked ? [...new Set(picked)] : [...new Set(s.groups.filter((g) => g.tags?.includes("followup")).flatMap((g) => [...g.leaderIds, ...g.memberIds]))];
+};
 
 /**
  * Who a first-timer's follow-up currently rests with.
@@ -30,7 +33,7 @@ export function escalation(s: SeedState, c: FollowCase): { level: 0 | 1 | 2 | 3;
 /** The follow-up team's settings, with sensible defaults: auto on, 5 open cases each, any gender. */
 export function followSettings(s: SeedState) {
   const g = s.groups.find((x) => x.tags?.includes("followup"));
-  return { auto: g?.followup?.auto ?? true, limit: g?.followup?.limit ?? 5, sameGender: g?.followup?.sameGender ?? false, groupId: g?.id };
+  return { auto: false, limit: g?.followup?.limit ?? 5, sameGender: g?.followup?.sameGender ?? false, groupId: g?.id };
 }
 
 /**
@@ -55,10 +58,21 @@ export function teamLoad(s: SeedState, forPerson?: Person) {
 }
 
 /** The person auto-assign would choose, or nobody when auto is off or everyone is full or away. */
-export function autoPick(s: SeedState, forPerson: Person) {
-  if (!followSettings(s).auto) return undefined;
-  return teamLoad(s, forPerson).find((x) => x.ok)?.person;
+/** Nobody is assigned automatically any more: the follow-up head assigns. Kept so older calls still work. */
+export function autoPick(_s: SeedState, _forPerson: Person): Person | undefined { return undefined; }
+
+/** Who leads follow-up: the follow-up department's heads, its assistants allowed to assign, and the Follow-up lead role. */
+export function isFollowLead(s: SeedState, a: { personId: string }) {
+  const g = s.groups.find((x) => x.tags?.includes("followup"));
+  if (g && (g.leaderIds.includes(a.personId) || g.assistants?.some((x) => x.personId === a.personId && x.perms.includes("followup.assign")))) return true;
+  const role = s.roles.find((r) => r.key === "followup");
+  return !!role && s.assignments.some((x) => x.personId === a.personId && x.roleId === role.id && !x.pending);
 }
+/** The pastors step in only when nobody was assigned in 24 hours, or the person assigned hasn't made contact by 48 hours. */
+export const pastorMayAssign = (c: { assigneeId?: string; createdAt: string; stage: string; contacts: unknown[] }) => {
+  const h = (Date.now() - Date.parse(c.createdAt)) / 36e5;
+  return (!c.assigneeId && h > 24) || (!!c.assigneeId && c.stage === "new" && !c.contacts.length && h > 48);
+};
 
 /** True when nobody on the follow-up team can take another case. */
 export function teamFull(s: SeedState) {

@@ -18,7 +18,7 @@ import type { Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, Follo
  * Demo data layer. Every action here maps to a Supabase call once the
  * database is connected; the shapes match supabase/migrations.
  */
-const DATA_KEY = "traqi-demo-v5";
+const DATA_KEY = "traqi-demo-v6";
 const USER_KEY = "traqi-demo-user";
 
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
@@ -80,7 +80,7 @@ type Store = {
   assignRole: (personId: string, roleId: string, scope: RoleAssignment["scope"], until?: string) => void;
   removeAssignment: (personId: string, roleId: string) => void;
   requestPlacement: (groupId: string, note?: string) => void;
-  resolvePlacement: (id: string, accept: boolean) => void;
+  resolvePlacement: (id: string, accept: boolean, reply?: string) => void;
   importPeople: (rows: ImportRow[], fileName: string) => { added: number; updated: number };
   createChurch: (c: { church: Omit<Church, "trialEndsAt" | "template"> & { profile: ChurchProfile }; me: NewPerson; role: "lead" | "pastor" | "admin"; departments: DeptDraft[] }) => Promise<void>;
   /** Join a church found in search: instant member access, "not yet confirmed" until the admin confirms. */
@@ -99,7 +99,8 @@ type Store = {
 };
 
 export type ListKey = "meetings" | "headcounts" | "attendance" | "away" | "welfare" | "programmes" | "sessions" | "enrolments" | "events" | "registrations"
-  | "counts" | "lodgements" | "transfers" | "templates" | "announcements" | "wishes" | "invites" | "appFeedback" | "prayers" | "downloads";
+  | "counts" | "lodgements" | "transfers" | "templates" | "announcements" | "wishes" | "invites" | "appFeedback" | "prayers" | "downloads"
+  | "outreaches" | "outreachContacts";
 
 /** How items in each collection are identified. */
 export const keyOf = (key: ListKey, item: Record<string, unknown>): string =>
@@ -174,7 +175,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     try {
       const raw = localStorage.getItem(DATA_KEY);
-      if (raw) setState(JSON.parse(raw));
+      if (raw) setState({ ...emptyCollections(), ...JSON.parse(raw) });
       setMeId(localStorage.getItem(USER_KEY));
     } catch {}
     setReady(true);
@@ -401,7 +402,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const role = s.roles.find((r) => r.id === roleId);
         const give = a.pending.action === "give";
         const keep = give ? ok : !ok;
-        const assignments = keep ? s.assignments.map((x) => (x === a ? { ...x, pending: undefined } : x)) : s.assignments.filter((x) => x !== a);
+        const assignments = keep ? s.assignments.map((x) => (x === a ? { ...x, pending: undefined, givenAt: give ? new Date().toISOString() : x.givenAt } : x)) : s.assignments.filter((x) => x !== a);
         return log({ ...s, assignments }, actor, `${ok ? "approved" : "turned down"} ${give ? "giving" : "removing"} the ${role?.name} role ${give ? "to" : "from"} ${nameOf(s, personId)}`);
       }),
       addToGroup: (groupId, personId) => setState((s) => {
@@ -438,7 +439,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Anyone other than a pastor proposes; the pastor approves from their notices.
         const pastor = me ? accessFor(s, me.id).isPastoral : true;
         const pending = pastor ? undefined : { byId: actor, at: new Date().toISOString(), action: "give" as const };
-        return log({ ...s, assignments: [...rest, { personId, roleId, scope, until, pending }] }, actor,
+        return log({ ...s, assignments: [...rest, { personId, roleId, scope, until, pending, givenAt: pending ? undefined : new Date().toISOString() }] }, actor,
           `${pending ? "asked the pastor to approve making" : "made"} ${nameOf(s, personId)} ${role?.name}${where}${until ? ` until ${until}` : ""}`);
       }),
       removeAssignment: (personId, roleId) => setState((s) => {
@@ -457,13 +458,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const g = s.groups.find((x) => x.id === groupId);
         return log({ ...s, placements: [...s.placements, { id: nid("pl"), personId: actor, groupId, note, status: "open", at: new Date().toISOString() }] }, actor, `asked to join ${g?.name}`);
       }),
-      resolvePlacement: (id, accept) => setState((s) => {
+      resolvePlacement: (id, accept, reply) => setState((s) => {
         const pl = s.placements.find((x) => x.id === id);
         if (!pl) return s;
         const g = s.groups.find((x) => x.id === pl.groupId);
         const groups = accept ? s.groups.map((x) => (x.id === pl.groupId ? { ...x, memberIds: [...new Set([...x.memberIds, pl.personId])] } : x)) : s.groups;
         const people = accept ? onPlaced({ ...s, groups }, pl.personId, pl.groupId).state.people : s.people;
-        return log({ ...s, groups, people, placements: s.placements.map((x) => (x.id === id ? { ...x, status: accept ? "accepted" : "declined" } : x)) }, actor,
+        return log({ ...s, groups, people, placements: s.placements.map((x) => (x.id === id ? { ...x, status: accept ? "accepted" : "declined", reply: reply || undefined, decidedById: actor, decidedAt: new Date().toISOString() } : x)) }, actor,
           `${accept ? "placed" : "declined the request from"} ${nameOf(s, pl.personId)} ${accept ? "in" : "to join"} ${g?.name}`);
       }),
       importPeople: (rows, fileName) => {

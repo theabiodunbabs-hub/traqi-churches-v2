@@ -55,7 +55,7 @@ export type Church = {
   profile?: ChurchProfile;
 };
 
-export type Placement = { id: string; personId: string; groupId: string; note?: string; status: "open" | "accepted" | "declined"; at: string };
+export type Placement = { id: string; personId: string; groupId: string; note?: string; status: "open" | "accepted" | "declined"; at: string; reply?: string; decidedById?: string; decidedAt?: string };
 
 export type PendingContact = { personId: string; method: "call" | "whatsapp"; at: string };
 
@@ -81,14 +81,15 @@ export type Group = {
   /** Optional: only people who finished this class can join. */
   requiresClassId?: string;
   /** Follow-up only: assignment settings. */
-  followup?: { auto: boolean; limit: number; sameGender: boolean };
+  /** Follow-up team settings. The team is chosen by the follow-up head; nobody is assigned automatically. */
+  followup?: { auto: boolean; limit: number; sameGender: boolean; team?: string[] };
   branchId?: string;
 };
 
 export type AssistantPerm = "people.edit" | "people.manage" | "rollcall" | "message" | "followup.assign" | "followup.reports";
 export type Assistant = { personId: string; title: string; perms: AssistantPerm[] };
 
-export type GroupTag = "followup" | "membership" | "training" | "ushering" | "media" | "welfare" | "children" | "family";
+export type GroupTag = "followup" | "membership" | "training" | "ushering" | "media" | "welfare" | "children" | "family" | "outreach";
 
 export type PermissionKey =
   | "people.view"
@@ -132,6 +133,8 @@ export type RoleAssignment = {
   until?: string;
   /** Changes made by an admin wait for the pastor's approval. */
   pending?: { byId: string; at: string; action: "give" | "remove" };
+  /** When the role took effect, so the person can be told what they can now do. */
+  givenAt?: string;
 };
 
 export type FollowStage = "new" | "contacted" | "visited" | "returned" | "in_class" | "member" | "unreachable";
@@ -174,6 +177,8 @@ export type Meeting = {
   date: string; start: string; end: string; // ISO date-times
   mode: Mode; venue?: string; link?: string;
   checkin: boolean; code?: string; slotId?: string; refId?: string; // class session or event id
+  /** Roll calls taken for this service: by department or unit id, or "leaders" for the admin's list. */
+  rollcalls?: Record<string, { byId: string; at: string; marks: Record<string, "present" | "late" | "absent" | "excused">; reasons?: Record<string, string> }>;
 };
 
 export type Headcount = { meetingId: string; men: number; women: number; children: number; firstTimers: number; online?: number; byId: string; at: string };
@@ -194,10 +199,15 @@ export type WelfareRequest = {
   involveWelfare?: boolean; assigneeId?: string; givenNote?: string; givenAt?: string; createdAt: string;
 };
 
+/** Someone who signs a course's certificate. */
+export type Signer = { name: string; title: string; personId?: string; signature?: string };
 export type Programme = {
   id: string; name: string; description: string; modules: { id: string; title: string }[];
   run: "batch" | "rolling"; mode: Mode; venue?: string; link?: string; weekday: number; time: string; minutes: number;
   completeAfter: number; prerequisiteId?: string; recordingsCount: boolean; signatories: string[]; stageOnComplete?: Stage; startDate: string; color: number;
+  /** What the church calls it and each part of it. Default: Course and Lesson. */
+  words?: { course: string; part: string };
+  signers?: Signer[];
 };
 export type ClassSession = { id: string; programmeId: string; moduleId: string; date: string; start: string; venue?: string; link?: string; recording?: string; cancelled?: boolean; teacherId?: string };
 export type Enrolment = { id: string; programmeId: string; personId: string; status: "active" | "completed"; enrolledAt: string; completedAt?: string; certNo?: string };
@@ -223,6 +233,8 @@ export type ChurchEvent = {
   capacity?: number; closesAt?: string; groupReg: boolean; needsApproval: boolean; followup: boolean;
   questions: EventQuestion[]; status: "draft" | "pending" | "published"; createdById: string; approvedById?: string;
   coOrganisers: { groupId: string; status: "requested" | "approved" }[]; createdAt: string;
+  /** False when people just come, with no registration. */
+  registration?: boolean;
   // ---- Round 2 ----
   theme?: string;
   verse?: { text: string; ref: string };
@@ -263,7 +275,11 @@ export type ServiceCount = {
   correction?: { lines: CountLine[]; reason: string; byId: string; at: string; status: "pending" | "approved" | "declined" };
 };
 export type Lodgement = { id: string; countIds: string[]; amount: number; currency: string; method: "transfer" | "deposit" | "pos"; reference?: string; proof?: string; byId: string; date: string };
-export type Transfer = { id: string; date: string; category: string; amount: number; reference?: string; byId: string };
+export type Transfer = { id: string; date: string; category: string; amount: number; reference?: string; byId: string;
+  /** How it came in. Totals only: no giver names. */
+  method?: "transfer" | "cheque" | "pos" | "online" | "other" };
+/** A kind of offering the pastor defines. Ushers count only the ones marked for them; a project can have a target. */
+export type OfferingType = { name: string; ushers: boolean; target?: number };
 
 export type TemplateCategory = "welcome" | "returning" | "birthday" | "anniversary" | "absence" | "welfare" | "event_invite" | "event_reminder" | "class_reminder" | "thanks" | "general";
 export type MessageTemplate = { id: string; category: TemplateCategory; name: string; body: string; isDefault?: boolean; ownerId?: string };
@@ -271,12 +287,23 @@ export type Announcement = { id: string; title: string; body: string; audience: 
 export type Wish = { personId: string; kind: "birthday" | "anniversary"; year: number; byId: string; at: string };
 export type Invite = { token: string; personId: string; roleId?: string; byId: string; at: string; usedAt?: string };
 /** A prayer request. Only the people the lead pastor chose can read it; it's never downloaded. */
+/** An outreach or evangelism the church plans, with its own link for the team. */
+export type Outreach = { id: string; name: string; date: string; area?: string; createdById: string; at: string };
+/** Someone met during an outreach, or invited by anyone in the church. They agreed to be contacted. */
+export type OutreachContact = {
+  id: string; name: string; phone: string; area?: string; note?: string; outreachId?: string; byId: string; at: string;
+  consent: true; assigneeId?: string; status: "new" | "reached";
+  contacts?: { at: string; byId: string; outcome: string }[];
+};
 export type PrayerRequest = { id: string; personId: string; body: string; at: string; anonymous?: boolean; answered?: string; prayed: { byId: string; at: string }[] };
 /** Every download is written down: who, what, when. */
 export type DownloadLog = { id: string; byId: string; what: string; rows: number; at: string };
 export type AppFeedback = { id: string; byId: string; screen: string; text: string; at: string };
 
 export type ChurchProfile = {
+  /** Bigger features stay hidden until the church switches them on. */
+  features?: { branches?: boolean; assistants?: boolean };
+  offeringTypes?: OfferingType[];
   logo?: string; color?: string; email?: string; phone?: string; address?: string; welcome?: string;
   socials?: { instagram?: string; facebook?: string; youtube?: string; x?: string };
   liveStream?: string; services: ServiceSlot[]; approvalLimit: number; witness: boolean;

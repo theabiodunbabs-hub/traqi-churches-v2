@@ -4,7 +4,7 @@
  */
 import type { SeedState } from "./seed";
 import type { Access } from "./access";
-import type { ChurchEvent, Person } from "./types";
+import type { ChurchEvent, OutreachContact, Person } from "./types";
 import type { SheetSpec } from "./download";
 import { stageView } from "./journey";
 import { FOLLOW_STAGES, fullName } from "./format";
@@ -169,4 +169,24 @@ export function departmentDownload(s: SeedState, a: Access, groupId: string): Sh
   const ids = [...new Set([...g.leaderIds, ...g.memberIds, ...units.flatMap((u) => [...u.leaderIds, ...u.memberIds])])];
   const people = ids.map((id) => s.people.find((p) => p.id === id)!).filter(Boolean);
   return [peopleSheet(s, a, people, g.name), ...units.map((u) => peopleSheet(s, a, u.memberIds.map((id) => s.people.find((p) => p.id === id)!).filter(Boolean), u.name))];
+}
+
+/** People met at outreaches or invited by members. They agreed to be contacted. */
+export function outreachSheet(s: SeedState, contacts: OutreachContact[]): SheetSpec<OutreachContact> {
+  const digits = (x: string) => x.replace(/\D/g, "").replace(/^234/, "0");
+  const came = (c: OutreachContact) => s.people.some((p) => digits(p.phone) === digits(c.phone) && p.firstVisit >= c.at.slice(0, 10));
+  return {
+    name: "Outreach contacts", rows: [...contacts].sort((x, y) => y.at.localeCompare(x.at)),
+    columns: [
+      { key: "name", label: "Name", value: (c) => c.name, width: 24 },
+      { key: "phone", label: "Phone", value: (c) => c.phone, width: 16 },
+      { key: "area", label: "Area", value: (c) => c.area, width: 16 },
+      { key: "outreach", label: "Outreach", value: (c) => s.outreaches.find((o) => o.id === c.outreachId)?.name ?? "Met personally", width: 26 },
+      { key: "met_on", label: "Met on", value: (c) => c.at.slice(0, 10), width: 12 },
+      { key: "met_by", label: "Met by", value: (c) => nm(s, c.byId), width: 22 },
+      { key: "following", label: "Following up", value: (c) => nm(s, c.assigneeId), width: 22 },
+      { key: "status", label: "Status", value: (c) => (came(c) ? "Came to church" : c.status === "reached" ? "In touch" : "To call") },
+      { key: "note", label: "Note", value: (c) => c.note, width: 40 },
+    ],
+  };
 }

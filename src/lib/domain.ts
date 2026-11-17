@@ -2,10 +2,10 @@
  * Rules for attendance, welfare, classes, events, finance and notifications.
  * Pure functions over the church's data, shared by every screen.
  */
-import { followSettings, teamFull } from "./metrics";
+import { followSettings, isFollowLead, pastorMayAssign, teamFull } from "./metrics";
 import type { SeedState } from "./seed";
 import type { Access } from "./access";
-import type { Attendance, ChurchEvent, ClassSession, Enrolment, Meeting, Person, Programme, ServiceSlot, WelfareRequest } from "./types";
+import type { Attendance, ChurchEvent, ClassSession, Enrolment, Meeting, Person, Programme, ServiceSlot, Signer, OfferingType, Transfer, WelfareRequest } from "./types";
 import { addDays, at, lastSunday } from "./seed-more";
 import { daysToBirthday, fullName, hoursSince, todayLagos } from "./format";
 import { escalation, goneQuiet } from "./metrics";
@@ -111,6 +111,13 @@ export const WELFARE_STAGE: Record<WelfareRequest["stage"], { label: string; ton
   approved: { label: "Approved", tone: "good" }, declined: { label: "Not approved", tone: "neutral" },
   delivering: { label: "Being delivered", tone: "good" }, given: { label: "Support given", tone: "good" }, closed: { label: "Closed", tone: "neutral" },
 };
+
+/** Three plain statuses for lists: New, Being handled, Done. The detailed stage stays for the people deciding. */
+export function welfareSimple(w: WelfareRequest): { label: "New" | "Being handled" | "Done"; tone: "glow" | "brand" | "good" | "neutral"; now?: string } {
+  if (["given", "declined", "closed"].includes(w.stage)) return { label: "Done", tone: w.stage === "given" ? "good" : "neutral", now: w.stage === "given" ? "Support given" : w.stage === "declined" ? "Not approved" : "Closed" };
+  const fresh = !w.minutes?.length && w.stage === firstStage(w.route, !!w.private);
+  return { label: fresh ? "New" : "Being handled", tone: fresh ? "glow" : "brand", now: WELFARE_STAGE[w.stage].label };
+}
 
 /** The first stage a request starts at, skipping the department head for private requests. */
 export function firstStage(route: WelfareRequest["route"], priv: boolean): WelfareRequest["stage"] {
@@ -233,7 +240,9 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
   const out: Note[] = [];
   const sun = lastSunday();
   if (a.can("followup.assign")) {
-    const waiting = state.cases.filter((c) => c.stage === "new" && !c.assigneeId && a.seesCase(c));
+    // The follow-up head is told at once; pastors only once nobody has been assigned for 24 hours
+    const lead = isFollowLead(state, a);
+    const waiting = state.cases.filter((c) => c.stage === "new" && !c.assigneeId && a.seesCase(c) && (lead || !a.isPastoral || pastorMayAssign(c)));
     if (waiting.length) out.push({ key: `assign-${waiting.length}`, title: `${waiting.length} first-timer${waiting.length > 1 ? "s" : ""} waiting to be assigned`, body: "Choose who will reach them.", href: "/first-timers", tone: "glow", at: waiting[0].createdAt });
     const cfg = followSettings(state);
     const fg = state.groups.find((g) => g.id === cfg.groupId);
@@ -255,9 +264,9 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
       body: `${who} · ${w.kind}${w.urgent ? " · urgent" : ""}`, href: `/welfare#${w.id}`, tone: w.urgent ? "alert" : "glow", at: w.createdAt });
   });
   if (a.isPastoral) state.events.filter((e) => e.status === "pending").forEach((e) => out.push({ key: `ev-${e.id}`, title: "An event needs your approval", body: e.title, href: `/events/${e.id}`, tone: "brand", at: e.createdAt }));
-  if (a.handlesPlacement) state.placements.filter((x) => x.status === "open").forEach((x) => {
+  state.placements.filter((x) => x.status === "open" && a.decidesPlacement(x)).forEach((x) => {
     const p = state.people.find((y) => y.id === x.personId);
-    out.push({ key: `pl-${x.id}`, title: `${p?.firstName ?? "A member"} wants to serve`, body: state.groups.find((g) => g.id === x.groupId)?.name ?? "", href: "/today", tone: "good", at: x.at });
+    out.push({ key: `pl-${x.id}`, title: `${p?.firstName ?? "A member"} wants to join`, body: state.groups.find((g) => g.id === x.groupId)?.name ?? "", href: "/today", tone: "good", at: x.at });
   });
   if (a.isLead) state.counts.filter((c) => c.correction?.status === "pending").forEach((c) => out.push({ key: `fc-${c.id}`, title: "A count correction needs your approval", body: c.correction!.reason, href: "/finance", tone: "glow", at: c.correction!.at }));
   // Journey: finished a class and waiting for a leader; probation periods that are over
@@ -293,8 +302,7 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
   if (a.can("people.view")) {
     const b = a.visiblePeople().filter((p) => p.id !== me.id && !p.isChild && daysToBirthday(p.birthday) === 0);
     if (b.length) out.push({ key: `bd-${todayLagos()}`, title: `${b.length} birthday${b.length > 1 ? "s" : ""} today`, body: b.slice(0, 3).map((p) => p.firstName).join(", "), href: "/messages", tone: "good", at: new Date().toISOString() });
-    const quiet = quietPeople(state, a.visiblePeople());
-    if (quiet.length && !a.isMemberOnly) out.push({ key: `q-${sun}-${quiet.length}`, title: `${quiet.length} people have gone quiet`, body: "Missed three Sundays or more.", href: "/people", tone: "glow", at: sun });
+    // "Gone quiet" is shown on Home and People, not in the bell: the bell is only for things to act on
   }
   return out.sort((x, y) => y.at.localeCompare(x.at));
 }
@@ -304,3 +312,17 @@ export const isUnconfirmed = (p: Person) => p.joinedVia === "search" && !p.confi
 export const daysSinceJoined = (p: Person) => Math.floor((Date.now() - Date.parse(`${p.firstVisit}T12:00:00Z`)) / 864e5);
 /** After 90 days without confirmation, member features pause until the admin confirms them. */
 export const isLimited = (p: Person) => isUnconfirmed(p) && daysSinceJoined(p) >= 90;
+
+// ---------- Course words and certificate signers ----------
+export const courseWords = (p?: Pick<Programme, "words">) => ({ course: p?.words?.course || "Course", part: p?.words?.part || "Lesson" });
+export const plural = (w: string) => (/(s|x|ch|sh)$/i.test(w) ? `${w}es` : /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : `${w}s`);
+/** Older courses kept only titles ("Lead pastor"); newer ones keep the person, title and signature. */
+export const signersOf = (p: Pick<Programme, "signers" | "signatories">): Signer[] => p.signers?.length ? p.signers : p.signatories.map((t) => ({ name: "", title: t }));
+
+// ---------- Offering types ----------
+/** The church's kinds of offering. Older churches only kept names; those are all counted by ushers. */
+export const offeringTypes = (p?: { offeringTypes?: OfferingType[]; categories?: string[] }): OfferingType[] =>
+  p?.offeringTypes?.length ? p.offeringTypes : (p?.categories ?? ["Offering", "Tithe"]).map((name) => ({ name, ushers: true }));
+export const INCOME_METHODS: { k: NonNullable<Transfer["method"]>; label: string }[] = [
+  { k: "transfer", label: "Bank transfer" }, { k: "cheque", label: "Cheque" }, { k: "pos", label: "POS" }, { k: "online", label: "Online giving" }, { k: "other", label: "Other" },
+];

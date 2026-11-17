@@ -36,6 +36,8 @@ const JSON_TABLES: { key: ListKey; table: string; cols: (x: Record<string, unkno
   { key: "appFeedback", table: "app_feedback", cols: (x) => ({ by_id: x.byId }) },
   { key: "prayers", table: "prayer_requests", cols: (x) => ({ person_id: x.personId }) },
   { key: "downloads", table: "download_log", cols: (x) => ({ by_id: x.byId }) },
+  { key: "outreaches", table: "outreaches", cols: (x) => ({ by_id: x.createdById }) },
+  { key: "outreachContacts", table: "outreach_contacts", cols: (x) => ({ by_id: x.byId, assignee_id: x.assigneeId ?? null, phone: x.phone }) },
 ];
 
 type Row = Record<string, unknown>;
@@ -96,11 +98,12 @@ const roleRow = (r: Role, c: string): Row => ({ id: r.id, church_id: c, key: r.k
 const assignmentRow = (a: RoleAssignment, c: string): Row => ({
   church_id: c, person_id: a.personId, role_id: a.roleId, scope_type: a.scope.type, scope_group_ids: a.scope.type === "groups" ? a.scope.groupIds : [],
   scope_ref: a.scope.type === "branch" ? a.scope.branchId : a.scope.type === "region" ? a.scope.regionId : null,
-  until: a.until ?? null, pending: a.pending ?? null,
+  until: a.until ?? null, pending: a.pending ?? null, given_at: a.givenAt ?? null,
 });
 const caseRow = (f: FollowCase, c: string): Row => ({ id: f.id, church_id: c, person_id: f.personId, assignee_id: nul(f.assigneeId), stage: f.stage, created_at: f.createdAt });
 const noteRow = (n: CareNote, c: string): Row => ({ id: n.id, church_id: c, person_id: n.personId, level: n.level, body: n.body, author_id: n.authorId, shared_with: n.sharedWith, created_at: n.at });
-const placementRow = (p: Placement, c: string): Row => ({ id: p.id, church_id: c, person_id: p.personId, group_id: p.groupId, note: nul(p.note), status: p.status, created_at: p.at });
+const placementRow = (p: Placement, c: string): Row => ({ id: p.id, church_id: c, person_id: p.personId, group_id: p.groupId, note: nul(p.note), status: p.status, created_at: p.at,
+  reply: nul(p.reply), decided_by: isUuid(p.decidedById) ? p.decidedById : null, decided_at: p.decidedAt ?? null });
 
 /** Every table we sync, keyed so we can tell new rows from changed ones. */
 export function tables(s: SeedState, c: string) {
@@ -140,7 +143,7 @@ const ORDER: string[] = ["churches", "people", "groups", "group_members", "roles
   ...JSON_TABLES.map((t) => t.table), "welfare_minutes", "activity_log"];
 const APPEND_ONLY = new Set<string>(["followup_contacts", "activity_log", "welfare_minutes", "app_feedback"]);
 /** Collections whose removed items are deleted in the database too. */
-const DELETABLE = new Set<string>(["group_members", "role_assignments", "absences", "registrations", "message_templates", "class_sessions", "headcounts"]);
+const DELETABLE = new Set<string>(["group_members", "role_assignments", "absences", "registrations", "message_templates", "class_sessions", "headcounts", "attendance_records"]);
 
 /** Write what changed since the last snapshot. Returns the new snapshot, or the first error. */
 export async function syncState(prev: Snapshot, next: SeedState, churchId: string): Promise<{ snapshot: Snapshot; error?: string }> {
@@ -238,7 +241,7 @@ export async function loadChurch(): Promise<LoadResult> {
       personId: a.person_id as string, roleId: a.role_id as string,
       scope: a.scope_type === "groups" ? { type: "groups", groupIds: (a.scope_group_ids as string[]) ?? [] } : a.scope_type === "self" ? { type: "self" }
         : a.scope_type === "branch" ? { type: "branch", branchId: a.scope_ref as string } : a.scope_type === "region" ? { type: "region", regionId: a.scope_ref as string } : { type: "church" },
-      until: (a.until as string) ?? undefined, pending: (a.pending as RoleAssignment["pending"]) ?? undefined,
+      until: (a.until as string) ?? undefined, pending: (a.pending as RoleAssignment["pending"]) ?? undefined, givenAt: (a.given_at as string) ?? undefined,
     })),
     cases: ((cases.data ?? []) as Row[]).map((f): FollowCase => ({
       id: f.id as string, personId: f.person_id as string, assigneeId: (f.assignee_id as string) ?? undefined, stage: f.stage as FollowCase["stage"], createdAt: f.created_at as string,
@@ -246,7 +249,8 @@ export async function loadChurch(): Promise<LoadResult> {
         .map((x): Contact => ({ at: x.at as string, byId: x.by_id as string, method: x.method as Contact["method"], outcome: x.outcome as string, reached: (x.reached as boolean) ?? undefined })),
     })),
     careNotes: ((notes.data ?? []) as Row[]).map((n): CareNote => ({ id: n.id as string, personId: n.person_id as string, level: n.level as CareNote["level"], body: n.body as string, authorId: n.author_id as string, at: n.created_at as string, sharedWith: (n.shared_with as string[]) ?? [] })),
-    placements: ((placements.data ?? []) as Row[]).map((p): Placement => ({ id: p.id as string, personId: p.person_id as string, groupId: p.group_id as string, note: (p.note as string) ?? undefined, status: p.status as Placement["status"], at: p.created_at as string })),
+    placements: ((placements.data ?? []) as Row[]).map((p): Placement => ({ id: p.id as string, personId: p.person_id as string, groupId: p.group_id as string, note: (p.note as string) ?? undefined, status: p.status as Placement["status"], at: p.created_at as string,
+      reply: (p.reply as string) ?? undefined, decidedById: (p.decided_by as string) ?? undefined, decidedAt: (p.decided_at as string) ?? undefined })),
     weeks: [],
     ...emptyCollections(),
     ...(json as Partial<SeedState>),

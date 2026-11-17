@@ -96,3 +96,21 @@ export function ask(s: SeedState, a: Access, q: string): Answer {
 }
 
 export const fullNames = (ps: Person[]) => ps.map(fullName).join(", ");
+
+/** People whose name or phone matches every word typed ("ada ok", "0803"). */
+export function findPeople(people: Person[], q: string, max = 8): Person[] {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const digitsQ = q.replace(/\D/g, "");
+  if (!words.length) return [];
+  return people.filter((p) => {
+    const hay = `${p.firstName} ${p.lastName} ${p.location ?? ""}`.toLowerCase();
+    return (digitsQ.length >= 4 && p.phone.replace(/\D/g, "").includes(digitsQ)) || words.every((w) => hay.includes(w));
+  }).slice(0, max);
+}
+
+/** One box for everything: matching people, and an answer when it reads like a question. */
+export function searchAll(s: SeedState, a: Access, q: string): { people: Person[]; answer: Answer | null } {
+  const people = a.isMemberOnly ? [] : findPeople(a.visiblePeople(), q);
+  const intent = understand(q, a);
+  return { people, answer: intent ? ask(s, a, q) : null };
+}

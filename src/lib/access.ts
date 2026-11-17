@@ -1,4 +1,4 @@
-import type { Scope, AssistantPerm, Group, PermissionKey, Person, RoleAssignment } from "./types";
+import type { Scope, AssistantPerm, Group, PermissionKey, Person, Placement, RoleAssignment } from "./types";
 import type { SeedState } from "./seed";
 
 export const PERMISSIONS: { key: PermissionKey; label: string; area: string }[] = [
@@ -208,10 +208,19 @@ export function accessFor(state: SeedState, personId: string) {
   const seesFollowupReports = isPastoral || state.groups.some((g) => g.tags?.includes("followup") && (g.leaderIds.includes(personId) || g.assistants?.some((x) => x.personId === personId && x.perms.includes("followup.reports"))));
   /** Welfare requests: the welfare department's head, the pastorate and the lead pastor. */
   const seesWelfare = isPastoral || state.groups.some((g) => g.tags?.includes("welfare") && g.leaderIds.includes(personId));
-  /** Placement requests are handled by Membership Ministry leaders and pastors. */
-  const handlesPlacement = isPastoral || state.groups.some((g) => g.tags?.includes("membership") && g.leaderIds.includes(personId));
-
   const leads = new Set(state.groups.filter((g) => g.leaderIds.includes(personId)).map((g) => g.id));
+  /**
+   * Requests to join a department go to that department's head, who decides alone (a unit's request also reaches
+   * its department's head). The overseeing pastors see it once it has waited 7 days, or when the department has no head.
+   */
+  const decidesPlacement = (pl: Placement) => {
+    const g = state.groups.find((x) => x.id === pl.groupId);
+    if (!g) return false;
+    if (leads.has(g.id) || (g.parentId && leads.has(g.parentId))) return true;
+    const headless = !g.leaderIds.length && !(g.parentId && state.groups.find((x) => x.id === g.parentId)?.leaderIds.length);
+    return isPastoral && (headless || Date.now() - Date.parse(pl.at) > 7 * 864e5);
+  };
+  const handlesPlacement = isPastoral || leads.size > 0;
   const isWelfareHead = state.groups.some((g) => g.tags?.includes("welfare") && g.leaderIds.includes(personId));
   const inWelfareTeam = state.groups.some((g) => g.tags?.includes("welfare") && g.memberIds.includes(personId));
   const leadsTraining = isPastoral && state.groups.some((g) => g.tags?.includes("training") && g.overseerId === personId)
@@ -220,7 +229,7 @@ export function accessFor(state: SeedState, personId: string) {
 
   return {
     personId, can, perms, roleNames, seesCase, scopedGroups, visiblePeople, canSeeContacts, canReadNote, isPastoral, isLead, isMemberOnly,
-    seesWelfare: seesWelfare || inWelfareTeam || leads.size > 0, handlesPlacement, leads, isWelfareHead, inWelfareTeam, leadsTraining, isMediaHead,
+    seesWelfare: seesWelfare || inWelfareTeam || leads.size > 0, handlesPlacement, decidesPlacement, leads, isWelfareHead, inWelfareTeam, leadsTraining, isMediaHead,
     canFinance: perms.has("finance.view") || perms.has("finance.count") || perms.has("finance.transfers") || branchPerms.has("finance.view"),
     myBranches, seesFollowupReports, branchPerms,
     /** Prayer requests: the lead pastor, pastors, Membership Ministry leaders, and anyone the lead pastor added. */

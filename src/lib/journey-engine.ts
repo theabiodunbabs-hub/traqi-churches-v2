@@ -107,7 +107,9 @@ export function nextStepFor(s: SeedState, p: Person): { title: string; body: str
     case "class_confirm":
       return prog ? { title: enrolled ? `Keep going with ${prog.name}` : `Join ${prog.name}`, body: `It's the way to ${next.name}.`, href: `/classes/${prog.id}` }
         : { title: `Next: ${next.name}`, body: "Join the class for this step.", href: "/classes" };
-    case "manual": return next.kind === "worker" ? { title: "Ready to serve?", body: "Ask to join a department.", href: "/departments" } : { title: `Next: ${next.name}`, body: "Speak to a pastor about this step." };
+    case "manual": return next.kind === "worker" ? { title: "Ready to serve?", body: "Ask to join a department.", href: "/departments" }
+      : next.kind === "leader" ? { title: "Keep serving faithfully", body: `${next.name}s are chosen by the pastors from those who serve well.` }
+      : { title: `Next: ${next.name}`, body: "A pastor will move you to this step. Speak to one if you'd like to." };
     default: return null;
   }
 }

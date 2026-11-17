@@ -119,7 +119,7 @@ export function themeVars(main: string, accent: string | undefined, mode: "light
     "--color-ink": mix(p[950], "#15141c", 0.75), "--color-ink-soft": mix(p[800], "#3d3d4b", 0.78), "--color-muted": ensure(mix(p[700], "#71717f", 0.82), "#ffffff", 4.6),
     "--color-page": mix(p[50], "#f6f6f8", 0.65), "--color-surface": "#ffffff", "--color-line": mix(p[100], "#e7e7ed", 0.65),
     "--color-glow": "#f59e0b", "--color-glow-soft": "#fff6e5", "--color-glow-ink": "#8a5300",
-    "--color-good": "#0e9f6e", "--color-good-soft": "#e6f7f0", "--color-alert": "#e11d48", "--color-alert-soft": "#fdecf0",
+    "--color-good": "#047857", "--color-good-soft": "#e6f7f0", "--color-alert": "#be123c", "--color-alert-soft": "#fdecf0",
     "--page-wash": hexA(main, 0.07),
   };
   const surface = mix(p[950], "#0b0b10", 0.45);

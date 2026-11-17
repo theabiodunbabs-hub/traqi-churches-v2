@@ -6,7 +6,7 @@ import { defaultJourney } from "./journey";
 import { DEFAULT_TEMPLATES } from "./templates";
 import type {
   Announcement, Attendance, Away, ChurchEvent, ChurchProfile, ClassSession, Enrolment, FollowCase, Group, Headcount, Invite, Lodgement,
-  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog } from "./types";
+  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog, Outreach, OutreachContact } from "./types";
 
 function rng(seed: number) {
   return () => {
@@ -140,7 +140,8 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     { id: "pr-foundation", name: "Foundation School", description: "Six classes that ground new believers and new members in the faith and in the life of Heirs Church.",
       modules: ["Salvation and the new birth", "The Holy Spirit", "Water baptism", "Prayer and the Word", "Giving and stewardship", "Belonging to Heirs Church"].map((t, i) => ({ id: `fm${i + 1}`, title: t })),
       run: "rolling", mode: "physical", venue: "Room B, main building", weekday: 0, time: "12:15", minutes: 60, completeAfter: 6, recordingsCount: true,
-      signatories: ["Lead pastor", "Head, Faculty of Training"], stageOnComplete: "member", startDate: addDays(sun, -42), color: 0 },
+      signatories: ["Lead Pastor", "Head, Faculty of Training"], startDate: addDays(sun, -42), color: 0,
+      signers: [{ name: `${P.lead.firstName} ${P.lead.lastName}`, title: "Lead Pastor", personId: P.lead.id }, { name: `${P.training.firstName} ${P.training.lastName}`, title: "Head, Faculty of Training", personId: P.training.id }] },
     { id: "pr-workers", name: "Workers' Training", description: "For members who want to serve in a department: service, character and excellence.",
       modules: ["The heart of a servant", "Excellence in service", "Working as a team", "Our church, our standards"].map((t, i) => ({ id: `wm${i + 1}`, title: t })),
       run: "batch", mode: "hybrid", venue: "Main auditorium", link: "https://zoom.us/j/heirs-workers", weekday: 6, time: "10:00", minutes: 90, completeAfter: 4, prerequisiteId: "pr-foundation",
@@ -306,6 +307,15 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     { id: "pry3", personId: members[9].id, body: "Thanksgiving and prayer for our new baby, and for strength for my wife.", at: stampISO(-50), prayed: [{ byId: P.membership.id, at: stampISO(-44) }, { byId: P.resident.id, at: stampISO(-40) }] },
   ];
   const downloads: DownloadLog[] = [];
+  // An outreach last Saturday, and people members met on their own
+  const outreaches: Outreach[] = [{ id: "or1", name: "Ojota Market Evangelism", date: dayISO(-4), area: "Ojota", createdById: P.outreach.id, at: stampISO(-8 * 24) }];
+  const met = [["Chukwuemeka Obi", "0803 555 0101", "Ojota"], ["Halimat Yusuf", "0805 555 0102", "Ojota"], ["Tunde Adebayo", "0807 555 0103", "Ketu"], ["Grace Nwosu", "0809 555 0104", "Ojota"], ["Bayo Ogun", "0802 555 0105", "Mile 12"]];
+  const outreachContacts: OutreachContact[] = [
+    ...met.map(([name, phone, area], i): OutreachContact => ({ id: `oc${i + 1}`, name, phone, area, outreachId: "or1", byId: [P.outreach.id, P.worker.id, P.membership.id][i % 3], at: stampISO(-4 * 24 + i), consent: true,
+      status: i < 2 ? "reached" : "new", assigneeId: i < 3 ? [P.worker.id, P.membership.id, P.worker.id][i] : undefined, note: i === 0 ? "Prayed with him at the bus stop. Wants to visit with his wife." : undefined,
+      contacts: i < 2 ? [{ at: stampISO(-3 * 24), byId: P.worker.id, outcome: "Called. Happy to come on Sunday." }] : [] })),
+    { id: "oc6", name: "Ifeoma Eze", phone: "0806 555 0106", area: "Yaba", byId: P.member.id, at: stampISO(-30), consent: true, status: "new", note: "My colleague at work. Asked about our youth programme." },
+  ];
   const appFeedback: AppFeedback[] = [{ id: "fb1", byId: P.usher.id, screen: "Finance", text: "Please let ushers save a count halfway and finish it later.", at: stampISO(-26) }];
 
   // First-timers' feedback on the welcome form
@@ -321,7 +331,7 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     profile,
     collections: {
       meetings, headcounts, attendance: [...attendance, ...classAttendance], away, welfare, programmes, sessions, enrolments, events, registrations,
-      counts, lodgements, transfers, templates, announcements, wishes, invites, appFeedback, prayers, downloads,
+      counts, lodgements, transfers, templates, announcements, wishes, invites, appFeedback, prayers, downloads, outreaches, outreachContacts,
     },
   };
 }
@@ -340,5 +350,5 @@ export const emptyCollections = () => ({
   programmes: [] as Programme[], sessions: [] as ClassSession[], enrolments: [] as Enrolment[], events: [] as ChurchEvent[], registrations: [] as Registration[],
   counts: [] as ServiceCount[], lodgements: [] as Lodgement[], transfers: [] as Transfer[], templates: DEFAULT_TEMPLATES.map((t) => ({ ...t })) as MessageTemplate[],
   announcements: [] as Announcement[], wishes: [] as Wish[], invites: [] as Invite[], appFeedback: [] as AppFeedback[],
-  prayers: [] as PrayerRequest[], downloads: [] as DownloadLog[],
+  prayers: [] as PrayerRequest[], downloads: [] as DownloadLog[], outreaches: [] as Outreach[], outreachContacts: [] as OutreachContact[],
 });

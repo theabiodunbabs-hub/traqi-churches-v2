@@ -22,12 +22,12 @@ export type Journey = { preset?: JourneyPreset; stages: JourneyStage[]; probatio
 export type JourneyPreset = "class_first" | "members_certified" | "class_to_serve";
 
 export const RULES: { k: StageRule; label: string; needsClass?: boolean }[] = [
-  { k: "added", label: "They're added here" },
+  { k: "added", label: "As soon as they're added" },
   { k: "returned", label: "After coming back a second time" },
   { k: "enrolled", label: "When they start a class", needsClass: true },
   { k: "class", label: "After finishing a class", needsClass: true },
   { k: "class_confirm", label: "After finishing a class, then a leader confirms", needsClass: true },
-  { k: "manual", label: "A pastor or admin moves them" },
+  { k: "manual", label: "When a pastor or admin says so" },
 ];
 export const KINDS: { k: StageKind; label: string; hint: string }[] = [
   { k: "visitor", label: "Visitor", hint: "Still getting to know the church" },
