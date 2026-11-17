@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seed, P, type SeedState } from "@/lib/seed";
 import { accessFor, roleActive } from "@/lib/access";
-import { autoPick, followSettings, teamFull, teamLoad } from "@/lib/metrics";
+import { autoPick, followSettings, followTeam, pastorMayAssign, teamFull, teamLoad } from "@/lib/metrics";
 import { defaultJourney, setJourney } from "@/lib/journey";
 import { onClassDone, onEnrolled, onPlaced, onReturned, confirmStage, nextStepFor } from "@/lib/journey-engine";
 import type { Person } from "@/lib/types";
@@ -41,28 +41,31 @@ describe("assistants", () => {
   });
 });
 
-describe("auto-assign", () => {
-  it("skips people who are away or full, and alerts when everyone is", () => {
+describe("follow-up assignment", () => {
+  it("never assigns automatically; the team shows who is away or full", () => {
     const s = clone();
+    expect(autoPick(s, visitor())).toBeUndefined();
     const team = teamLoad(s);
-    const first = autoPick(s, visitor())!;
-    expect(first).toBeTruthy();
-    s.people = s.people.map((p) => (p.id === first.id ? { ...p, unavailable: true } : p));
-    expect(autoPick(s, visitor())?.id).not.toBe(first.id);
-    const g = s.groups.find((x) => x.tags?.includes("followup"))!;
-    g.followup = { auto: true, limit: 0, sameGender: false };
-    expect(autoPick(s, visitor())).toBeUndefined();
-    expect(teamFull(s)).toBe(true);
     expect(team.length).toBeGreaterThan(0);
+    const g = s.groups.find((x) => x.tags?.includes("followup"))!;
+    g.followup = { auto: false, limit: 0, sameGender: false };
+    expect(teamFull(s)).toBe(true);
+    expect(followSettings(s).auto).toBe(false);
   });
-  it("can match the same gender, and can be switched off", () => {
+  it("the follow-up head picks the team, from anyone in the church", () => {
     const s = clone();
     const g = s.groups.find((x) => x.tags?.includes("followup"))!;
-    g.followup = { auto: true, limit: 50, sameGender: true };
-    expect(autoPick(s, visitor({ gender: "F" }))?.gender).toBe("F");
-    g.followup = { auto: false, limit: 5, sameGender: false };
-    expect(followSettings(s).auto).toBe(false);
-    expect(autoPick(s, visitor())).toBeUndefined();
+    const outsider = s.people.find((p) => !g.memberIds.includes(p.id) && !g.leaderIds.includes(p.id) && !p.isChild)!;
+    g.followup = { auto: false, limit: 5, sameGender: false, team: [outsider.id] };
+    expect(followTeam(s)).toEqual([outsider.id]);
+  });
+  it("pastors step in only after 24 hours unassigned, or 48 hours without contact", () => {
+    const h = (n: number) => new Date(Date.now() - n * 36e5).toISOString();
+    expect(pastorMayAssign({ createdAt: h(5), stage: "new", contacts: [] })).toBe(false);
+    expect(pastorMayAssign({ createdAt: h(25), stage: "new", contacts: [] })).toBe(true);
+    expect(pastorMayAssign({ assigneeId: "x", createdAt: h(30), stage: "new", contacts: [] })).toBe(false);
+    expect(pastorMayAssign({ assigneeId: "x", createdAt: h(49), stage: "new", contacts: [] })).toBe(true);
+    expect(pastorMayAssign({ assigneeId: "x", createdAt: h(49), stage: "new", contacts: [{}] })).toBe(false);
   });
 });
 

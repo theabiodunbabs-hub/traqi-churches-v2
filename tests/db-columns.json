@@ -81,6 +81,16 @@
   "by_id",
   "updated_at"
  ],
+ "email_log": [
+  "id",
+  "church_id",
+  "kind",
+  "to_email",
+  "subject",
+  "status",
+  "detail",
+  "at"
+ ],
  "enrolments": [
   "id",
   "church_id",
@@ -183,6 +193,22 @@
   "owner_id",
   "updated_at"
  ],
+ "outreach_contacts": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "assignee_id",
+  "phone",
+  "updated_at"
+ ],
+ "outreaches": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "updated_at"
+ ],
  "people": [
   "id",
   "church_id",
@@ -230,7 +256,8 @@
   "status",
   "created_at",
   "decided_by",
-  "decided_at"
+  "decided_at",
+  "reply"
  ],
  "platform_owners": [
   "user_id"
@@ -266,7 +293,8 @@
   "created_at",
   "scope_ref",
   "until",
-  "pending"
+  "pending",
+  "given_at"
  ],
  "roles": [
   "id",
