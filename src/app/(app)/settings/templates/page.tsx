@@ -30,7 +30,7 @@ export default function Templates() {
           {cats.map((c) => {
             const n = state.templates.filter((t) => t.category === c && (!t.ownerId || t.ownerId === me.id)).length;
             return (
-              <button key={c} onClick={() => { setCat(c); setEditing(null); }} className={cx("flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[14px]", cat === c ? "bg-brand-soft font-semibold text-brand" : "text-ink-soft hover:bg-page")}>
+              <button type="button" key={c} onClick={() => { setCat(c); setEditing(null); }} className={cx("flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[14px]", cat === c ? "bg-brand-soft font-semibold text-brand" : "text-ink-soft hover:bg-page")}>
                 {TEMPLATE_LABEL[c]}<span className="text-[12px] text-muted">{n}</span>
               </button>
             );
@@ -67,7 +67,7 @@ export default function Templates() {
         {open ? (
           <div className="mt-3 space-y-3">
             <textarea className={cx(inputCls, "min-h-32")} value={body} onChange={(e) => setBody(e.target.value)} />
-            <div className="flex flex-wrap gap-1.5">{BLANKS.map(([k, l]) => <button key={k} onClick={() => setBody(`${body}{${k}}`)} className="rounded-full bg-page px-2.5 py-1 text-[12px] ring-1 ring-line hover:ring-brand">+ {l}</button>)}</div>
+            <div className="flex flex-wrap gap-1.5">{BLANKS.map(([k, l]) => <button type="button" key={k} onClick={() => setBody(`${body}{${k}}`)} className="rounded-full bg-page px-2.5 py-1 text-[12px] ring-1 ring-line hover:ring-brand">+ {l}</button>)}</div>
             <div className="flex gap-2"><Button variant="primary" onClick={() => { put("templates", { ...t, body, name: name.trim() || t.name }, t.ownerId ? undefined : "edited a message template"); setEditing(null); toast("Saved"); }}>Save</Button><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button></div>
           </div>
         ) : null}

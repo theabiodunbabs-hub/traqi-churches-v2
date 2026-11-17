@@ -1,5 +1,6 @@
 "use client";
 
+import { usesAssistants } from "@/lib/features";
 import { goneQuiet } from "@/lib/metrics";
 
 import Link from "next/link";
@@ -102,7 +103,7 @@ export default function Department() {
         action={
           <div className="flex gap-1.5">
             {([["all", "Everyone"], ["leaders", "Leaders"], ["quiet", "Gone quiet"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k}
+              <button type="button" key={k} onClick={() => setFilter(k)} aria-pressed={filter === k}
                 className={cx("rounded-full px-3 py-1.5 text-sm", filter === k ? "bg-deep text-white" : "bg-page text-ink-soft hover:text-ink")}>{l}</button>
             ))}
           </div>
@@ -137,7 +138,7 @@ export default function Department() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {g.tags?.includes("followup") && <div id="followup" className="lg:col-span-2"><FollowupPanel group={g} /></div>}
-        <AssistantsPanel group={g} />
+        {usesAssistants(state) && <AssistantsPanel group={g} />}
         {g.whatsapp && (
           <a href={g.whatsapp} target="_blank" rel="noreferrer" className="flex items-center gap-3 self-start rounded-2xl bg-[#25D366]/12 p-4 ring-1 ring-[#25D366]/40">
             <span className="flex size-10 items-center justify-center rounded-xl bg-[#25D366] text-white"><Users size={18} /></span>

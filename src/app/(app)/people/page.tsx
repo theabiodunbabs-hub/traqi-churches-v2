@@ -70,28 +70,28 @@ export default function People() {
       <section className="mb-6 rounded-2xl bg-surface p-5 ring-1 ring-line">
         <div className="flex h-4 gap-1 overflow-hidden rounded-full">
           {counts.filter((c) => c.n > 0).map((c) => (
-            <button key={c.key} onClick={() => setStage(stage === c.key ? "all" : c.key)} aria-label={`${c.label}: ${c.n}`}
+            <button type="button" key={c.key} onClick={() => setStage(stage === c.key ? "all" : c.key)} tabIndex={-1} aria-hidden
               className={cx("h-full transition-opacity", c.tone, stage !== "all" && stage !== c.key && "opacity-25")} style={{ flexGrow: c.n }} />
           ))}
         </div>
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        <div className="mt-3 flex flex-wrap gap-x-1 gap-y-1">
           {counts.map((c) => (
-            <button key={c.key} onClick={() => setStage(stage === c.key ? "all" : c.key)} aria-pressed={stage === c.key}
-              className={cx("flex items-center gap-2 text-sm", stage === c.key ? "font-semibold text-ink" : "text-ink-soft hover:text-ink")}>
+            <button type="button" key={c.key} onClick={() => setStage(stage === c.key ? "all" : c.key)} aria-pressed={stage === c.key}
+              className={cx("flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-sm", stage === c.key ? "bg-brand-soft font-semibold text-ink" : "text-ink-soft hover:bg-page hover:text-ink")}>
               <span className={cx("size-2.5 rounded-full", c.tone)} />{c.label}<span className="num text-muted">{c.n}</span>
             </button>
           ))}
-          {stage !== "all" && <button onClick={() => setStage("all")} className="text-sm font-medium text-brand">Show everyone</button>}
+          {stage !== "all" && <button type="button" onClick={() => setStage("all")} className="min-h-10 px-2.5 text-sm font-medium text-brand">Show everyone</button>}
         </div>
       </section>
 
       {canEditAll && everyone.some(isUnconfirmed) && (
-        <button onClick={() => setJoiners(true)} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-brand-soft px-4 py-3 text-left text-[14px] text-brand ring-1 ring-brand/20">
+        <button type="button" onClick={() => setJoiners(true)} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-brand-soft px-4 py-3 text-left text-[14px] text-brand ring-1 ring-brand/20">
           <UserPlus size={17} /> <span className="flex-1"><b>{everyone.filter(isUnconfirmed).length} new {everyone.filter(isUnconfirmed).length === 1 ? "person" : "people"}</b> joined from Traqi search and {everyone.filter(isUnconfirmed).length === 1 ? "is" : "are"} waiting to be confirmed.</span><span className="font-semibold">Review</span>
         </button>
       )}
       {canEditAll && dupGroups.length > 0 && (
-        <button onClick={() => setDupes(true)} className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-glow-soft px-4 py-3 text-left text-[14px] text-glow-ink">
+        <button type="button" onClick={() => setDupes(true)} className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-glow-soft px-4 py-3 text-left text-[14px] text-glow-ink">
           <CopyIcon size={17} /> <span className="flex-1"><b>{dupGroups.length} possible duplicate{dupGroups.length > 1 ? "s" : ""}</b>: people sharing a phone number. Check and merge.</span><span className="font-semibold">Review</span>
         </button>
       )}
@@ -110,7 +110,7 @@ export default function People() {
           <option value="all">All departments</option>
           {state.groups.filter((g) => g.kind === "department").map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
-        {inactiveCount > 0 && <button onClick={() => setShowInactive(!showInactive)} className={cx("shrink-0 rounded-xl px-3.5 py-2 text-sm ring-1", showInactive ? "bg-deep text-white ring-deep" : "bg-surface text-ink-soft ring-line")}>{showInactive ? "Showing not active" : `Not active (${inactiveCount})`}</button>}
+        {inactiveCount > 0 && <button type="button" onClick={() => setShowInactive(!showInactive)} className={cx("shrink-0 rounded-xl px-3.5 py-2 text-sm ring-1", showInactive ? "bg-deep text-white ring-deep" : "bg-surface text-ink-soft ring-line")}>{showInactive ? "Showing not active" : `Not active (${inactiveCount})`}</button>}
       </div>
 
       {list.length === 0 ? (
@@ -133,7 +133,7 @@ export default function People() {
                   <tr key={p.id} className="group hover:bg-page/60">
                     <td className="px-4 py-3 md:px-5">
                       <span className="flex items-center gap-3">
-                        {canEditAll && <button onClick={() => toggle(p.id)} aria-label={`Select ${fullName(p)}`} className={cx("hidden size-5 shrink-0 items-center justify-center rounded-md md:flex", picked.has(p.id) ? "bg-brand text-white" : "ring-2 ring-line opacity-0 group-hover:opacity-100", picked.size > 0 && "opacity-100")}>{picked.has(p.id) && <Check size={13} />}</button>}
+                        {canEditAll && <button type="button" onClick={() => toggle(p.id)} aria-label={`Select ${fullName(p)}`} className={cx("hidden size-5 shrink-0 items-center justify-center rounded-md md:flex", picked.has(p.id) ? "bg-brand text-white" : "ring-2 ring-line opacity-0 group-hover:opacity-100", picked.size > 0 && "opacity-100")}>{picked.has(p.id) && <Check size={13} />}</button>}
                         <Link href={`/people/${p.id}`} className="flex min-w-0 items-center gap-3">
                           <Avatar person={p} size={40} />
                           <span className="min-w-0">
@@ -154,7 +154,7 @@ export default function People() {
             </tbody>
           </table>
           {list.length > limit && (
-            <button onClick={() => setLimit(limit + 20)} className="w-full border-t border-line px-5 py-3.5 text-sm font-medium text-brand hover:bg-brand-soft/50">
+            <button type="button" onClick={() => setLimit(limit + 20)} className="w-full border-t border-line px-5 py-3.5 text-sm font-medium text-brand hover:bg-brand-soft/50">
               Show more <span className="font-normal text-muted">({limit} of {list.length})</span>
             </button>
           )}
@@ -163,15 +163,15 @@ export default function People() {
       {picked.size > 0 && (
         <div className="toast fixed inset-x-0 bottom-24 z-40 mx-auto flex w-fit items-center gap-2 rounded-2xl bg-deep p-2 pl-4 text-sm text-white shadow-2xl md:bottom-8">
           <span className="font-medium">{picked.size} selected</span>
-          <button onClick={() => setBulkDept(true)} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 hover:bg-white/20"><Users size={15} /> Add to department</button>
-          <button onClick={() => { const ids = [...picked]; const at = new Date().toISOString(); ids.forEach((id) => updatePerson(id, { inactive: { reason: "other", at } })); setPicked(new Set()); toast(`${ids.length} marked not active`, { undo: () => ids.forEach((id) => updatePerson(id, { inactive: undefined })) }); }} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 hover:bg-white/20"><UserMinus size={15} /> Not active</button>
-          <button onClick={() => setPicked(new Set())} className="rounded-xl p-1.5 hover:bg-white/10" aria-label="Clear selection"><X size={16} /></button>
+          <button type="button" onClick={() => setBulkDept(true)} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 hover:bg-white/20"><Users size={15} /> Add to department</button>
+          <button type="button" onClick={() => { const ids = [...picked]; const at = new Date().toISOString(); ids.forEach((id) => updatePerson(id, { inactive: { reason: "other", at } })); setPicked(new Set()); toast(`${ids.length} marked not active`, { undo: () => ids.forEach((id) => updatePerson(id, { inactive: undefined })) }); }} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 hover:bg-white/20"><UserMinus size={15} /> Not active</button>
+          <button type="button" onClick={() => setPicked(new Set())} className="rounded-xl p-1.5 hover:bg-white/10" aria-label="Clear selection"><X size={16} /></button>
         </div>
       )}
       <JoinersSheet open={joiners} onClose={() => setJoiners(false)} />
       <Sheet open={bulkDept} onClose={() => setBulkDept(false)} title={`Add ${picked.size} people to a department`}>
         <div className="grid gap-2">{state.groups.filter((g) => g.kind === "department").map((g) => (
-          <button key={g.id} onClick={() => { picked.forEach((id) => addToGroup(g.id, id)); toast(`${picked.size} added to ${g.name}`); setPicked(new Set()); setBulkDept(false); }} className="rounded-2xl bg-surface px-4 py-3 text-left ring-1 ring-line hover:ring-brand"><b className="block font-medium">{g.name}</b><span className="text-[13px] text-muted">{g.memberIds.length} people</span></button>
+          <button type="button" key={g.id} onClick={() => { picked.forEach((id) => addToGroup(g.id, id)); toast(`${picked.size} added to ${g.name}`); setPicked(new Set()); setBulkDept(false); }} className="rounded-2xl bg-surface px-4 py-3 text-left ring-1 ring-line hover:ring-brand"><b className="block font-medium">{g.name}</b><span className="text-[13px] text-muted">{g.memberIds.length} people</span></button>
         ))}</div>
       </Sheet>
       <Sheet open={dupes} onClose={() => setDupes(false)} title="Possible duplicates">

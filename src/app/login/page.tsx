@@ -20,7 +20,7 @@ export default function Login() {
   const isDemo = state.church.slug === "heirs";
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
       {/* The journey, as a picture: six bands deepening from first visit to leadership */}
       <section className="relative hidden overflow-hidden bg-deep p-12 text-white lg:flex lg:flex-col">
         <div className="flex items-center gap-2.5">
@@ -45,8 +45,8 @@ export default function Login() {
         </div>
       </section>
 
-      <section className="flex items-center justify-center px-5 py-10">
-        <div className="w-full max-w-md">
+      <section className="flex min-w-0 items-center justify-center px-5 py-10">
+        <div className="w-full min-w-0 max-w-md">
           <div className="mb-8 lg:hidden">
             <span className="flex size-10 items-center justify-center rounded-xl bg-deep font-display text-xl font-bold text-white">t</span>
           </div>
@@ -73,7 +73,7 @@ export default function Login() {
                 const who = person(p.id);
                 return (
                   <li key={p.id}>
-                    <button onClick={() => enter(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-brand-soft/60">
+                    <button type="button" onClick={() => enter(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-brand-soft/60">
                       <Avatar person={who} size={36} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-[15px] font-medium">{fullName(who)}</span>

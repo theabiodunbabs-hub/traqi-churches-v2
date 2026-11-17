@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Building2, Map as MapIcon, Pencil, Plus, Trash2, Trophy } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Button, Empty, Field, PageHeader, Panel, Sheet, Tabs, Toggle, cx, inputCls, toast } from "@/components/ui";
+import { Button, Empty, Field, PageHeader, Panel, Sheet, Tabs, Toggle, cx, inputCls, toast, confirmAsk } from "@/components/ui";
 import { DownloadButton } from "@/components/download";
 import { branchStats, type BranchRow } from "@/lib/branches";
 import { slugify } from "@/lib/events";
@@ -57,7 +57,7 @@ function League() {
         <table className="w-full min-w-[640px] text-[14px]">
           <thead><tr className="text-left text-[12px] uppercase tracking-wider text-muted">
             <th className="pb-2 pr-3 font-semibold">#</th><th className="pb-2 pr-3 font-semibold">Branch</th>
-            {cols.map((c) => <th key={c.k} className="pb-2 pr-3 text-right font-semibold"><button onClick={() => setSort(c.k)} className={cx("inline-flex items-center gap-1", sort === c.k && "text-brand")}>{c.label}{sort === c.k && <ArrowDown size={12} />}</button></th>)}
+            {cols.map((c) => <th key={c.k} className="pb-2 pr-3 text-right font-semibold"><button type="button" onClick={() => setSort(c.k)} className={cx("inline-flex items-center gap-1", sort === c.k && "text-brand")}>{c.label}{sort === c.k && <ArrowDown size={12} />}</button></th>)}
           </tr></thead>
           <tbody className="divide-y divide-line">{sorted.map((r, i) => (
             <tr key={r.id}>
@@ -103,8 +103,8 @@ function BranchList() {
                   <p className="mt-1 truncate text-[12.5px] text-muted">traqi.space/c/{state.church.slug} · {b.slug}</p>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <button onClick={() => setEdit(b)} className="rounded-lg p-2 text-muted hover:bg-page hover:text-ink" aria-label={`Edit ${b.name}`}><Pencil size={15} /></button>
-                  <button onClick={() => { if (confirm(`Close ${b.name}? Its people will belong to headquarters, and its departments will be removed.`)) removeBranch(b.id); }} className="rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Close ${b.name}`}><Trash2 size={15} /></button>
+                  <button type="button" onClick={() => setEdit(b)} className="rounded-lg p-2 text-muted hover:bg-page hover:text-ink" aria-label={`Edit ${b.name}`}><Pencil size={15} /></button>
+                  <button type="button" onClick={async () => { if (await confirmAsk(`Close ${b.name}?`, { body: "Its people will belong to headquarters, and its departments will be removed.", ok: "Close branch", danger: true })) removeBranch(b.id); }} className="rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Close ${b.name}`}><Trash2 size={15} /></button>
                 </div>
               </div>
             );
@@ -153,7 +153,7 @@ function BranchSheet({ branch, onClose }: { branch?: Branch; onClose: () => void
           <div className="flex items-center gap-3">
             <span className="flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-page ring-1 ring-line">{b.logo ? <img src={b.logo} alt="" className="h-full w-full object-cover" /> : <Building2 size={20} className="text-muted" />}</span>
             <label className="cursor-pointer text-sm font-medium text-brand">{b.logo ? "Change" : "Upload"}<input type="file" accept="image/*" hidden onChange={async (x) => { const f = x.target.files?.[0]; if (!f) return; setBusy(true); try { setB({ ...b, logo: await uploadImage(f, "logo", 512, true) }); } finally { setBusy(false); } }} /></label>
-            {b.logo && <button className="text-sm text-alert" onClick={() => setB({ ...b, logo: undefined })}>Remove</button>}
+            {b.logo && <button type="button" className="text-sm text-alert" onClick={() => setB({ ...b, logo: undefined })}>Remove</button>}
           </div>
         </div>
         {!branch && (
@@ -184,8 +184,8 @@ function Regions() {
           <div key={r.id} className="card p-5">
             <div className="flex items-center gap-2">
               <input className="min-w-0 flex-1 bg-transparent font-display text-[17px] font-semibold outline-none" value={r.name} onChange={(x) => set(regions.map((y) => (y.id === r.id ? { ...y, name: x.target.value } : y)), "renamed a region")} />
-              <button disabled={i === 0} onClick={() => { const n = [...regions]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; set(n, "reordered regions"); }} className="rounded-lg p-1.5 text-muted disabled:opacity-30" aria-label="Move up"><ArrowUp size={14} /></button>
-              <button onClick={() => set(regions.filter((y) => y.id !== r.id), `removed the ${r.name} region`)} className="rounded-lg p-1.5 text-muted hover:text-alert" aria-label={`Remove ${r.name}`}><Trash2 size={14} /></button>
+              <button type="button" disabled={i === 0} onClick={() => { const n = [...regions]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; set(n, "reordered regions"); }} className="rounded-lg p-1.5 text-muted disabled:opacity-30" aria-label="Move up"><ArrowUp size={14} /></button>
+              <button type="button" onClick={() => set(regions.filter((y) => y.id !== r.id), `removed the ${r.name} region`)} className="rounded-lg p-1.5 text-muted hover:text-alert" aria-label={`Remove ${r.name}`}><Trash2 size={14} /></button>
             </div>
             <Field label="Regional overseer"><select className={inputCls} value={r.overseerId ?? ""} onChange={(x) => set(regions.map((y) => (y.id === r.id ? { ...y, overseerId: x.target.value || undefined } : y)), `set the overseer for ${r.name}`)}><option value="">Not yet</option>{leaders.map((p) => <option key={p.id} value={p.id}>{fullName(p)}</option>)}</select></Field>
             <p className="mt-3 text-[13px] text-muted">{branches.filter((b) => b.regionId === r.id).map((b) => b.name).join(", ") || "No branches in this region yet. Choose the region when editing a branch."}</p>
@@ -205,7 +205,7 @@ function Setup() {
       <Panel title="Your church's size">
         <p className="mb-3 text-[13.5px] text-ink-soft">You can change this as you grow. Nothing is lost.</p>
         <div className="grid gap-2 md:grid-cols-2">{LEVELS.map((l) => (
-          <button key={l.k} onClick={() => updateChurch({}, { level: l.k as ChurchLevel }, `changed the church size to ${l.name}`)} className={cx("rounded-2xl p-4 text-left ring-1", level === l.k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
+          <button type="button" key={l.k} onClick={() => updateChurch({}, { level: l.k as ChurchLevel }, `changed the church size to ${l.name}`)} className={cx("rounded-2xl p-4 text-left ring-1", level === l.k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
             <b className="block">{l.name}</b><span className="text-[13px] text-muted">{l.who}</span>
           </button>
         ))}</div>
@@ -213,7 +213,7 @@ function Setup() {
       <Panel title="Offerings">
         <div className="grid gap-2 md:grid-cols-2">
           {([["branch", "Each branch counts its own", "Branch counters record and lodge; headquarters sees the totals"], ["hq", "Sent to headquarters", "Branches don't record offerings; headquarters does"]] as const).map(([k, t, d]) => (
-            <button key={k} onClick={() => updateChurch({}, { offeringsAt: k }, `set offerings to ${k === "branch" ? "counted per branch" : "handled by headquarters"}`)} className={cx("rounded-2xl p-4 text-left ring-1", at === k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line")}>
+            <button type="button" key={k} onClick={() => updateChurch({}, { offeringsAt: k }, `set offerings to ${k === "branch" ? "counted per branch" : "handled by headquarters"}`)} className={cx("rounded-2xl p-4 text-left ring-1", at === k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line")}>
               <b className="block">{t}</b><span className="text-[13px] text-muted">{d}</span>
             </button>
           ))}

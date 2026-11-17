@@ -94,17 +94,17 @@ export default function Join() {
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Heirs, CAC Ikeja, Living Faith" aria-label="Church name"
               className={cx(inputCls, "h-14 pl-11 pr-11 text-[16px]")} />
             {searching ? <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-muted" />
-              : q && <button onClick={() => setQ("")} aria-label="Clear" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted hover:bg-ink/5"><X size={16} /></button>}
+              : q && <button type="button" onClick={() => setQ("")} aria-label="Clear" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted hover:bg-ink/5"><X size={16} /></button>}
           </div>
           <ul className="mt-3 space-y-2" aria-live="polite">
             {results.map((c, i) => (
               <li key={c.id} className="rise" style={{ animationDelay: `${i * 40}ms` }}>
-                <button onClick={() => pick(c)} className="card card-hover flex w-full items-center gap-3.5 p-3.5 text-left">
+                <button type="button" onClick={() => pick(c)} className="card card-hover flex w-full items-center gap-3.5 p-3.5 text-left">
                   <ChurchMark church={{ name: c.name, profile: { logo: c.logo, color: c.color } as never }} size={46} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 font-medium"><span className="truncate">{c.name}</span>{c.verified && <BadgeCheck size={16} className="shrink-0 text-brand" aria-label="Verified" />}</span>
                     <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-muted"><MapPin size={12} className="shrink-0" />{[c.address, c.city].filter(Boolean).join(", ") || "Address not added"}</span>
-                    {c.branches.length > 0 && <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11.5px] font-medium text-brand"><Building2 size={11} /> {c.branches.length} branches</span>}
+                    {c.branches.length > 0 && <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[12px] font-medium text-brand"><Building2 size={11} /> {c.branches.length} branches</span>}
                   </span>
                   <ArrowRight size={18} className="text-muted" />
                 </button>
@@ -126,7 +126,7 @@ export default function Join() {
           <ul className="mt-4 grid gap-2">
             {church.branches.map((b) => (
               <li key={b.id}>
-                <button onClick={() => { setBranch(b.id); setStep("details"); }} className="flex w-full items-center gap-3 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:ring-brand">
+                <button type="button" onClick={() => { setBranch(b.id); setStep("details"); }} className="flex w-full items-center gap-3 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:ring-brand">
                   <span className="flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand"><Building2 size={18} /></span>
                   <span className="flex-1"><b className="block font-medium">{b.name}</b><span className="text-[13px] text-muted">{[b.address, b.city].filter(Boolean).join(", ")}</span></span>
                   <ArrowRight size={17} className="text-muted" />

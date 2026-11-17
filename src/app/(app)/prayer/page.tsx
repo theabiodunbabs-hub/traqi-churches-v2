@@ -66,7 +66,7 @@ function Mine({ p }: { p: PrayerRequest }) {
         <span>{ago(p.at)}</span>
         {p.prayed.length > 0 ? <Badge tone="good"><Check size={11} /> Prayed{p.prayed.length > 1 ? ` · ${p.prayed.length} people` : ""}</Badge> : <Badge tone="neutral">Sent</Badge>}
         {p.answered ? <Badge tone="glow"><Sparkles size={11} /> Answered</Badge>
-          : <button className="ml-auto font-medium text-brand" onClick={() => put("prayers", { ...p, answered: new Date().toISOString() }, "marked their prayer request answered")}>God answered this</button>}
+          : <button type="button" className="ml-auto font-medium text-brand" onClick={() => put("prayers", { ...p, answered: new Date().toISOString() }, "marked their prayer request answered")}>God answered this</button>}
       </div>
     </li>
   );

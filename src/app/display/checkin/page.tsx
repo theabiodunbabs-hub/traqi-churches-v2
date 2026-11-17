@@ -33,14 +33,14 @@ export default function CheckinDisplay() {
           <h1 className="font-display text-[60px] font-semibold leading-[1] tracking-tight md:text-[88px]">Welcome<br />home.</h1>
           <p className="mt-6 text-[24px] text-white/75">Scan to check in. New here? Scan and say hello.</p>
           <div className="mt-10 flex justify-center gap-10 lg:justify-start">
-            <div><p className="text-sm uppercase tracking-[.2em] text-white/55">Code</p><p className="num mt-1 text-[72px] font-semibold leading-none tracking-[.15em]">{m?.code ?? "—"}</p></div>
+            <div><p className="text-sm uppercase tracking-[.2em] text-white/70">Code</p><p className="num mt-1 text-[72px] font-semibold leading-none tracking-[.15em]">{m?.code ?? "—"}</p></div>
             <div className="w-px bg-white/15" />
-            <div><p className="text-sm uppercase tracking-[.2em] text-white/55">Checked in</p><p className="num mt-1 text-[72px] font-semibold leading-none"><CountUp to={n} /></p></div>
+            <div><p className="text-sm uppercase tracking-[.2em] text-white/70">Checked in</p><p className="num mt-1 text-[72px] font-semibold leading-none"><CountUp to={n} /></p></div>
           </div>
         </div>
         <div className="rounded-[36px] bg-surface p-7 shadow-2xl">{url && <QR value={url} size={360} />}<p className="mt-3 text-center text-lg font-medium text-ink">{url.replace(/^https?:\/\//, "")}</p></div>
       </div>
-      <footer className="flex items-center justify-center gap-2 text-white/50"><LogoMark size={20} /> Traqi for Churches</footer>
+      <footer className="flex items-center justify-center gap-2 text-white/70"><LogoMark size={20} /> Traqi for Churches</footer>
     </div>
   );
 }

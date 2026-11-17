@@ -1,17 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowDownLeft, Banknote, Check, CreditCard, FileCheck2, HandCoins, Landmark, Pencil, Plus, Receipt, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, Banknote, Check, CreditCard, FileCheck2, HandCoins, Landmark, Pencil, Plus, Receipt, ShieldCheck, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { DownloadButton } from "@/components/download";
 import { countsSheet, givingSheet } from "@/lib/exports";
-import { Avatar, Badge, Button, CountUp, Empty, Field, Panel, Sheet, Tabs, cx, inputCls, toast } from "@/components/ui";
+import { Avatar, Badge, Button, CountUp, Empty, Field, Panel, Sheet, Tabs, Toggle, confirmAsk, cx, inputCls, toast } from "@/components/ui";
 import { StackedBars, BarList } from "@/components/charts";
-import { financeByMonth, lineTotal } from "@/lib/domain";
+import { INCOME_METHODS, financeByMonth, lineTotal, offeringTypes } from "@/lib/domain";
 import { dayName, fullName, money, shortDate, todayLagos } from "@/lib/format";
-import type { CountLine, Lodgement, ServiceCount, Transfer } from "@/lib/types";
+import type { CountLine, Lodgement, ServiceCount, OfferingType, Transfer } from "@/lib/types";
 
-type Tab = "counts" | "lodging" | "transfers" | "reports";
+type Tab = "counts" | "lodging" | "transfers" | "types" | "reports";
 const METHOD = { transfer: { label: "Bank transfer", icon: ArrowDownLeft }, deposit: { label: "Cash deposit", icon: Landmark }, pos: { label: "POS", icon: CreditCard } };
 
 export default function Finance() {
@@ -39,7 +39,7 @@ export default function Finance() {
   const pendingCorrections = state.counts.filter((c) => c.correction?.status === "pending");
   const others = [...new Set(state.counts.flatMap((c) => c.lines.map((l) => l.currency)).filter((x) => x !== "NGN"))];
 
-  const newCount = (): ServiceCount => ({ id: "", meetingId: "", lines: (state.church.profile?.categories ?? ["Offering", "Tithe"]).map((category) => ({ category, amount: 0, currency: "NGN" })), byId: me.id, at: "" });
+  const newCount = (): ServiceCount => ({ id: "", meetingId: "", lines: offeringTypes(state.church.profile).filter((t) => t.ushers).map((t) => ({ category: t.name, amount: 0, currency: "NGN" })), byId: me.id, at: "" });
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -53,14 +53,14 @@ export default function Finance() {
           <div className="flex flex-wrap gap-2">
             {seesTotals && <DownloadButton what="Offerings" sheets={() => [givingSheet(state), countsSheet(state)]} />}
             {canCount && <Button variant="light" onClick={() => setCounting(newCount())}><Plus size={16} /> Record a count</Button>}
-            {canTransfers && <button onClick={() => setTransfer(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><ArrowDownLeft size={15} /> Add transfers</button>}
+            {canTransfers && <button type="button" onClick={() => setTransfer(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><ArrowDownLeft size={15} /> Add other income</button>}
           </div>
         </div>
         {seesTotals && thisMonth && (
-          <div className="mt-6 grid grid-cols-2 gap-2.5 md:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
             <div className="glass col-span-2 rounded-2xl px-4 py-3 md:col-span-1"><p className="num text-[30px] font-semibold"><CountUp to={total(thisMonth)} format={(n) => money(n)} /></p><p className="text-[13px] text-white/65">{change !== null ? `${change >= 0 ? "+" : ""}${change}% on last month` : "total"}</p></div>
             <div className="glass rounded-2xl px-4 py-3"><p className="num text-[24px] font-semibold">{money(thisMonth.cash, "NGN", true)}</p><p className="text-[13px] text-white/65">counted in services</p></div>
-            <div className="glass rounded-2xl px-4 py-3"><p className="num text-[24px] font-semibold">{money(thisMonth.transfer, "NGN", true)}</p><p className="text-[13px] text-white/65">by transfer</p></div>
+            <div className="glass rounded-2xl px-4 py-3"><p className="num text-[24px] font-semibold">{money(thisMonth.transfer, "NGN", true)}</p><p className="text-[13px] text-white/65">other income</p></div>
             <div className="glass rounded-2xl px-4 py-3"><p className={cx("num text-[24px] font-semibold", unlodged.length ? "text-glow" : "")}>{unlodged.length}</p><p className="text-[13px] text-white/65">counts not lodged yet</p></div>
           </div>
         )}
@@ -87,7 +87,8 @@ export default function Finance() {
       <Tabs className="mb-5" value={tab} onChange={setTab} items={[
         { key: "counts", label: "Service counts", count: counts.length },
         ...(seesTotals || canCount ? [{ key: "lodging" as Tab, label: "Lodging", count: unlodged.length || undefined }] : []),
-        ...(seesTotals || canTransfers ? [{ key: "transfers" as Tab, label: "Transfers" }] : []),
+        ...(seesTotals || canTransfers ? [{ key: "transfers" as Tab, label: "Other income" }] : []),
+        ...(access.isLead || access.isPastoral ? [{ key: "types" as Tab, label: "Offering types" }] : []),
         ...(seesTotals ? [{ key: "reports" as Tab, label: "Reports" }] : []),
       ]} />
 
@@ -99,8 +100,8 @@ export default function Finance() {
                 const lines = effective(c);
                 return (
                   <li key={c.id} className="flex flex-wrap items-center gap-4 py-3.5">
-                    <span className="flex size-11 items-center justify-center rounded-2xl bg-good-soft text-good"><HandCoins size={19} /></span>
-                    <span className="min-w-0 flex-1">
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-good-soft text-good"><HandCoins size={19} /></span>
+                    <span className="min-w-[11rem] flex-1">
                       <span className="block font-medium">{meetingName(c.meetingId)}</span>
                       <span className="block text-[13px] text-muted">{lines.filter((l) => l.amount).map((l) => `${l.category} ${money(l.amount, l.currency, true)}`).join(" · ")}</span>
                       <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted"><Avatar person={state.people.find((p) => p.id === c.byId)} size={16} />{fullName(state.people.find((p) => p.id === c.byId))}{c.witnessId && ` · witnessed by ${fullName(state.people.find((p) => p.id === c.witnessId))}`}</span>
@@ -142,24 +143,26 @@ export default function Finance() {
         )}
 
         {tab === "transfers" && (
-          <Panel title="Transfers into the church account" action={canTransfers && <Button onClick={() => setTransfer(true)}><Plus size={15} /> Add</Button>}>
+          <Panel title="Other income: transfers, cheques, POS and online" action={canTransfers && <Button onClick={() => setTransfer(true)}><Plus size={15} /> Add</Button>}>
+            <p className="mb-2 text-[13.5px] text-ink-soft">Money that didn&apos;t pass through the ushers. Totals only, with no giver names. Only the pastor and those allowed can add it.</p>
             <ul className="divide-y divide-line">{state.transfers.slice().sort((a, b) => b.date.localeCompare(a.date)).map((t) => (
               <li key={t.id} className="flex items-center gap-3 py-3">
                 <span className="flex size-10 items-center justify-center rounded-xl bg-good-soft text-good"><ArrowDownLeft size={17} /></span>
-                <span className="flex-1"><span className="block font-medium">{t.category}</span><span className="text-[13px] text-muted">{dayName(t.date, { weekday: "short", day: "numeric", month: "short" })}{t.reference ? ` · ${t.reference}` : ""}</span></span>
+                <span className="flex-1"><span className="block font-medium">{t.category}</span><span className="text-[13px] text-muted">{dayName(t.date, { weekday: "short", day: "numeric", month: "short" })} · {INCOME_METHODS.find((m) => m.k === (t.method ?? "transfer"))?.label}{t.reference ? ` · ${t.reference}` : ""}</span></span>
                 <span className="num font-semibold">{money(t.amount)}</span>
               </li>
             ))}</ul>
           </Panel>
         )}
 
+        {tab === "types" && <OfferingTypes />}
         {tab === "reports" && <Reports />}
       </div>
 
       <Sheet open={!!counting} onClose={() => setCounting(null)} title="Record a count">{counting && <CountForm initial={counting} onDone={() => setCounting(null)} />}</Sheet>
       <Sheet open={!!correcting} onClose={() => setCorrecting(null)} title="Ask for a correction">{correcting && <CorrectionForm c={correcting} onDone={() => setCorrecting(null)} />}</Sheet>
       <Sheet open={lodging} onClose={() => setLodging(false)} title="Record lodging"><LodgeForm counts={unlodged} onDone={() => setLodging(false)} /></Sheet>
-      <Sheet open={transfer} onClose={() => setTransfer(false)} title="Add transfers"><TransferForm onDone={() => setTransfer(false)} /></Sheet>
+      <Sheet open={transfer} onClose={() => setTransfer(false)} title="Add other income"><TransferForm onDone={() => setTransfer(false)} /></Sheet>
     </div>
   );
 
@@ -218,8 +221,8 @@ function CountForm({ initial, onDone }: { initial: ServiceCount; onDone: () => v
           </div>
         ))}
         <div className="flex gap-2">
-          <button onClick={() => setLines([...lines, { category: "Special offering", amount: 0, currency: "NGN" }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Plus size={14} /> Add a line</button>
-          {currencies.length > 1 && <button onClick={() => setLines([...lines, { category: "Offering", amount: 0, currency: currencies.find((c) => c !== "NGN")! }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Banknote size={14} /> Other currency</button>}
+          <button type="button" onClick={() => setLines([...lines, { category: "Special offering", amount: 0, currency: "NGN" }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Plus size={14} /> Add a line</button>
+          {currencies.length > 1 && <button type="button" onClick={() => setLines([...lines, { category: "Offering", amount: 0, currency: currencies.find((c) => c !== "NGN")! }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Banknote size={14} /> Other currency</button>}
         </div>
       </div>
       <div className="flex items-center justify-between rounded-2xl bg-deep px-4 py-3 text-white"><span className="text-white/70">Total</span><span className="num text-2xl font-semibold">{money(lineTotal(lines))}</span></div>
@@ -270,7 +273,7 @@ function LodgeForm({ counts, onDone }: { counts: ServiceCount[]; onDone: () => v
         ))}</ul>
       </div>
       <div><span className="mb-1.5 block text-sm font-medium">How</span>
-        <div className="grid grid-cols-3 gap-1.5">{(Object.keys(METHOD) as Lodgement["method"][]).map((k) => { const M = METHOD[k]; return <button key={k} onClick={() => setMethod(k)} className={cx("flex flex-col items-center gap-1 rounded-xl py-2.5 text-[13px] ring-1", method === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}><M.icon size={17} />{M.label}</button>; })}</div>
+        <div className="grid grid-cols-3 gap-1.5">{(Object.keys(METHOD) as Lodgement["method"][]).map((k) => { const M = METHOD[k]; return <button type="button" key={k} onClick={() => setMethod(k)} className={cx("flex flex-col items-center gap-1 rounded-xl py-2.5 text-[13px] ring-1", method === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}><M.icon size={17} />{M.label}</button>; })}</div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Amount lodged"><input inputMode="numeric" className={cx(inputCls, "num font-semibold")} value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder={String(counted)} /></Field>
@@ -288,21 +291,62 @@ function LodgeForm({ counts, onDone }: { counts: ServiceCount[]; onDone: () => v
 
 function TransferForm({ onDone }: { onDone: () => void }) {
   const { state, me, putMany, newId } = useStore();
-  const cats = state.church.profile?.categories ?? ["Offering", "Tithe"];
-  const [rows, setRows] = useState<Omit<Transfer, "id" | "byId">[]>([{ date: todayLagos(), category: cats[1] ?? cats[0], amount: 0 }]);
+  const cats = offeringTypes(state.church.profile).map((t) => t.name);
+  const [rows, setRows] = useState<Omit<Transfer, "id" | "byId">[]>([{ date: todayLagos(), category: cats[1] ?? cats[0], amount: 0, method: "transfer" }]);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-ink-soft">Totals from the bank statement, by kind. No names needed.</p>
+      <p className="text-sm text-ink-soft">Totals from the bank statement, cheques, POS or online giving, by kind. No names needed.</p>
       {rows.map((r, i) => (
         <div key={i} className="grid grid-cols-[1fr_1fr] gap-2 rounded-2xl bg-page p-3 ring-1 ring-line">
           <input type="date" className={inputCls} value={r.date} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)))} />
           <select className={inputCls} value={r.category} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, category: e.target.value } : x)))}>{cats.map((c) => <option key={c}>{c}</option>)}</select>
           <input inputMode="numeric" className={cx(inputCls, "num font-semibold")} placeholder="Amount ₦" value={r.amount || ""} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, amount: Number(e.target.value.replace(/\D/g, "")) || 0 } : x)))} />
           <input className={inputCls} placeholder="Reference (optional)" value={r.reference ?? ""} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, reference: e.target.value } : x)))} />
+          <select className={cx(inputCls, "col-span-2")} value={r.method ?? "transfer"} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, method: e.target.value as Transfer["method"] } : x)))} aria-label="How it came in">{INCOME_METHODS.map((m) => <option key={m.k} value={m.k}>{m.label}</option>)}</select>
         </div>
       ))}
-      <button onClick={() => setRows([...rows, { date: rows.at(-1)!.date, category: cats[0], amount: 0 }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Plus size={14} /> Another line</button>
-      <Button variant="primary" className="w-full py-3" disabled={!rows.some((r) => r.amount)} onClick={() => { putMany("transfers", rows.filter((r) => r.amount).map((r) => ({ ...r, id: newId("tr"), byId: me!.id })), "added transfers"); toast("Transfers saved"); onDone(); }}>Save transfers</Button>
+      <button type="button" onClick={() => setRows([...rows, { date: rows.at(-1)!.date, category: cats[0], amount: 0, method: rows.at(-1)!.method }])} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand"><Plus size={14} /> Another line</button>
+      <Button variant="primary" className="w-full py-3" disabled={!rows.some((r) => r.amount)} onClick={() => { putMany("transfers", rows.filter((r) => r.amount).map((r) => ({ ...r, id: newId("tr"), byId: me!.id })), "added other income"); toast("Saved"); onDone(); }}>Save</Button>
     </div>
+  );
+}
+
+/** The pastor defines the kinds of offering. Ushers count only those marked for them; a project can have a target. */
+function OfferingTypes() {
+  const { state, updateChurch } = useStore();
+  const types = offeringTypes(state.church.profile);
+  const [name, setName] = useState("");
+  const save = (next: OfferingType[], log: string) => updateChurch({}, { offeringTypes: next, categories: next.map((t) => t.name) }, log);
+  const raised = (n: string) => state.counts.reduce((a, c) => a + (c.correction?.status === "approved" ? c.correction.lines : c.lines).filter((l) => l.category === n && l.currency === "NGN").reduce((x, l) => x + l.amount, 0), 0)
+    + state.transfers.filter((t) => t.category === n).reduce((a, t) => a + t.amount, 0);
+  return (
+    <Panel title="Offering types">
+      <p className="mb-4 text-[14px] text-ink-soft">The kinds of giving your church receives. Ushers see only the ones they count at service. Give a project a target to see how close it is.</p>
+      <ul className="divide-y divide-line">
+        {types.map((t, i) => {
+          const r = raised(t.name);
+          return (
+            <li key={t.name} className="py-3.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <b className="min-w-[8rem] flex-1 font-medium">{t.name}</b>
+                <label className="flex items-center gap-2 text-[13.5px] text-ink-soft">Ushers count it<Toggle label={`Ushers count ${t.name}`} on={t.ushers} onChange={(v) => save(types.map((x, j) => (j === i ? { ...x, ushers: v } : x)), `${v ? "asked ushers to count" : "stopped ushers counting"} ${t.name}`)} /></label>
+                <input inputMode="numeric" className="w-44 rounded-xl bg-page px-3 py-2 text-[15px] ring-1 ring-line outline-none focus:ring-2 focus:ring-brand" placeholder="Target ₦ (optional)" value={t.target || ""} onChange={(e) => save(types.map((x, j) => (j === i ? { ...x, target: Number(e.target.value.replace(/\D/g, "")) || undefined } : x)), `set the target for ${t.name}`)} aria-label={`Target for ${t.name}`} />
+                {types.length > 1 && <button type="button" onClick={async () => { if (await confirmAsk(`Remove ${t.name}?`, { body: "Past records keep it. It just won't be offered for new counts.", ok: "Remove", danger: true })) save(types.filter((_, j) => j !== i), `removed the ${t.name} offering type`); }} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${t.name}`}><Trash2 size={15} /></button>}
+              </div>
+              {t.target ? (
+                <div className="mt-2.5">
+                  <div className="flex justify-between text-[13px]"><span className="text-ink-soft">{money(r)} of {money(t.target)}</span><span className="font-medium">{Math.min(100, Math.round((r / t.target) * 100))}%</span></div>
+                  <div className="mt-1 h-2 rounded-full bg-page"><div className="h-full rounded-full bg-good" style={{ width: `${Math.min(100, (r / t.target) * 100)}%` }} /></div>
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (!n || types.some((t) => t.name.toLowerCase() === n.toLowerCase())) return; save([...types, { name: n, ushers: true }], `added the ${n} offering type`); setName(""); }}>
+        <input className={cx(inputCls, "flex-1")} value={name} onChange={(e) => setName(e.target.value)} placeholder="New type, e.g. Building project" />
+        <Button type="submit"><Plus size={15} /> Add</Button>
+      </form>
+    </Panel>
   );
 }

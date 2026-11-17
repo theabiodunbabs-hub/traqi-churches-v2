@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check, Copy, ExternalLink, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Button, Field, PageHeader, Panel, Toggle, cx, inputCls, toast } from "@/components/ui";
+import { Button, SaveBar, Field, PageHeader, Panel, Toggle, cx, inputCls, toast } from "@/components/ui";
 import { ChurchMark } from "@/components/brand";
 import { BrandPicker } from "@/components/brand-picker";
 import { CustomFieldsEditor } from "@/components/custom-fields";
@@ -54,9 +54,9 @@ function CommunityEditor({ p, set }: { p: ChurchProfile; set: <K extends keyof C
           <ul className="mb-2 divide-y divide-line rounded-2xl ring-1 ring-line">
             {list.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                <span className="rounded-md bg-page px-1.5 text-[11px] font-medium text-ink-soft ring-1 ring-line">{RESOURCE_KINDS.find((k) => k.k === r.kind)?.label ?? "Link"}</span>
+                <span className="rounded-md bg-page px-1.5 text-[12px] font-medium text-ink-soft ring-1 ring-line">{RESOURCE_KINDS.find((k) => k.k === r.kind)?.label ?? "Link"}</span>
                 <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-medium">{r.title}</span><span className="block truncate text-[12px] text-muted">{r.url}</span></span>
-                <button onClick={() => set("resources", list.filter((x) => x.id !== r.id))} className="rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${r.title}`}><X size={14} /></button>
+                <button type="button" onClick={() => set("resources", list.filter((x) => x.id !== r.id))} className="rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${r.title}`}><X size={14} /></button>
               </li>
             ))}
           </ul>
@@ -76,7 +76,6 @@ export default function ChurchSettings() {
   const [p, setP] = useState<ChurchProfile>(() => ({ ...(state.church.profile as ChurchProfile) }));
   const [name, setName] = useState(state.church.name);
   const [goal, setGoal] = useState(state.church.attendanceGoal ?? 0);
-  const [newCat, setNewCat] = useState("");
   if (!access) return null;
   if (!(access.can("roles.manage") || access.isLead)) return <p className="text-muted">Only the lead pastor and the admin can change the church profile.</p>;
   const set = <K extends keyof ChurchProfile>(k: K, v: ChurchProfile[K]) => setP({ ...p, [k]: v });
@@ -84,10 +83,11 @@ export default function ChurchSettings() {
   const links = [["Church page", `/c/${state.church.slug}`], ["Sunday check-in", `/checkin/${state.church.slug}`], ["First-timer welcome", `/welcome?church=${state.church.slug}`]];
   const save = () => { const clean = { ...p, terms: Object.fromEntries(Object.entries(p.terms ?? {}).filter(([, v]) => v?.trim())) }; updateChurch({ name: name.trim() || state.church.name, attendanceGoal: goal || undefined }, clean, "updated the church profile"); toast("Church profile saved"); };
   const color = p.color ?? "#4f46e5";
+  const dirty = name !== state.church.name || goal !== (state.church.attendanceGoal ?? 0) || JSON.stringify(p) !== JSON.stringify(state.church.profile);
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="Church profile" sub="Your name, look and details. They appear on every public page and certificate." actions={<Button variant="primary" onClick={save}><Check size={16} /> Save changes</Button>} />
+      <PageHeader title="Church profile" sub="Your name, look and details. They appear on every public page and certificate." />
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
           <Panel title="Look">
@@ -130,7 +130,7 @@ export default function ChurchSettings() {
                 <Button onClick={() => navigator.geolocation?.getCurrentPosition((x) => { set("pin", { lat: +x.coords.latitude.toFixed(6), lng: +x.coords.longitude.toFixed(6) }); toast("Map pin added. Save to keep it."); }, () => toast("We couldn't get your location"))}>
                   {p.pin ? "Update the map pin" : "Add a map pin"}
                 </Button>
-                {p.pin && <span className="text-[12.5px] text-muted">{p.pin.lat}, {p.pin.lng} · <button className="font-medium text-alert" onClick={() => set("pin", undefined)}>Remove</button></span>}
+                {p.pin && <span className="text-[12.5px] text-muted">{p.pin.lat}, {p.pin.lng} · <button type="button" className="font-medium text-alert" onClick={() => set("pin", undefined)}>Remove</button></span>}
                 <span className="text-[12px] text-muted">Optional. Best done inside the church.</span>
               </div>
               <Field label="A welcome from the pastor"><textarea className={cx(inputCls, "min-h-28")} value={p.welcome ?? ""} onChange={(e) => set("welcome", e.target.value)} /></Field>
@@ -148,13 +148,9 @@ export default function ChurchSettings() {
             <div className="space-y-4">
               <Field label="Welfare approval limit for pastors" hint={`Above ${money(p.approvalLimit)}, the lead pastor decides.`}><input inputMode="numeric" className={inputCls} value={p.approvalLimit} onChange={(e) => set("approvalLimit", Number(e.target.value.replace(/\D/g, "")) || 0)} /></Field>
               <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line"><span>Every offering count needs a witness</span><Toggle label="Witness" on={p.witness} onChange={(v) => set("witness", v)} /></label>
-              <div><span className="mb-1.5 block text-sm font-medium">Kinds of giving</span>
-                <div className="flex flex-wrap gap-1.5">{p.categories.map((c) => <span key={c} className="inline-flex items-center gap-1 rounded-full bg-page py-1 pl-3 pr-1 text-sm ring-1 ring-line">{c}<button onClick={() => set("categories", p.categories.filter((x) => x !== c))} className="rounded-full p-1 text-muted hover:bg-surface" aria-label={`Remove ${c}`}><X size={12} /></button></span>)}
-                  <form onSubmit={(e) => { e.preventDefault(); if (newCat.trim()) { set("categories", [...p.categories, newCat.trim()]); setNewCat(""); } }} className="flex"><input className="w-36 rounded-full bg-surface px-3 py-1 text-sm ring-1 ring-line outline-none focus:ring-brand" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Add a kind" /></form>
-                </div>
-              </div>
+              <p className="rounded-xl bg-page px-3.5 py-3 text-[13.5px] text-ink-soft">Kinds of giving (offering, tithe, projects with targets) are set in <a href="/finance" className="font-medium text-brand">Offerings › Offering types</a>.</p>
               <div><span className="mb-1.5 block text-sm font-medium">Currencies counted</span>
-                <div className="flex flex-wrap gap-1.5">{Object.keys(CURRENCY_SYMBOL).map((c) => <button key={c} onClick={() => c !== "NGN" && set("currencies", p.currencies.includes(c) ? p.currencies.filter((x) => x !== c) : [...p.currencies, c])} className={cx("rounded-full px-3 py-1.5 text-sm ring-1", p.currencies.includes(c) ? "bg-deep text-white ring-deep" : "bg-surface ring-line")}>{CURRENCY_SYMBOL[c]} {c}</button>)}</div>
+                <div className="flex flex-wrap gap-1.5">{Object.keys(CURRENCY_SYMBOL).map((c) => <button type="button" key={c} onClick={() => c !== "NGN" && set("currencies", p.currencies.includes(c) ? p.currencies.filter((x) => x !== c) : [...p.currencies, c])} className={cx("rounded-full px-3 py-1.5 text-sm ring-1", p.currencies.includes(c) ? "bg-deep text-white ring-deep" : "bg-surface ring-line")}>{CURRENCY_SYMBOL[c]} {c}</button>)}</div>
               </div>
               <Field label="Sunday attendance goal"><input inputMode="numeric" className={inputCls} value={goal || ""} onChange={(e) => setGoal(Number(e.target.value.replace(/\D/g, "")) || 0)} placeholder="300" /></Field>
             </div>
@@ -167,7 +163,7 @@ export default function ChurchSettings() {
               <li key={l} className="rounded-2xl bg-page p-3 ring-1 ring-line">
                 <p className="text-[13px] font-semibold">{l}</p>
                 <div className="mt-1 flex items-center gap-1"><span className="min-w-0 flex-1 truncate text-[12.5px] text-muted">{(origin + path).replace(/^https?:\/\//, "")}</span>
-                  <button onClick={() => { navigator.clipboard?.writeText(origin + path); toast("Link copied"); }} className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Copy ${l}`}><Copy size={14} /></button>
+                  <button type="button" onClick={() => { navigator.clipboard?.writeText(origin + path); toast("Link copied"); }} className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Copy ${l}`}><Copy size={14} /></button>
                   <Link href={path} target="_blank" className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Open ${l}`}><ExternalLink size={14} /></Link></div>
               </li>
             ))}</ul>
@@ -183,6 +179,7 @@ export default function ChurchSettings() {
           </div>
         </div>
       </div>
+      <SaveBar dirty={dirty}><Button variant="primary" onClick={save} disabled={!dirty}><Check size={16} /> Save changes</Button></SaveBar>
     </div>
   );
 }

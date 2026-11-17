@@ -1,5 +1,6 @@
 "use client";
 
+import { RollCallSheet, myRollCalls, rollCallMeetings } from "@/components/rollcall";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Baby, Check, Copy, Globe, Minus, MonitorPlay, Plus, QrCode, RefreshCw, Search, Sparkles, UserCheck, Users, WifiOff } from "lucide-react";
@@ -33,8 +34,8 @@ export default function AttendancePage() {
   const canSchedule = access.can("checkin.code") || access.can("groups.manage");
 
   const items: { key: Tab; label: string }[] = [
-    { key: "now", label: "Sunday mode" },
-    ...(canRecord ? [{ key: "checkin" as Tab, label: "Check people in" }, { key: "rollcall" as Tab, label: "Roll call" }] : []),
+    { key: "now", label: "This service" },
+    ...(canRecord ? [{ key: "checkin" as Tab, label: "Check people in" }] : []), ...(canRecord || access.leads.size > 0 ? [{ key: "rollcall" as Tab, label: "Roll call" }] : []),
     { key: "history", label: "Trends" },
     ...(canSchedule ? [{ key: "schedule" as Tab, label: "Services" }] : []),
   ];
@@ -87,23 +88,23 @@ function ServiceHero({ meeting }: { meeting?: Meeting }) {
         </div>
         <div className="glass flex items-center gap-5 rounded-3xl px-5 py-4">
           <div>
-            <p className="text-[12px] uppercase tracking-wider text-white/55">Service code</p>
+            <p className="text-[12px] uppercase tracking-wider text-white/70">Service code</p>
             <p className="num mt-0.5 text-[40px] font-semibold leading-none tracking-[.12em]">{meeting.code ?? "—"}</p>
           </div>
           <div className="h-12 w-px bg-white/15" />
           <div>
-            <p className="text-[12px] uppercase tracking-wider text-white/55">Checked in</p>
+            <p className="text-[12px] uppercase tracking-wider text-white/70">Checked in</p>
             <p className="num mt-0.5 text-[40px] font-semibold leading-none"><CountUp to={n} /></p>
           </div>
         </div>
       </div>
       <div className="mt-6 flex flex-wrap gap-2">
         <Link href={`/display/checkin?m=${meeting.id}`} target="_blank" className="inline-flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-sm font-semibold text-ink hover:bg-white/90"><MonitorPlay size={16} /> Show on the screen</Link>
-        <button onClick={() => setQr(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><QrCode size={16} /> QR code</button>
-        <button onClick={() => { navigator.clipboard?.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15">
+        <button type="button" onClick={() => setQr(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><QrCode size={16} /> QR code</button>
+        <button type="button" onClick={() => { navigator.clipboard?.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15">
           {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Copied" : "Copy church link"}
         </button>
-        <button onClick={() => { put("meetings", { ...meeting, code: newCode() }, `changed the code for ${meeting.name}`); toast("New code ready"); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><RefreshCw size={15} /> New code</button>
+        <button type="button" onClick={() => { put("meetings", { ...meeting, code: newCode() }, `changed the code for ${meeting.name}`); toast("New code ready"); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><RefreshCw size={15} /> New code</button>
       </div>
       <Sheet open={qr} onClose={() => setQr(false)} title="Check-in QR code">
         <div className="text-center">
@@ -159,8 +160,8 @@ function SundayMode({ meeting }: { meeting?: Meeting }) {
                   className="num w-20 bg-transparent text-[26px] font-semibold outline-none" aria-label={c.label} />
               </span>
               {canEdit && <span className="flex gap-1.5">
-                <button onClick={() => set(c.key, (h[c.key] ?? 0) - 1)} className="flex size-11 items-center justify-center rounded-xl bg-surface ring-1 ring-line active:scale-95" aria-label={`One less ${c.label}`}><Minus size={18} /></button>
-                <button onClick={() => set(c.key, (h[c.key] ?? 0) + 1)} className="flex size-11 items-center justify-center rounded-xl text-white shadow-sm active:scale-95" style={{ background: c.color }} aria-label={`One more ${c.label}`}><Plus size={18} /></button>
+                <button type="button" onClick={() => set(c.key, (h[c.key] ?? 0) - 1)} className="flex size-11 items-center justify-center rounded-xl bg-surface ring-1 ring-line active:scale-95" aria-label={`One less ${c.label}`}><Minus size={18} /></button>
+                <button type="button" onClick={() => set(c.key, (h[c.key] ?? 0) + 1)} className="flex size-11 items-center justify-center rounded-xl text-white shadow-sm active:scale-95" style={{ background: c.color }} aria-label={`One more ${c.label}`}><Plus size={18} /></button>
               </span>}
             </div>
           ))}
@@ -239,7 +240,7 @@ function UsherCheckin({ meeting }: { meeting: Meeting }) {
                   {isHere ? <Badge tone="good"><Check size={13} /> Here</Badge> : <Button variant="primary" onClick={() => checkIn([p.id], "usher")}><UserCheck size={16} /> Check in</Button>}
                 </div>
                 {family.length > 0 && !family.every((f) => here.has(f.id)) && (
-                  <button onClick={() => checkIn([p.id, ...family.map((f) => f.id)], "family")} className="ml-[54px] mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-soft px-3 py-1.5 text-[13px] font-medium text-brand">
+                  <button type="button" onClick={() => checkIn([p.id, ...family.map((f) => f.id)], "family")} className="ml-[54px] mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-soft px-3 py-1.5 text-[13px] font-medium text-brand">
                     <Users size={14} /> Check in the whole family ({family.map((f) => f.firstName).join(", ")})
                   </button>
                 )}
@@ -263,48 +264,31 @@ function UsherCheckin({ meeting }: { meeting: Meeting }) {
   );
 }
 
-/** Roll call for a department meeting: present, late, absent, excused. */
+/** Roll call for each service: pick the service and the list, then mark each person. */
 function RollCall() {
-  const { state, access, putMany, newId, put } = useStore();
-  const groups = state.groups.filter((g) => access!.isLead || access!.isPastoral || access!.leads.has(g.id) || access!.can("groups.manage"));
-  const [gid, setGid] = useState(groups[0]?.id);
-  const g = state.groups.find((x) => x.id === gid);
-  const [marks, setMarks] = useState<Record<string, Attendance["status"]>>({});
-  if (!g) return <Empty title="No departments to call" body="Roll call is for leaders of a department." icon={<Users size={26} />} />;
-  const members = [...new Set([...g.leaderIds, ...g.memberIds])].map((id) => state.people.find((p) => p.id === id)).filter(Boolean) as typeof state.people;
-  const opts: { key: NonNullable<Attendance["status"]>; label: string; cls: string }[] = [
-    { key: "present", label: "Present", cls: "bg-good text-white" }, { key: "late", label: "Late", cls: "bg-glow text-white" },
-    { key: "absent", label: "Absent", cls: "bg-alert text-white" }, { key: "excused", label: "Excused", cls: "bg-deep-2 text-white" },
-  ];
-  const save = () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const m: Meeting = { id: newId("m"), name: `${g.name} meeting`, kind: "special", date: today, start: new Date().toISOString(), end: new Date(Date.now() + 2 * 36e5).toISOString(), mode: "physical", checkin: false, refId: g.id };
-    put("meetings", m);
-    putMany("attendance", Object.entries(marks).map(([pid, s]) => record(m.id, pid, "rollcall", newId("at"), s)), `took roll call for ${g.name}`);
-    toast(`Roll call saved for ${g.name}`); setMarks({});
-  };
-  const count = (s: string) => Object.values(marks).filter((x) => x === s).length;
+  const { state, access, me } = useStore();
+  const [taking, setTaking] = useState<{ m: Meeting; key: string; name: string } | null>(null);
+  const meetings = rollCallMeetings(state);
+  const lists = me && access ? (access.isLead || access.isPastoral
+    ? [{ key: "leaders", name: "Leaders and pastors" }, ...state.groups.filter((g) => g.kind === "department").map((g) => ({ key: g.id, name: g.name }))]
+    : myRollCalls(state, access, me.id)) : [];
+  if (!meetings.length) return <Empty title="No roll call open right now" body="Roll call opens 30 minutes before each service and stays open until 12 hours after it ends." icon={<Users size={26} />} />;
+  if (!lists.length) return <Empty title="No lists for you" body="Department heads take roll call for their team. The admin takes it for leaders and pastors." icon={<Users size={26} />} />;
   return (
-    <Panel title="Roll call" action={<select className="rounded-xl bg-page px-3 py-1.5 text-sm ring-1 ring-line" value={gid} onChange={(e) => { setGid(e.target.value); setMarks({}); }} aria-label="Department">{groups.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>}>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button onClick={() => setMarks(Object.fromEntries(members.map((p) => [p.id, "present"])))}><Check size={15} /> Mark everyone present</Button>
-        {opts.map((o) => <Badge key={o.key} tone={o.key === "present" ? "good" : o.key === "late" ? "glow" : o.key === "absent" ? "alert" : "neutral"}>{o.label} {count(o.key)}</Badge>)}
-      </div>
-      <ul className="divide-y divide-line">
-        {members.map((p) => (
-          <li key={p.id} className="flex flex-wrap items-center gap-3 py-2.5">
-            <Avatar person={p} size={36} />
-            <span className="min-w-0 flex-1 font-medium">{fullName(p)}</span>
-            <span className="flex gap-1">
-              {opts.map((o) => (
-                <button key={o.key} onClick={() => setMarks({ ...marks, [p.id]: o.key })} className={cx("rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition", marks[p.id] === o.key ? o.cls : "bg-page text-ink-soft ring-1 ring-line hover:ring-ink/20")}>{o.label}</button>
-              ))}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4 flex justify-end"><Button variant="primary" disabled={!Object.keys(marks).length} onClick={save}>Save roll call</Button></div>
-    </Panel>
+    <div className="space-y-4">
+      {meetings.map((m) => (
+        <Panel key={m.id} title={`${m.name}, ${timeOf(m.start)}`}>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {lists.map((l) => { const done = m.rollcalls?.[l.key]; return (
+              <li key={l.key}><button type="button" onClick={() => setTaking({ m, key: l.key, name: l.name })} className={cx("flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left ring-1", done ? "bg-good-soft ring-good/25" : "bg-page ring-line hover:ring-brand/40")}>
+                <span className="min-w-0 flex-1 truncate font-medium">{l.name}</span><span className="text-[12.5px] text-muted">{done ? "Done" : "Take it"}</span>
+              </button></li>
+            ); })}
+          </ul>
+        </Panel>
+      ))}
+      {taking && <RollCallSheet meeting={taking.m} rollKey={taking.key} name={taking.name} onClose={() => setTaking(null)} />}
+    </div>
   );
 }
 
@@ -342,7 +326,7 @@ function Schedule() {
         {services.map((s) => (
           <li key={s.id} className="flex flex-wrap items-center gap-3 py-3">
             <span className={cx("flex size-11 items-center justify-center rounded-2xl font-display text-sm font-semibold", s.kind === "sunday" ? "bg-brand text-white" : "bg-brand-soft text-brand")}>{WEEKDAYS[s.weekdays[0]].slice(0, 3)}</span>
-            <button onClick={() => setEdit(s)} className="min-w-0 flex-1 text-left">
+            <button type="button" onClick={() => setEdit(s)} className="min-w-[11rem] flex-1 text-left">
               <span className="block font-medium">{s.name}</span>
               <span className="block text-[13px] text-muted">{s.weekdays.map((d) => WEEKDAYS[d].slice(0, 3)).join(", ")} · {fmt(s.start)} to {fmt(s.end)} · {s.mode === "physical" ? "In person" : s.mode === "virtual" ? "Online" : "Hybrid"}</span>
             </button>
@@ -368,7 +352,7 @@ function ServiceForm({ s: initial, onSave, onDelete }: { s: ServiceSlot; onSave:
       <label className="block"><span className="mb-1.5 block text-sm font-medium">Name</span><input className={inputCls} value={s.name} onChange={(e) => setS({ ...s, name: e.target.value })} placeholder="Midweek service" /></label>
       <div><span className="mb-1.5 block text-sm font-medium">Days</span>
         <div className="flex flex-wrap gap-1.5">{WEEKDAYS.map((d, i) => (
-          <button key={d} onClick={() => setS({ ...s, weekdays: s.weekdays.includes(i) ? s.weekdays.filter((x) => x !== i) : [...s.weekdays, i].sort() })} className={cx("rounded-xl px-3 py-2 text-sm ring-1", s.weekdays.includes(i) ? "bg-brand text-white ring-brand" : "bg-page ring-line")}>{d.slice(0, 3)}</button>
+          <button type="button" key={d} onClick={() => setS({ ...s, weekdays: s.weekdays.includes(i) ? s.weekdays.filter((x) => x !== i) : [...s.weekdays, i].sort() })} className={cx("rounded-xl px-3 py-2 text-sm ring-1", s.weekdays.includes(i) ? "bg-brand text-white ring-brand" : "bg-page ring-line")}>{d.slice(0, 3)}</button>
         ))}</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -376,10 +360,10 @@ function ServiceForm({ s: initial, onSave, onDelete }: { s: ServiceSlot; onSave:
         <label><span className="mb-1.5 block text-sm font-medium">Ends</span><input type="time" className={inputCls} value={s.end} onChange={(e) => setS({ ...s, end: e.target.value })} /></label>
       </div>
       <div><span className="mb-1.5 block text-sm font-medium">Type</span>
-        <div className="grid grid-cols-3 gap-1.5">{(["sunday", "midweek", "prayer"] as const).map((k) => <button key={k} onClick={() => setS({ ...s, kind: k, checkin: k === "sunday" ? true : s.checkin })} className={cx("rounded-xl py-2 text-sm capitalize ring-1", s.kind === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "sunday" ? "Sunday" : k}</button>)}</div>
+        <div className="grid grid-cols-3 gap-1.5">{(["sunday", "midweek", "prayer"] as const).map((k) => <button type="button" key={k} onClick={() => setS({ ...s, kind: k, checkin: k === "sunday" ? true : s.checkin })} className={cx("rounded-xl py-2 text-sm capitalize ring-1", s.kind === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "sunday" ? "Sunday" : k}</button>)}</div>
       </div>
       <div><span className="mb-1.5 block text-sm font-medium">Where</span>
-        <div className="grid grid-cols-3 gap-1.5">{(["physical", "virtual", "hybrid"] as const).map((k) => <button key={k} onClick={() => setS({ ...s, mode: k })} className={cx("rounded-xl py-2 text-sm ring-1", s.mode === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "physical" ? "In person" : k === "virtual" ? "Online" : "Both"}</button>)}</div>
+        <div className="grid grid-cols-3 gap-1.5">{(["physical", "virtual", "hybrid"] as const).map((k) => <button type="button" key={k} onClick={() => setS({ ...s, mode: k })} className={cx("rounded-xl py-2 text-sm ring-1", s.mode === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "physical" ? "In person" : k === "virtual" ? "Online" : "Both"}</button>)}</div>
       </div>
       {s.mode !== "physical" && <label className="block"><span className="mb-1.5 block text-sm font-medium">Online link</span><input className={inputCls} value={s.link ?? ""} onChange={(e) => setS({ ...s, link: e.target.value })} placeholder="https://youtube.com/…" /></label>}
       {s.kind !== "sunday" && <label className="flex items-center justify-between rounded-xl bg-page p-3 ring-1 ring-line"><span className="text-sm">People check in at this service</span><Toggle label="Check-in" on={s.checkin} onChange={(v) => setS({ ...s, checkin: v })} /></label>}

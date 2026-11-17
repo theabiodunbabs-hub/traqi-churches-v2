@@ -6,9 +6,9 @@ import { useState } from "react";
 import { ArrowLeft, Award, Check, CalendarPlus, Link2, PlayCircle, Search, Settings2, UserPlus, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { DownloadButton } from "@/components/download";
-import { Avatar, Badge, Button, Confetti, Empty, Panel, Sheet, Tabs, cx, inputCls, toast } from "@/components/ui";
-import { JoinButton, MODE_LABEL, ModeIcon, ProgrammeForm, RecordingButton, scheduleText, tint } from "@/components/classes";
-import { progress, record } from "@/lib/domain";
+import { Avatar, Badge, Button, Confetti, Empty, Panel, Sheet, Tabs, cx, inputCls, toast, textAsk } from "@/components/ui";
+import { JoinButton, MODE_LABEL, ModeIcon, ProgrammeForm, RecordingButton, linkJourney, scheduleText, tint } from "@/components/classes";
+import { courseWords, plural, progress, record } from "@/lib/domain";
 import { addDays, at } from "@/lib/seed-more";
 import { dayName, fullName, timeOf } from "@/lib/format";
 import type { ClassSession, Enrolment } from "@/lib/types";
@@ -17,7 +17,7 @@ type Tab = "sessions" | "students" | "dropoff";
 
 export default function ProgrammePage() {
   const { id } = useParams<{ id: string }>();
-  const { state, access, me, put, putMany, newId, updatePerson, person } = useStore();
+  const { state, access, me, put, putMany, newId, updatePerson, person, updateChurch } = useStore();
   const [tab, setTab] = useState<Tab>("sessions");
   const [edit, setEdit] = useState(false);
   const [taking, setTaking] = useState<ClassSession | null>(null);
@@ -27,6 +27,7 @@ export default function ProgrammePage() {
   if (!access || !me) return null;
   if (!p) return <Empty title="Programme not found" body="It may have been removed." icon={<Award size={26} />} action={<Link href="/classes" className="text-brand">Back to classes</Link>} />;
   const manage = access.can("classes.manage") || access.leadsTraining;
+  const cw = courseWords(p); const parts = plural(cw.part);
   const t = tint(p);
   const sessions = state.sessions.filter((s) => s.programmeId === p.id).sort((a, b) => a.start.localeCompare(b.start));
   const enrolments = state.enrolments.filter((e) => e.programmeId === p.id);
@@ -49,8 +50,8 @@ export default function ProgrammePage() {
       const d = addDays(start, 7 * i);
       return { id: newId("cs"), programmeId: p.id, moduleId: m.id, date: d, start: at(d, p.time), venue: p.venue, link: p.link, teacherId: me.id };
     });
-    putMany("sessions", list, `scheduled ${list.length} classes for ${p.name}`);
-    toast(`${list.length} classes scheduled`);
+    putMany("sessions", list, `scheduled ${list.length} ${parts.toLowerCase()} for ${p.name}`);
+    toast(`${list.length} ${parts.toLowerCase()} scheduled`);
   };
 
   return (
@@ -72,11 +73,11 @@ export default function ProgrammePage() {
 
       {mine && <MyProgress e={mine} />}
 
-      {manage && <Tabs className="mb-4" value={tab} onChange={setTab} items={[{ key: "sessions", label: "Classes", count: sessions.length }, { key: "students", label: "Students", count: enrolments.length }, { key: "dropoff", label: "Where people drop off" }]} />}
+      {manage && <Tabs className="mb-4" value={tab} onChange={setTab} items={[{ key: "sessions", label: parts, count: sessions.length }, { key: "students", label: "Students", count: enrolments.length }, { key: "dropoff", label: "Where people drop off" }]} />}
 
       {(tab === "sessions" || !manage) && (
-        <Panel title="Classes" action={manage && <Button onClick={addSessions}><CalendarPlus size={15} /> Schedule {p.run === "rolling" ? "the next round" : "the remaining classes"}</Button>}>
-          {sessions.length === 0 ? <p className="text-sm text-muted">No classes scheduled yet.</p> : (
+        <Panel title={parts} action={manage && <Button onClick={addSessions}><CalendarPlus size={15} /> Schedule {p.run === "rolling" ? "the next round" : `the remaining ${parts.toLowerCase()}`}</Button>}>
+          {sessions.length === 0 ? <p className="text-sm text-muted">No {parts.toLowerCase()} scheduled yet.</p> : (
             <ol className="space-y-2">
               {sessions.map((s, i) => {
                 const mod = p.modules.find((m) => m.id === s.moduleId);
@@ -86,10 +87,10 @@ export default function ProgrammePage() {
                 return (
                   <li key={s.id} className={cx("flex flex-wrap items-center gap-4 rounded-2xl p-3 ring-1", past ? "ring-line" : "bg-surface ring-brand/20")}>
                     <span className={cx("flex size-12 shrink-0 flex-col items-center justify-center rounded-2xl leading-none", past ? "bg-page text-muted" : cx(t.bg, t.fg))}>
-                      <span className="text-[10.5px] font-semibold uppercase">{dayName(s.start, { month: "short" })}</span>
+                      <span className="text-[11px] font-semibold uppercase">{dayName(s.start, { month: "short" })}</span>
                       <span className="num text-lg font-semibold">{dayName(s.start, { day: "numeric" })}</span>
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-[11rem] flex-1">
                       <span className="block font-medium">{i + 1}. {mod?.title}</span>
                       <span className="block text-[13px] text-muted">{timeOf(s.start)}{s.venue && p.mode !== "virtual" ? ` · ${s.venue}` : ""}{manage ? ` · ${here.length} came` : ""}</span>
                     </span>
@@ -98,7 +99,7 @@ export default function ProgrammePage() {
                     {mine && !iCame && <RecordingButton s={s} p={p} />}
                     {manage && <span className="flex gap-1.5">
                       {p.mode !== "virtual" && <Button onClick={() => setTaking(s)}><Users size={15} /> Attendance</Button>}
-                      <Button variant="ghost" onClick={() => { const url = prompt("Recording link", s.recording ?? ""); if (url !== null) { put("sessions", { ...s, recording: url || undefined }); toast(url ? "Recording added" : "Recording removed"); } }} aria-label="Recording link"><Link2 size={15} /></Button>
+                      <Button variant="ghost" onClick={async () => { const url = await textAsk("Recording link", { label: "Link to the recording", value: s.recording ?? "", placeholder: "https://youtube.com/…" }); if (url !== null) { put("sessions", { ...s, recording: url || undefined }); toast(url ? "Recording added" : "Recording removed"); } }} aria-label="Recording link"><Link2 size={15} /></Button>
                     </span>}
                   </li>
                 );
@@ -126,8 +127,8 @@ export default function ProgrammePage() {
                 return (
                   <li key={e.id} className="flex flex-wrap items-center gap-3 py-3">
                     <Avatar person={person} size={38} />
-                    <Link href={`/people/${e.personId}`} className="min-w-0 flex-1 font-medium hover:text-brand">{fullName(person)}</Link>
-                    <span className="flex gap-1" aria-label={`${pr.done.length} of ${p.modules.length} classes`}>
+                    <Link href={`/people/${e.personId}`} className="min-w-[11rem] flex-1 font-medium hover:text-brand">{fullName(person)}</Link>
+                    <span className="flex gap-1" aria-label={`${pr.done.length} of ${p.modules.length} ${parts.toLowerCase()}`}>
                       {p.modules.map((m) => { const how = pr.attended.get(m.id); return <span key={m.id} title={`${m.title}${how === "recording" ? " (recording)" : ""}`} className={cx("size-3.5 rounded-[5px]", how === "recording" ? cx(t.bar, "opacity-45") : how ? t.bar : "bg-line")} />; })}
                     </span>
                     {e.status === "completed" ? <Link href={`/classes/certificate/${e.id}`}><Badge tone="glow"><Award size={12} /> Finished</Badge></Link>
@@ -143,7 +144,7 @@ export default function ProgrammePage() {
 
       {manage && tab === "dropoff" && <DropOff />}
 
-      <Sheet open={edit} onClose={() => setEdit(false)} title="Programme settings">{edit && <ProgrammeForm initial={p} onSave={(x) => { put("programmes", x, `updated ${x.name}`); setEdit(false); toast("Saved"); }} />}</Sheet>
+      <Sheet open={edit} onClose={() => setEdit(false)} title="Settings">{edit && <ProgrammeForm initial={p} onSave={(x, finish) => { put("programmes", x, `updated ${x.name}`); if (state.church.profile?.journey) updateChurch({}, { journey: linkJourney(state.church.profile.journey, x.id, finish) }); setEdit(false); toast("Saved"); }} />}</Sheet>
       <Sheet open={!!taking} onClose={() => setTaking(null)} title="Class attendance">{taking && <TakeAttendance s={taking} />}</Sheet>
       <Sheet open={enrolOpen} onClose={() => setEnrolOpen(false)} title={`Enrol in ${p.name}`}><Enrol /></Sheet>
     </div>
@@ -178,7 +179,7 @@ export default function ProgrammePage() {
         <ul className="space-y-1">{students.map((st) => {
           const on = already.has(st.id) || ticks.has(st.id);
           return (
-            <li key={st.id}><button disabled={already.has(st.id)} onClick={() => { const n = new Set(ticks); if (n.has(st.id)) n.delete(st.id); else n.add(st.id); setTicks(n); }}
+            <li key={st.id}><button type="button" disabled={already.has(st.id)} onClick={() => { const n = new Set(ticks); if (n.has(st.id)) n.delete(st.id); else n.add(st.id); setTicks(n); }}
               className={cx("flex w-full items-center gap-3 rounded-xl p-2 text-left", on ? "bg-good-soft" : "hover:bg-page")}>
               <Avatar person={st} size={34} /><span className="flex-1 font-medium">{fullName(st)}</span>
               <span className={cx("flex size-6 items-center justify-center rounded-lg", on ? "bg-good text-white" : "ring-2 ring-line")}>{on && <Check size={14} />}</span>

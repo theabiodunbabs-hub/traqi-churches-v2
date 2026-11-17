@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, BadgeCheck, CalendarClock, Check, Hourglass, MessageSquarePlus, PartyPopper, TrendingUp } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { JourneyEditor } from "@/components/journey-editor";
+import { JourneyBuilder } from "@/components/journey-builder";
 import { Avatar, Badge, Button, Empty, PageHeader, Panel, Sheet, Tabs, cx, inputCls } from "@/components/ui";
 import { defaultJourney, journeyStages, stageView, type Journey } from "@/lib/journey";
 import { probationDue } from "@/lib/journey-engine";
@@ -25,7 +26,7 @@ export default function JourneyPage() {
       <PageHeader title="Journey" sub="The steps people take in your church, from first visit to leading. See where people are, and who's waiting on you." />
       <Tabs value={tab} onChange={setTab} className="mb-6" items={[
         { key: "now", label: "Where people are", count: waiting + due || undefined },
-        { key: "stages", label: "Stages and rules" },
+        { key: "stages", label: "Set up the journey" },
       ]} />
       {tab === "now" ? <Now /> : <Stages />}
     </div>
@@ -175,9 +176,14 @@ function Stages() {
   const stranded = removed.reduce((n, s) => n + state.people.filter((p) => p.stage === s.key).length, 0);
   return (
     <div className="space-y-5">
-      <Panel>
-        <JourneyEditor value={j} onChange={setJ} classes={state.programmes} />
+      <Panel title="Your journey in three questions">
+        <JourneyBuilder key={JSON.stringify(saved.stages.map((s) => s.rule))} value={j} onChange={setJ} />
       </Panel>
+      <details className="rounded-3xl bg-surface p-5 ring-1 ring-line">
+        <summary className="cursor-pointer font-medium">Change each step in detail</summary>
+        <p className="mb-4 mt-1 text-[13.5px] text-ink-soft">For churches whose journey doesn&apos;t fit the questions above.</p>
+        <JourneyEditor value={j} onChange={setJ} classes={state.programmes} />
+      </details>
       {changed && (
         <div className="sticky bottom-24 z-10 flex flex-wrap items-center gap-3 rounded-2xl bg-deep p-4 text-white shadow-xl md:bottom-6">
           <p className="flex-1 text-[14.5px]">{stranded ? `${stranded} people are in stages you removed. They'll move to the nearest stage of the same kind.` : "You have unsaved changes."}</p>

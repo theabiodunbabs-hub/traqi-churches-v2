@@ -47,7 +47,7 @@ export default function Roles() {
         <ul className={cx("space-y-1.5 lg:sticky lg:top-6 lg:block lg:self-start", role && "hidden")} aria-label="Roles">
           {sorted.map((r) => (
             <li key={r.id}>
-              <button
+              <button type="button"
                 onClick={() => open(r.id)} aria-current={r.id === role?.id}
                 className={cx("flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left ring-1 transition",
                   r.id === role?.id ? "bg-surface shadow-sm shadow-brand/10 ring-brand" : "bg-surface/60 ring-line hover:bg-surface")}
@@ -58,7 +58,7 @@ export default function Roles() {
                   <span className="block truncate font-medium">{r.name}</span>
                   <span className="block text-[12.5px] text-muted">{plural(counts.get(r.id) ?? 0, "person", "people")} · {plural(r.permissions.length, "ability", "abilities")}</span>
                 </span>
-                {!r.isDefault && <span className="rounded-md bg-glow-soft px-1.5 text-[11px] font-medium text-glow-ink">Custom</span>}
+                {!r.isDefault && <span className="rounded-md bg-glow-soft px-1.5 text-[12px] font-medium text-glow-ink">Custom</span>}
                 <ChevronRight size={16} className="text-muted lg:hidden" />
               </button>
             </li>
@@ -67,7 +67,7 @@ export default function Roles() {
 
         {role ? (
           <div className="min-w-0 space-y-5">
-            <button onClick={() => setSel(null)} className="flex items-center gap-1.5 text-sm font-medium text-brand lg:hidden"><ArrowLeft size={15} /> All roles</button>
+            <button type="button" onClick={() => setSel(null)} className="flex items-center gap-1.5 text-sm font-medium text-brand lg:hidden"><ArrowLeft size={15} /> All roles</button>
             <div>
               <h2 className="font-display text-2xl font-semibold tracking-tight">{role.name}</h2>
               <p className="mt-1 text-ink-soft">{role.description || "No description yet."}</p>
@@ -120,7 +120,7 @@ function Approvals() {
           return (
             <li key={a.personId + a.roleId} className="flex flex-wrap items-center gap-3 px-2 py-3">
               <Avatar person={person(a.personId)} size={36} />
-              <div className="min-w-0 flex-1 text-[14.5px]">
+              <div className="min-w-[11rem] flex-1 text-[14.5px]">
                 <p><span className="font-medium">{give ? "Give" : "Remove"} {role?.name}</span> {give ? "to" : "from"} {fullName(person(a.personId))}</p>
                 <p className="text-[12.5px] text-muted">{scopeLabel(state, a.scope)}{a.until ? ` · until ${niceDate(a.until)}` : ""} · asked by {by ? fullName(by) : "an admin"}</p>
               </div>
@@ -156,12 +156,12 @@ function PeopleTab({ role, canManage }: { role: Role; canManage: boolean }) {
                 <div className="min-w-0 flex-1">
                   <PersonLink person={p} sub={<span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     {scopeLabel(state, a.scope)}
-                    {a.until && <span className={cx("inline-flex items-center gap-1 rounded-md px-1.5 text-[11px] font-medium", ended ? "bg-line text-muted" : "bg-j1 text-on-light")}><CalendarClock size={11} />{ended ? "Ended" : "Until"} {niceDate(a.until)}</span>}
-                    {a.pending && <span className="rounded-md bg-glow-soft px-1.5 text-[11px] font-medium text-glow-ink">{a.pending.action === "give" ? "Waiting for approval" : "Removal waiting"}</span>}
+                    {a.until && <span className={cx("inline-flex items-center gap-1 rounded-md px-1.5 text-[12px] font-medium", ended ? "bg-line text-muted" : "bg-j1 text-on-light")}><CalendarClock size={11} />{ended ? "Ended" : "Until"} {niceDate(a.until)}</span>}
+                    {a.pending && <span className="rounded-md bg-glow-soft px-1.5 text-[12px] font-medium text-glow-ink">{a.pending.action === "give" ? "Waiting for approval" : "Removal waiting"}</span>}
                   </span>} />
                 </div>
                 {canManage && !locked && (
-                  <button onClick={() => removeAssignment(a.personId, a.roleId)} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove role from ${fullName(p)}`}>
+                  <button type="button" onClick={() => removeAssignment(a.personId, a.roleId)} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove role from ${fullName(p)}`}>
                     <Trash2 size={16} />
                   </button>
                 )}
@@ -313,7 +313,8 @@ function GiveRole({ open, onClose, role }: { open: boolean; onClose: () => void;
   const [temporary, setTemporary] = useState(false);
   const [until, setUntil] = useState("");
   const [err, setErr] = useState("");
-  const close = () => { setQ(""); setWho([]); setWhere("church"); setGroups([]); setPlace(""); setTemporary(false); setUntil(""); setErr(""); onClose(); };
+  const [tell, setTell] = useState(false);
+  const close = () => { setQ(""); setWho([]); setWhere("church"); setGroups([]); setPlace(""); setTemporary(false); setUntil(""); setErr(""); setTell(false); onClose(); };
 
   const has = new Set(state.assignments.filter((a) => a.roleId === role.id).map((a) => a.personId));
   const ql = q.trim().toLowerCase();
@@ -337,6 +338,13 @@ function GiveRole({ open, onClose, role }: { open: boolean; onClose: () => void;
     const scope: Scope = where === "church" ? { type: "church" } : where === "groups" ? { type: "groups", groupIds: groups }
       : where === "branch" ? { type: "branch", branchId: place } : { type: "region", regionId: place };
     who.forEach((id) => assignRole(id, role.id, scope, temporary ? until : undefined));
+    // Optional: a WhatsApp message to the first person, opened ready to send (Traqi also shows them a card on Home)
+    const first = state.people.find((p) => p.id === who[0]);
+    if (tell && first?.phone) {
+      const n = first.phone.replace(/\D/g, "").replace(/^0/, "234");
+      const text = `Hello ${first.firstName}, you've been given the ${role.name} role at ${state.church.name}. Open Traqi to see what you can now do: ${location.origin}/today`;
+      window.open(`https://wa.me/${n}?text=${encodeURIComponent(text)}`, "_blank");
+    }
     close();
   };
 
@@ -345,6 +353,8 @@ function GiveRole({ open, onClose, role }: { open: boolean; onClose: () => void;
       <div className="space-y-2">
         {err && <p className="text-sm text-alert" role="alert">{err}</p>}
         {!access?.isPastoral && <p className="text-xs text-muted">The pastor will be asked to approve this.</p>}
+        <label className="flex items-center gap-2.5 rounded-xl bg-page px-3 py-2.5 text-[13.5px] ring-1 ring-line"><input type="checkbox" checked={tell} onChange={(e) => setTell(e.target.checked)} className="size-4.5 accent-brand" />Also tell them on WhatsApp{who.length > 1 ? " (opens for the first person)" : ""}</label>
+        <p className="text-xs text-muted">They&apos;ll also see a “You have a new role” card on their Home.</p>
         <Button variant="primary" className="w-full py-3" onClick={submit}>{who.length > 1 ? `Give to ${who.length} people` : "Give role"}</Button>
       </div>
     }>

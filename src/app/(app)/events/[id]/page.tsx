@@ -130,7 +130,7 @@ function Overview({ e }: { e: ChurchEvent }) {
   return (
     <div className="space-y-5">
       {live && <div className="flex items-center gap-3 rounded-2xl bg-alert px-4 py-3 text-white"><span className="size-2.5 animate-pulse rounded-full bg-white" /><b>Happening now</b><span className="truncate">{live.session?.title ?? `Day ${live.dayIndex + 1}`}</span></div>}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="card flex items-center gap-4 p-4">
           {e.capacity ? <span className="text-brand"><ProgressRing value={c.people / e.capacity} size={56}>{Math.round((c.people / e.capacity) * 100)}%</ProgressRing></span> : null}
           <div><p className="num text-[28px] font-semibold"><CountUp to={c.people} /></p><p className="text-[13px] text-ink-soft">coming{e.capacity ? ` of ${e.capacity}` : ""}</p></div>
@@ -181,7 +181,7 @@ function People({ e }: { e: ChurchEvent }) {
         <ul className="divide-y divide-line">{list.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
             <span className="flex size-10 items-center justify-center rounded-full bg-brand-soft font-semibold text-brand">{r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
-            <span className="min-w-0 flex-1">
+            <span className="min-w-[11rem] flex-1">
               <span className="block font-medium">{r.name}</span>
               <span className="block text-[13px] text-muted">{r.phone} · {r.ticket}{r.type === "online" ? " · online" : ""}{leadOf(r) ? ` · with ${leadOf(r)!.name}` : ""}{!r.personId ? " · new to the church" : ""}</span>
             </span>
@@ -216,7 +216,7 @@ function ToFollowUp({ e, regs, onClose }: { e: ChurchEvent; regs: Registration[]
       <ul className="divide-y divide-line">{regs.map((r) => (
         <li key={r.id} className="flex items-center gap-3 py-2.5">
           <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.name}</span><span className="text-[12.5px] text-muted">{r.phone}</span></span>
-          {(["M", "F"] as const).map((x) => <button key={x} onClick={() => setG({ ...g, [r.id]: x })} className={cx("rounded-lg px-3 py-1.5 text-[13px] ring-1", g[r.id] === x ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>{x === "M" ? "Male" : "Female"}</button>)}
+          {(["M", "F"] as const).map((x) => <button type="button" key={x} onClick={() => setG({ ...g, [r.id]: x })} className={cx("rounded-lg px-3 py-1.5 text-[13px] ring-1", g[r.id] === x ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>{x === "M" ? "Male" : "Female"}</button>)}
         </li>
       ))}</ul>
     </Sheet>
@@ -252,8 +252,8 @@ function Door({ e, put, newId, findByPhone }: { e: ChurchEvent; put: ReturnType<
       <Panel title="Check people in" action={days.length > 1 && <select className="rounded-xl bg-page px-3 py-1.5 text-sm ring-1 ring-line" value={day} onChange={(x) => { setDay(x.target.value); setSess(""); }}>{days.map((d, i) => <option key={d.date} value={d.date}>Day {i + 1} · {dayName(d.date, { weekday: "short", day: "numeric", month: "short" })}</option>)}</select>}>
         {sessions.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-1.5">
-            <button onClick={() => setSess("")} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", !sess ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>The day</button>
-            {sessions.map((s) => <button key={s.id} onClick={() => setSess(s.id)} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", sess === s.id ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>{s.title || s.start}</button>)}
+            <button type="button" onClick={() => setSess("")} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", !sess ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>The day</button>
+            {sessions.map((s) => <button type="button" key={s.id} onClick={() => setSess(s.id)} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", sess === s.id ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>{s.title || s.start}</button>)}
           </div>
         )}
         <form onSubmit={(x) => { x.preventDefault(); const k = code.trim().toUpperCase(); scan(c.regs.find((r) => r.ticket === k || (digits(k).length >= 10 && digits(r.phone).slice(-10) === digits(k).slice(-10)))); }} className="flex gap-2">

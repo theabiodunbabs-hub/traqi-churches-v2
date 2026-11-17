@@ -60,7 +60,7 @@ export default function EmailSettings() {
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div className="space-y-2">
           {KINDS.map((x) => (
-            <button key={x.k} onClick={() => setPick(x.k)} className={cx("flex w-full gap-3 rounded-2xl p-4 text-left ring-1 transition", pick === x.k ? "bg-surface shadow-sm ring-2 ring-brand" : "bg-surface/60 ring-line hover:bg-surface")}>
+            <button type="button" key={x.k} onClick={() => setPick(x.k)} className={cx("flex w-full gap-3 rounded-2xl p-4 text-left ring-1 transition", pick === x.k ? "bg-surface shadow-sm ring-2 ring-brand" : "bg-surface/60 ring-line hover:bg-surface")}>
               <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-xl", pick === x.k ? "bg-brand text-white" : "bg-page text-ink-soft")}><Mail size={18} /></span>
               <span className="min-w-0"><b className="block text-[15px]">{x.name}</b><span className="flex items-center gap-1 text-[13px] text-ink-soft"><CalendarClock size={12} />{x.when}</span><span className="mt-0.5 block text-[12.5px] text-muted">{x.who}</span></span>
             </button>

@@ -14,7 +14,7 @@ import { uploadImage } from "@/lib/upload";
 import { digits } from "@/lib/format";
 import { OnboardFrame, Steps } from "@/components/onboarding";
 import { BrandPicker } from "@/components/brand-picker";
-import { JourneyEditor } from "@/components/journey-editor";
+import { JourneyBuilder } from "@/components/journey-builder";
 import { Button, Field, Sheet, cx, inputCls } from "@/components/ui";
 import { ChurchMark } from "@/components/brand";
 import { DEFAULT_PROFILE } from "@/lib/seed-more";
@@ -128,9 +128,10 @@ export default function Signup() {
 
   return (
     <OnboardFrame title="Start your church on Traqi" points={["Free during early access", "Set up in about two minutes", "Everything can be changed later"]}
-      back={step === 0 ? { href: mode === "live" ? "/start" : "/login", label: "Back" } : undefined} wide={step >= 2}>
+      back={step === 0 ? { href: mode === "live" ? "/start" : "/login", label: "Back" } : undefined} wide>
       <Steps steps={steps} at={step} />
-      <form className="rise space-y-4" key={step} onSubmit={(e) => { e.preventDefault(); void next(); }}>
+      <form className="rise space-y-4" key={step} onSubmit={(e) => { e.preventDefault(); void next(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}>
         {step === 0 && (
           <>
             <h2 className="font-display text-[30px] leading-tight">Tell us about your church</h2>
@@ -257,9 +258,10 @@ export default function Signup() {
 
         {step === 4 && (
           <>
-            <h2 className="font-display text-[30px] leading-tight">Your journey and departments</h2>
-            <p className="-mt-2 text-ink-soft">How people grow in your church, and where they serve. Rename anything; change it all later.</p>
-            <div className="card p-4"><p className="mb-3 font-display text-[18px]">The journey</p><JourneyEditor value={journey} onChange={setJourneyState} simple /></div>
+            <h2 className="font-display text-[30px] leading-tight">How people grow in your church</h2>
+            <p className="-mt-2 text-ink-soft">Answer a few questions and Traqi draws your church&apos;s journey. You can change it any time.</p>
+            <JourneyBuilder value={journey} onChange={setJourneyState} />
+            <button type="button" onClick={() => setJourneyState(defaultJourney("class_first"))} className="text-sm font-medium text-brand">Not sure yet? Decide later and use the most common one</button>
             <div className="card p-4">
               <p className="mb-3 font-display text-[18px]">Departments</p>
               <DeptList value={depts} onChange={setDepts} />
@@ -301,9 +303,9 @@ function Recommender({ onPick }: { onPick: (l: ChurchLevel) => void }) {
         <div key={i} className="rise">
           <p className="font-display text-[22px] leading-snug">{qs[i].q}</p>
           <div className="mt-5 grid gap-2">{qs[i].opts.map(([v, l]) => (
-            <button key={String(v)} onClick={() => setA({ ...a, [qs[i].k]: v })} className="rounded-2xl bg-page px-4 py-3.5 text-left text-[15px] font-medium ring-1 ring-line transition hover:bg-brand-soft hover:ring-brand">{l}</button>
+            <button type="button" key={String(v)} onClick={() => setA({ ...a, [qs[i].k]: v })} className="rounded-2xl bg-page px-4 py-3.5 text-left text-[15px] font-medium ring-1 ring-line transition hover:bg-brand-soft hover:ring-brand">{l}</button>
           ))}</div>
-          {i > 0 && <button onClick={() => { const n = { ...a }; delete n[qs[i - 1].k]; setA(n); }} className="mt-4 text-sm text-muted">Back</button>}
+          {i > 0 && <button type="button" onClick={() => { const n = { ...a }; delete n[qs[i - 1].k]; setA(n); }} className="mt-4 text-sm text-muted">Back</button>}
         </div>
       ) : L && r && (
         <div className="rise text-center">
@@ -312,7 +314,7 @@ function Recommender({ onPick }: { onPick: (l: ChurchLevel) => void }) {
           <p className="font-display text-[26px]">{L.name}</p>
           <p className="mx-auto mt-2 max-w-sm text-[14.5px] text-ink-soft">{r.why}</p>
           <Button variant="primary" className="mt-6 w-full py-3" onClick={() => onPick(r.level)}>Use this</Button>
-          <button onClick={() => setA({})} className="mt-3 text-sm text-muted">Start again</button>
+          <button type="button" onClick={() => setA({})} className="mt-3 text-sm text-muted">Start again</button>
         </div>
       )}
     </div>

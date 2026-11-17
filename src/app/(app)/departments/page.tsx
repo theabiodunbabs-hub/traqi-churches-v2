@@ -80,9 +80,9 @@ export default function Departments() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {d.tags?.map((t) => <span key={t} className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[11.5px] font-medium text-brand">{TAG_LABEL[t]}</span>)}
-                {supervisor && <span className="rounded-md bg-page px-1.5 py-0.5 text-[11.5px] text-ink-soft ring-1 ring-line">Under {supervisor.name}</span>}
-                {units.length > 0 && <span className="rounded-md bg-page px-1.5 py-0.5 text-[11.5px] text-ink-soft ring-1 ring-line">{units.length} units</span>}
+                {d.tags?.map((t) => <span key={t} className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[12px] font-medium text-brand">{TAG_LABEL[t]}</span>)}
+                {supervisor && <span className="rounded-md bg-page px-1.5 py-0.5 text-[12px] text-ink-soft ring-1 ring-line">Under {supervisor.name}</span>}
+                {units.length > 0 && <span className="rounded-md bg-page px-1.5 py-0.5 text-[12px] text-ink-soft ring-1 ring-line">{units.length} units</span>}
               </div>
 
               <div className="mt-auto pt-5">
@@ -91,7 +91,7 @@ export default function Departments() {
                     {[...new Set([...d.leaderIds, ...d.memberIds])].slice(0, 4).map((id) => (
                       <span key={id} className="rounded-full ring-[2.5px] ring-surface"><Avatar person={person(id)} size={30} /></span>
                     ))}
-                    {size > 4 && <span className="flex size-[30px] items-center justify-center rounded-full bg-page text-[11px] font-semibold text-ink-soft ring-[2.5px] ring-surface">+{size - 4}</span>}
+                    {size > 4 && <span className="flex size-[30px] items-center justify-center rounded-full bg-page text-[12px] font-semibold text-ink-soft ring-[2.5px] ring-surface">+{size - 4}</span>}
                   </div>
                   <p className="flex items-center gap-2 text-sm">
                     <span><span className="num font-semibold">{size}</span> <span className="text-muted">people</span></span>

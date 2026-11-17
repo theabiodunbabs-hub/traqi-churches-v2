@@ -95,7 +95,7 @@ export default function Meeting() {
             </div>
           ))}
         </div>
-      ) : <button onClick={() => setGiving(true)} className="mt-10 inline-flex items-center gap-3 rounded-full bg-white/15 px-7 py-4 text-[clamp(16px,1.8vw,22px)] hover:bg-white/25"><Eye size={22} /> Show giving</button> });
+      ) : <button type="button" onClick={() => setGiving(true)} className="mt-10 inline-flex items-center gap-3 rounded-full bg-white/15 px-7 py-4 text-[clamp(16px,1.8vw,22px)] hover:bg-white/25"><Eye size={22} /> Show giving</button> });
     out.push({ key: "celebrate", kicker: "Celebrate", title: "Thank God for",
       body: <Big items={[{ n: String(finished), l: "finished a class this month" }, { n: String(bdays), l: "birthdays in the next 30 days" }, { n: String(people.filter((p) => kindOf(p.stage) === "worker" || kindOf(p.stage) === "leader").length), l: "people serving" }]} /> });
     return out;
@@ -132,9 +132,9 @@ export default function Meeting() {
         </main>
       )}
       <footer className="flex items-center justify-between">
-        <button onClick={() => go(-1)} disabled={i === 0} className="flex size-14 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Previous"><ChevronLeft size={26} /></button>
-        <div className="flex gap-2">{slides.map((x, k) => <button key={x.key} onClick={() => setI(k)} className={cx("h-2 rounded-full transition-all", k === i ? "w-8 bg-white" : "w-2 bg-white/35")} aria-label={`Slide ${k + 1}`} />)}</div>
-        <button onClick={() => go(1)} disabled={i === slides.length - 1} className="flex size-14 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Next"><ChevronRight size={26} /></button>
+        <button type="button" onClick={() => go(-1)} disabled={i === 0} className="flex size-14 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Previous"><ChevronLeft size={26} /></button>
+        <div className="flex">{slides.map((x, k) => <button type="button" key={x.key} onClick={() => setI(k)} className="flex h-10 items-center px-1" aria-label={`Slide ${k + 1}`}><span className={cx("block h-2 rounded-full transition-all", k === i ? "w-8 bg-white" : "w-2 bg-white/50")} /></button>)}</div>
+        <button type="button" onClick={() => go(1)} disabled={i === slides.length - 1} className="flex size-14 items-center justify-center rounded-full bg-white/10 disabled:opacity-30" aria-label="Next"><ChevronRight size={26} /></button>
       </footer>
     </div>
   );

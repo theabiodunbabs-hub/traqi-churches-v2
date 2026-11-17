@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, Cake, CheckCircle2, Clock, Handshake, MoonStar, PartyPopper, Sprout, TrendingDown, TrendingUp, UserPlus } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Avatar, Button, Sheet, cx } from "@/components/ui";
+import { Avatar, Button, Sheet, cx, textAsk } from "@/components/ui";
 import { ReachOut, messages } from "@/components/care";
 import { MeetingLink, PastorBoard } from "@/components/pastor-board";
 import { MemberHome } from "@/components/member-home";
+import { NewRoleCard, YourRolesCard } from "@/components/role-cards";
+import { TodayService } from "@/components/rollcall";
 import { daysToBirthday, fullName, greeting, hoursSince, shortDate, todayLong } from "@/lib/format";
 import type { Person } from "@/lib/types";
 import { attendance, cameBack, escalation, goneQuiet } from "@/lib/metrics";
@@ -56,10 +58,11 @@ export default function Today() {
       key: "mine", icon: Sprout, tone: "brand", n: mineToCall.length, title: mineToCall.length === 1 ? "Person to call" : "People to call",
       body: "Assigned to you. One tap to call or WhatsApp.", cta: "Start calling", rows: mineToCall.map((c) => caseRow(c, `First visit ${shortDate(person(c.personId)?.firstVisit)}`)),
     });
-    const openPlacements = access.handlesPlacement ? state.placements.filter((x) => x.status === "open") : [];
-    if (openPlacements.length) actions.push({
-      key: "place", icon: Handshake, tone: "brand", n: openPlacements.length, title: openPlacements.length === 1 ? "Wants to serve" : "Want to serve",
-      body: "Members asking to join a department.", cta: "Review",
+    const openPlacements = state.placements.filter((x) => x.status === "open" && access.decidesPlacement(x));
+    // Join requests go first: the head decides, and the member is waiting
+    if (openPlacements.length) actions.unshift({
+      key: "place", icon: Handshake, tone: "brand", n: openPlacements.length, title: openPlacements.length === 1 ? "Wants to join your team" : "Want to join your team",
+      body: "Approve or decline. They'll be told either way.", cta: "Review",
       rows: openPlacements.map((pl) => ({ person: person(pl.personId)!, note: `${state.groups.find((g) => g.id === pl.groupId)?.name}${pl.note ? ` · “${pl.note}”` : ""}`, placement: pl.id })).filter((r) => r.person),
     });
     if (bdays.length) actions.push({
@@ -117,12 +120,12 @@ export default function Today() {
           <h1 className="mt-1 font-display text-[30px] font-semibold leading-tight tracking-tight md:text-[42px]">{greeting()}, {title}.</h1>
           <p className="mt-1.5 text-[16px] text-white/75 md:text-[18px]">{headline}</p>
 
-          <div className={cx("mt-7 grid gap-2.5", stats.length === 4 ? "grid-cols-2 md:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2")}>
+          <div className={cx("mt-7 grid gap-2.5", stats.length === 4 ? "grid-cols-2 md:grid-cols-4" : stats.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
             {stats.map((s) => (
               <Link key={s.label} href={s.href} className="group rounded-2xl bg-white/[.07] p-4 ring-1 ring-white/10 transition hover:bg-white/[.12]">
-                <p className="num text-[34px] font-semibold leading-none md:text-[40px]">{s.n}</p>
-                <p className="mt-2 text-[13.5px] leading-snug text-white/80">{s.label}</p>
-                {s.sub && <p className="mt-1 text-[12px] text-white/50">{s.sub}</p>}
+                <p className={cx("num font-semibold leading-none md:text-[40px]", stats.length === 3 ? "text-[28px]" : "text-[34px]")}>{s.n}</p>
+                <p className="mt-2 text-[13px] leading-snug text-white/80 md:text-[13.5px]">{s.label}</p>
+                {s.sub && <p className={cx("mt-1 text-[12px] text-white/70", stats.length === 3 && "hidden sm:block")}>{s.sub}</p>}
               </Link>
             ))}
           </div>
@@ -130,6 +133,8 @@ export default function Today() {
           {pastoral && d.att.series.length > 2 && <Spark values={d.att.series} />}
         </div>
       </section>
+
+      <div className="mt-6 space-y-4 empty:hidden"><NewRoleCard /><TodayService /><YourRolesCard /></div>
 
       {/* At most three things to do */}
       <section className="mt-8">
@@ -160,7 +165,7 @@ export default function Today() {
               const cls = "rise group flex flex-col rounded-3xl bg-surface p-4 md:p-5 text-left ring-1 ring-line transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-brand/[.07] hover:ring-brand/30";
               return a.href
                 ? <Link key={a.key} href={a.href} className={cls} style={{ animationDelay: `${i * 60}ms` }}>{inner}</Link>
-                : <button key={a.key} onClick={() => setOpen(a.key)} className={cls} style={{ animationDelay: `${i * 60}ms` }}>{inner}</button>;
+                : <button type="button" key={a.key} onClick={() => setOpen(a.key)} className={cls} style={{ animationDelay: `${i * 60}ms` }}>{inner}</button>;
             })}
           </div>
         )}
@@ -180,8 +185,8 @@ export default function Today() {
                 </Link>
                 {r.placement ? (
                   <span className="flex shrink-0 gap-1.5">
-                    <Button onClick={() => resolvePlacement(r.placement!, false)}>Not now</Button>
-                    <Button variant="primary" onClick={() => resolvePlacement(r.placement!, true)}>Place</Button>
+                    <Button onClick={async () => { const note = await textAsk(`Decline ${r.person.firstName}'s request?`, { label: "A short note for them (optional)", placeholder: "The team is full this quarter. Try Ushering?" }, "Decline"); if (note !== null) resolvePlacement(r.placement!, false, note.trim()); }}>Decline</Button>
+                    <Button variant="primary" onClick={() => resolvePlacement(r.placement!, true)}>Approve</Button>
                   </span>
                 ) : r.message && <ReachOut person={r.person} compact message={r.message} canContact={access.canSeeContacts(r.person)} />}
               </li>
@@ -210,7 +215,7 @@ function Spark({ values }: { values: number[] }) {
         <path d={line} fill="none" style={{ stroke: "var(--color-j3)" }} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
         <defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style={{ stopColor: "var(--color-j4)" }} stopOpacity=".35" /><stop offset="1" style={{ stopColor: "var(--color-j4)" }} stopOpacity="0" /></linearGradient></defs>
       </svg>
-      <span className="shrink-0 pb-1 text-[12px] text-white/50">8 Sundays</span>
+      <span className="shrink-0 pb-1 text-[12px] text-white/70">8 Sundays</span>
     </div>
   );
 }

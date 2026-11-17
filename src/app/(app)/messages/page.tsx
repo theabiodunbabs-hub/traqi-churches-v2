@@ -71,11 +71,11 @@ function Celebrations() {
             return (
               <li key={p.id + kind} className="flex flex-wrap items-center gap-3 py-3">
                 <span className="relative"><Avatar person={p} size={44} /><span className={cx("absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full ring-2 ring-surface", kind === "birthday" ? "bg-glow text-white" : "bg-alert text-white")}>{kind === "birthday" ? <Cake size={11} /> : <Heart size={11} />}</span></span>
-                <span className="min-w-0 flex-1">
+                <span className="min-w-[11rem] flex-1">
                   <Link href={`/people/${p.id}`} className="block font-medium hover:text-brand">{fullName(p)}</Link>
                   <span className="block text-[13px] text-muted">{kind === "birthday" ? "Birthday" : "Wedding anniversary"} · {d === 0 ? "today" : d === 1 ? "tomorrow" : WEEK[(new Date().getDay() + d) % 7]}{sent.length > 0 && ` · wished by ${sent.map((w) => (w.byId === me!.id ? "you" : state.people.find((x) => x.id === w.byId)?.firstName)).join(", ")}`}</span>
                 </span>
-                {mine ? <Badge tone="good"><Check size={12} /> Sent</Badge> : access!.canSeeContacts(p) && <button onClick={() => setPicking({ p, kind })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#e7f8ee] px-3.5 py-2 text-sm font-medium text-[#0f7a3d] hover:bg-[#d6f3e2]"><WhatsAppIcon /> Send wishes</button>}
+                {mine ? <Badge tone="good"><Check size={12} /> Sent</Badge> : access!.canSeeContacts(p) && <button type="button" onClick={() => setPicking({ p, kind })} className="inline-flex items-center gap-1.5 rounded-xl bg-[#e7f8ee] px-3.5 py-2 text-sm font-medium text-[#0f7a3d] hover:bg-[#d6f3e2]"><WhatsAppIcon /> Send wishes</button>}
               </li>
             );
           })}
@@ -131,7 +131,7 @@ function Announcements() {
           <div><span className="mb-1.5 block text-sm font-medium">Send by</span>
             <div className="grid grid-cols-3 gap-1.5">
               {([["app", "In Traqi", Smartphone], ["email", "Email", Mail], ["whatsapp", "WhatsApp", BellRing]] as const).map(([k, l, I]) => (
-                <button key={k} onClick={() => ch(k)} className={cx("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm ring-1", a.channels.includes(k) ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "whatsapp" ? <WhatsAppIcon size={15} /> : <I size={15} />}{l}</button>
+                <button type="button" key={k} onClick={() => ch(k)} className={cx("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm ring-1", a.channels.includes(k) ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{k === "whatsapp" ? <WhatsAppIcon size={15} /> : <I size={15} />}{l}</button>
               ))}
             </div>
             {a.channels.includes("whatsapp") && <p className="mt-1.5 text-[12.5px] text-muted">Opens WhatsApp so you can post it to your church groups or broadcast list.</p>}

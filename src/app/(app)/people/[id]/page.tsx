@@ -7,7 +7,7 @@ import { useRef } from "react";
 import { ArrowLeft, Camera, Check, Copy, Crown, Lock, MoreHorizontal, Pencil, Plane, Share2, UserMinus, UserPlus, Undo2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useWords } from "@/components/theme";
-import { Avatar, Badge, Button, Empty, Field, JourneyTrack, Panel, Sheet, Toggle, cx, inputCls, toast } from "@/components/ui";
+import { Avatar, Badge, Button, Empty, Field, JourneyTrack, Panel, Sheet, Toggle, cx, inputCls, toast, confirmAsk } from "@/components/ui";
 import { WhatsAppIcon } from "@/components/care";
 import { uploadImage } from "@/lib/upload";
 import { CustomFieldInput, customValue } from "@/components/custom-fields";
@@ -55,7 +55,7 @@ export default function Profile() {
         <div className="hero relative h-24 rounded-none md:h-28" aria-hidden />
         <div className="px-6 pb-6 md:px-8 md:pb-8">
           <div className="-mt-12 flex flex-col gap-4 md:flex-row md:items-end">
-            <button disabled={!canEdit} onClick={() => photo.current?.click()} className="group relative w-fit rounded-full ring-[5px] ring-surface" aria-label={canEdit ? "Change photo" : undefined}>
+            <button type="button" disabled={!canEdit} onClick={() => photo.current?.click()} className="group relative w-fit rounded-full ring-[5px] ring-surface" aria-label={canEdit ? "Change photo" : undefined}>
               <Avatar person={p} size={96} />
               {canEdit && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-white opacity-0 transition group-hover:opacity-100"><Camera size={22} /></span>}
             </button>
@@ -99,8 +99,8 @@ export default function Profile() {
               {(state.church.profile?.customFields ?? []).filter((f) => !f.hidden).map((f) => <Row key={f.id} k={f.label} v={customValue(f, p) ?? undefined} />)}
             </dl>
             {missing.length > 0 && canEdit && (
-              <button onClick={() => setEditing(true)} className="mt-5 w-full rounded-xl bg-glow-soft px-4 py-3 text-left text-sm text-glow-ink hover:bg-glow/15">
-                Missing: {missing.join(", ")}. Add them now.
+              <button type="button" onClick={() => setEditing(true)} className="mt-5 w-full rounded-xl bg-glow-soft px-4 py-3 text-left text-sm text-glow-ink hover:bg-glow/15">
+                {p.id === me.id ? `Add your ${missing.join(", ")} so the church can reach you.` : `Missing: ${missing.join(", ")}. Tap to add.`}
               </button>
             )}
           </Panel>
@@ -152,7 +152,7 @@ export default function Profile() {
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                         {n.sharedWith.length > 0 && <span className="text-white/70">Shared with {n.sharedWith.map((s) => fullName(person(s))).join(", ")}</span>}
                         {isPastor.filter((x) => !n.sharedWith.includes(x)).map((x) => (
-                          <button key={x} onClick={() => shareNote(n.id, x)} className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20"><Share2 size={12} /> Share with Pastor {person(x)?.firstName}</button>
+                          <button type="button" key={x} onClick={() => shareNote(n.id, x)} className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20"><Share2 size={12} /> Share with Pastor {person(x)?.firstName}</button>
                         ))}
                       </div>
                     )}
@@ -207,7 +207,7 @@ function CanDo({ personId }: { personId: string }) {
               <li key={g.id} className="rounded-full bg-j1 px-2.5 py-1 text-[12.5px] font-medium text-on-light">{x.title || `Assistant, ${g.name}`}</li>
             )))}
           </ul>
-          <button onClick={() => setOpen(!open)} className="mt-3 text-sm font-medium text-brand">{open ? "Hide" : `See all ${can.length} things they can do`}</button>
+          {can.length > 0 && <button type="button" onClick={() => setOpen(!open)} className="mt-3 min-h-10 text-sm font-medium text-brand">{open ? "Hide" : `See all ${can.length} things they can do`}</button>}
           {open && <ul className="mt-2 space-y-1 text-[14px] text-ink-soft">{can.map((x) => <li key={x.key} className="flex gap-2"><Check size={14} className="mt-1 shrink-0 text-good" />Can {PERMISSION_SAYS[x.key]}</li>)}</ul>}
         </>
       )}
@@ -221,7 +221,7 @@ function BranchMove({ personId }: { personId: string }) {
   const p = state.people.find((x) => x.id === personId)!;
   return (
     <select className="rounded-lg bg-page px-2 py-1 text-[14px] ring-1 ring-line" value={p.branchId ?? ""} aria-label="Branch"
-      onChange={(e) => { const to = e.target.value || undefined; if (confirm(`Move ${p.firstName} to ${branchName(state, to)}? They'll leave their current branch's departments.`)) { transferBranch(p.id, to); toast(`${p.firstName} moved to ${branchName(state, to)}`); } }}>
+      onChange={async (e) => { const to = e.target.value || undefined; if (await confirmAsk(`Move ${p.firstName} to ${branchName(state, to)}?`, { body: "They'll leave their current branch's departments.", ok: "Move" })) { transferBranch(p.id, to); toast(`${p.firstName} moved to ${branchName(state, to)}`); } }}>
       <option value="">Headquarters</option>
       {(state.church.profile?.branches ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
     </select>
@@ -277,7 +277,7 @@ function FollowUp({ caseId }: { caseId: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Assigned to">
           {canAssign ? (
-            <button onClick={() => setPicking(true)} className={cx(inputCls, "flex items-center gap-2 text-left")}>
+            <button type="button" onClick={() => setPicking(true)} className={cx(inputCls, "flex items-center gap-2 text-left")}>
               {c.assigneeId ? <><Avatar person={person(c.assigneeId)} size={22} />{fullName(person(c.assigneeId))}</> : <span className="text-muted">Choose someone</span>}
             </button>
           ) : <p className="py-2.5">{fullName(person(c.assigneeId))}</p>}
@@ -358,7 +358,7 @@ function Sundays({ personId }: { personId: string }) {
   return (
     <Panel title="Sundays" action={<span className="text-xs text-muted">{came} of the last {dots.length}</span>}>
       <div className="flex flex-wrap gap-1.5">
-        {dots.map((d) => <span key={d.date} title={`${shortDate(d.date)}: ${d.came ? "came" : d.away ? "away" : "missed"}`} className={cx("flex size-7 items-center justify-center rounded-lg text-[10px] font-semibold", d.came ? "bg-brand text-white" : d.away ? "bg-glow-soft text-glow-ink" : "bg-page text-muted ring-1 ring-line")}>{d.away && !d.came ? <Plane size={11} /> : new Date(`${d.date}T12:00:00Z`).getUTCDate()}</span>)}
+        {dots.map((d) => <span key={d.date} title={`${shortDate(d.date)}: ${d.came ? "came" : d.away ? "away" : "missed"}`} className={cx("flex size-7 items-center justify-center rounded-lg text-[12px] font-semibold", d.came ? "bg-brand text-white" : d.away ? "bg-glow-soft text-glow-ink" : "bg-page text-muted ring-1 ring-line")}>{d.away && !d.came ? <Plane size={11} /> : new Date(`${d.date}T12:00:00Z`).getUTCDate()}</span>)}
       </div>
       <p className="mt-3 flex gap-4 text-[12px] text-muted"><span className="flex items-center gap-1"><span className="size-2.5 rounded bg-brand" /> Came</span><span className="flex items-center gap-1"><span className="size-2.5 rounded bg-glow-soft ring-1 ring-glow/30" /> Away</span><span className="flex items-center gap-1"><span className="size-2.5 rounded bg-page ring-1 ring-line" /> Missed</span></p>
     </Panel>
@@ -418,7 +418,7 @@ function MoreActions({ person: p, onDone }: { person: Person; onDone: () => void
           <p className="mb-2 text-[13px] text-muted">Travelling or unwell? Away Sundays don&apos;t count as missed.</p>
           <div className="grid grid-cols-2 gap-2"><input type="date" className={inputCls} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" /><input type="date" className={inputCls} value={to} min={from} onChange={(e) => setTo(e.target.value)} aria-label="To" /></div>
           <Button className="mt-2 w-full" onClick={() => { put("away", { id: newId("aw"), personId: p.id, from, to }); toast("Away dates saved. Safe travels!"); }}>Save away dates</Button>
-          {away.map((w) => <p key={w.id} className="mt-2 flex items-center justify-between rounded-xl bg-glow-soft px-3 py-2 text-[13px] text-glow-ink">{shortDate(w.from)} to {shortDate(w.to)}<button onClick={() => drop("away", w.id)} className="font-medium">Remove</button></p>)}
+          {away.map((w) => <p key={w.id} className="mt-2 flex items-center justify-between rounded-xl bg-glow-soft px-3 py-2 text-[13px] text-glow-ink">{shortDate(w.from)} to {shortDate(w.to)}<button type="button" onClick={() => drop("away", w.id)} className="font-medium">Remove</button></p>)}
         </section>
       )}
 

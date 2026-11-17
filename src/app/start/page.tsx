@@ -40,7 +40,7 @@ export default function Start() {
         </Link>
       </div>
       <p className="mt-6 text-[13.5px] text-muted">Have an invite link from your church? Open it on this device instead; it sets up your role too.</p>
-      {mode === "live" && <button onClick={() => { signOut(); router.push("/login"); }} className="mt-4 text-sm font-medium text-brand">Use a different account</button>}
+      {mode === "live" && <button type="button" onClick={() => { signOut(); router.push("/login"); }} className="mt-4 text-sm font-medium text-brand">Use a different account</button>}
     </OnboardFrame>
   );
 }

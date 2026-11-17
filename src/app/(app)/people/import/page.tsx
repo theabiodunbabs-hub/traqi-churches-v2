@@ -124,7 +124,7 @@ export default function Import() {
             <input type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           </label>
           {err && <p className="mt-3 text-sm text-alert" role="alert">{err}</p>}
-          <button onClick={() => load("Sample member list.xlsx", SAMPLE)} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-brand">
+          <button type="button" onClick={() => load("Sample member list.xlsx", SAMPLE)} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-brand">
             <FileSpreadsheet size={16} /> No file to hand? Try a sample list
           </button>
         </>

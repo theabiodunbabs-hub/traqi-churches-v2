@@ -5,13 +5,13 @@ import { useState } from "react";
 import { ArrowRight, Award, CalendarClock, GraduationCap, Plus, Repeat, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Badge, Button, Empty, PageHeader, ProgressRing, Sheet, cx, toast } from "@/components/ui";
-import { JoinButton, MODE_LABEL, ModeIcon, ProgrammeForm, RecordingButton, scheduleText, tint } from "@/components/classes";
+import { JoinButton, MODE_LABEL, ModeIcon, ProgrammeForm, RecordingButton, linkJourney, scheduleText, tint } from "@/components/classes";
 import { progress } from "@/lib/domain";
 import { dayName, timeOf, todayLagos } from "@/lib/format";
 import type { Programme } from "@/lib/types";
 
 export default function Classes() {
-  const { state, access, me, put, newId } = useStore();
+  const { state, access, me, put, newId, updateChurch } = useStore();
   const [creating, setCreating] = useState<Programme | null>(null);
   if (!access || !me) return null;
   const manage = access.can("classes.manage") || access.leadsTraining;
@@ -82,8 +82,8 @@ export default function Classes() {
         </div>
       )}
 
-      <Sheet open={!!creating} onClose={() => setCreating(null)} title="New programme">
-        {creating && <ProgrammeForm initial={creating} onSave={(p) => { put("programmes", p, `created the programme ${p.name}`); setCreating(null); toast(`${p.name} is ready`); }} />}
+      <Sheet open={!!creating} onClose={() => setCreating(null)} title="New course">
+        {creating && <ProgrammeForm initial={creating} onSave={(p, finish) => { put("programmes", p, `created ${p.name}`); if (state.church.profile?.journey) updateChurch({}, { journey: linkJourney(state.church.profile.journey, p.id, finish) }); setCreating(null); toast(`${p.name} is ready`); }} />}
       </Sheet>
     </div>
   );

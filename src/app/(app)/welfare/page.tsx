@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { useWords } from "@/components/theme";
 import { Avatar, Badge, Button, Empty, Field, Panel, Sheet, Tabs, Toggle, cx, inputCls, toast } from "@/components/ui";
 import { BarList } from "@/components/charts";
-import { WELFARE_KINDS, WELFARE_STAGE, firstStage, nextStage, welfareAction, welfareRoute, welfareStaff, welfareVisible } from "@/lib/domain";
+import { WELFARE_KINDS, WELFARE_STAGE, firstStage, welfareSimple, nextStage, welfareAction, welfareRoute, welfareStaff, welfareVisible } from "@/lib/domain";
 import { ago, fullName, money, shortDate } from "@/lib/format";
 import type { WelfareRequest } from "@/lib/types";
 
@@ -36,7 +36,7 @@ export default function WelfarePage() {
       <section className="hero mb-6 px-6 pb-6 pt-7 md:px-9 md:pt-9">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-xl">
-            <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] text-white/80"><Lock size={12} /> Private. Never sent to Google Sheets.</span>
+            <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] text-white/80"><Lock size={12} /> Private. Never downloaded or emailed.</span>
             <h1 className="mt-3 font-display text-[32px] font-semibold leading-tight tracking-tight md:text-[40px]">{w.welfare}</h1>
             <p className="mt-1 text-white/70">{staffish ? "Caring for one another, with every request minuted and decided in the open." : "Ask for help privately. Only the Welfare head and the pastors will see it."}</p>
           </div>
@@ -54,8 +54,8 @@ export default function WelfarePage() {
       {staffish && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <Tabs value={tab} onChange={setTab} items={[
-            { key: "needs", label: "Needs you", count: needs.length }, { key: "open", label: "In progress", count: open.length },
-            { key: "done", label: "Finished", count: done.length }, ...(mine.length ? [{ key: "mine" as const, label: "My requests", count: mine.length }] : []),
+            { key: "needs", label: "Needs you", count: needs.length }, { key: "open", label: "Being handled", count: open.length },
+            { key: "done", label: "Done", count: done.length }, ...(mine.length ? [{ key: "mine" as const, label: "My requests", count: mine.length }] : []),
           ]} />
         </div>
       )}
@@ -80,9 +80,9 @@ function RequestCard({ w, onOpen }: { w: WelfareRequest; onOpen: () => void }) {
   const p = state.people.find((x) => x.id === w.personId);
   const staff = welfareStaff(access!, w);
   const act = welfareAction(state, access!, w);
-  const st = WELFARE_STAGE[w.stage];
+  const st = welfareSimple(w);
   return (
-    <button onClick={onOpen} className="card card-hover flex w-full items-center gap-4 p-4 text-left md:p-5">
+    <button type="button" onClick={onOpen} className="card card-hover flex w-full items-center gap-4 p-4 text-left md:p-5">
       <Avatar person={p} size={46} />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
@@ -92,12 +92,13 @@ function RequestCard({ w, onOpen }: { w: WelfareRequest; onOpen: () => void }) {
           {w.private && <Badge tone="dark"><Lock size={11} /> Private</Badge>}
         </span>
         <span className="mt-1 block truncate text-[13.5px] text-ink-soft">{staff ? w.details : "Your request is being looked after."}</span>
-        <Track w={w} />
+        <span className="mt-2 flex flex-wrap items-center gap-2 text-[12.5px] text-muted sm:hidden"><Badge tone={st.tone}>{st.label}</Badge>{st.now}</span>
       </span>
       <span className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
         <Badge tone={st.tone}>{st.label}</Badge>
+        {st.now && <span className="text-[12px] text-muted">{st.now}</span>}
         {act && <span className="text-[12px] font-semibold text-brand">{act === "minute" ? "Add your minute" : act === "decide" ? "Decide" : act === "assign" ? "Assign" : "Mark as given"} →</span>}
-        <span className="text-[11.5px] text-muted">{ago(w.createdAt)}</span>
+        <span className="text-[12px] text-muted">{ago(w.createdAt)}</span>
       </span>
       <ChevronRight size={18} className="text-muted sm:hidden" />
     </button>
@@ -113,14 +114,14 @@ function Track({ w }: { w: WelfareRequest }) {
     <span className="mt-2.5 flex flex-wrap items-center gap-1">
       {route.map((r, i) => (
         <span key={r} className="flex items-center gap-1">
-          <span className={cx("flex h-5 items-center gap-1 rounded-full px-2 text-[10.5px] font-medium", i < idx ? "bg-good-soft text-good" : i === idx ? "bg-brand text-white" : "bg-page text-muted ring-1 ring-line")}>
+          <span className={cx("flex h-5 items-center gap-1 rounded-full px-2 text-[12px] font-medium", i < idx ? "bg-good-soft text-good" : i === idx ? "bg-brand text-white" : "bg-page text-muted ring-1 ring-line")}>
             {i < idx && <Check size={10} />}{STEP_LABEL[r]}
           </span>
           {i < route.length - 1 && <span className="h-px w-2 bg-line" />}
         </span>
       ))}
       <span className="h-px w-2 bg-line" />
-      <span className={cx("h-5 rounded-full px-2 text-[10.5px] font-medium leading-5", w.stage === "given" ? "bg-good text-white" : w.stage === "declined" ? "bg-deep-2 text-white" : "bg-page text-muted ring-1 ring-line")}>{w.stage === "declined" ? "Declined" : "Given"}</span>
+      <span className={cx("h-5 rounded-full px-2 text-[12px] font-medium leading-5", w.stage === "given" ? "bg-good text-white" : w.stage === "declined" ? "bg-deep-2 text-white" : "bg-page text-muted ring-1 ring-line")}>{w.stage === "declined" ? "Declined" : "Given"}</span>
     </span>
   );
 }
@@ -208,7 +209,7 @@ function RequestDetail({ w, onDone }: { w: WelfareRequest; onDone: () => void })
           {ask > limit && !access!.isLead && <p className="text-[13px] text-glow-ink">Above {money(limit)}, so the lead pastor decides.</p>}
           <div className="grid grid-cols-3 gap-1.5">
             {([["approve", "Approve", Check], ["decline", "Decline", X], ["back", "Send back", Undo2]] as const).map(([k, l, I]) => (
-              <button key={k} onClick={() => setMode(k)} className={cx("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm ring-1", mode === k ? "bg-deep text-white ring-deep" : "bg-page ring-line")}><I size={15} />{l}</button>
+              <button type="button" key={k} onClick={() => setMode(k)} className={cx("flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm ring-1", mode === k ? "bg-deep text-white ring-deep" : "bg-page ring-line")}><I size={15} />{l}</button>
             ))}
           </div>
           {mode === "approve" && <>
@@ -272,13 +273,13 @@ function NewRequest({ onDone }: { onDone: () => void }) {
     <div className="space-y-4">
       {canRaiseForOthers && (
         <Field label="Who is it for?">
-          <div className="flex items-center gap-2 rounded-xl bg-page p-2 ring-1 ring-line"><Avatar person={forP} size={30} /><span className="flex-1 text-sm font-medium">{forId === me!.id ? "Me" : fullName(forP)}</span>{forId !== me!.id && <button onClick={() => setFor(me!.id)} className="text-[13px] text-brand">Change to me</button>}</div>
+          <div className="flex items-center gap-2 rounded-xl bg-page p-2 ring-1 ring-line"><Avatar person={forP} size={30} /><span className="flex-1 text-sm font-medium">{forId === me!.id ? "Me" : fullName(forP)}</span>{forId !== me!.id && <button type="button" onClick={() => setFor(me!.id)} className="text-[13px] text-brand">Change to me</button>}</div>
           <input className={cx(inputCls, "mt-2")} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Or search for someone in your care" />
-          {matches.map((p) => <button key={p.id} onClick={() => { setFor(p.id); setQ(""); }} className="mt-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm hover:bg-page"><Avatar person={p} size={26} />{fullName(p)}</button>)}
+          {matches.map((p) => <button type="button" key={p.id} onClick={() => { setFor(p.id); setQ(""); }} className="mt-1 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm hover:bg-page"><Avatar person={p} size={26} />{fullName(p)}</button>)}
         </Field>
       )}
       <Field label="What kind of support?">
-        <div className="flex flex-wrap gap-1.5">{WELFARE_KINDS.map((k) => <button key={k} onClick={() => setKind(k)} className={cx("rounded-full px-3 py-2 text-sm ring-1", kind === k ? "bg-deep text-white ring-deep" : "bg-surface ring-line")}>{k}</button>)}</div>
+        <div className="flex flex-wrap gap-1.5">{WELFARE_KINDS.map((k) => <button type="button" key={k} onClick={() => setKind(k)} className={cx("rounded-full px-3 py-2 text-sm ring-1", kind === k ? "bg-deep text-white ring-deep" : "bg-surface ring-line")}>{k}</button>)}</div>
       </Field>
       <Field label="Tell us what's happening"><textarea className={cx(inputCls, "min-h-28")} value={details} onChange={(e) => setDetails(e.target.value)} /></Field>
       <Field label="Amount needed, if any"><input className={inputCls} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="₦" /></Field>

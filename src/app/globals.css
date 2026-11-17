@@ -29,9 +29,9 @@
   --color-glow-soft: #fff6e5;
   --color-glow-ink: #8a5300;
 
-  --color-good: #0e9f6e;
+  --color-good: #047857;
   --color-good-soft: #e6f7f0;
-  --color-alert: #e11d48;
+  --color-alert: #be123c;
   --color-alert-soft: #fdecf0;
 
   /* Journey ramp: growth deepens the colour */
@@ -43,7 +43,8 @@
   --color-j6: #2e2a8f;
 }
 
-html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scrollbar-gutter: stable; }
+body { overflow-x: clip; }
 body {
   background: var(--color-page); color: var(--color-ink); font-family: var(--font-sans);
   background-image: radial-gradient(1200px 500px at 85% -10%, var(--page-wash, rgb(79 70 229 / .07)), transparent 60%),
@@ -111,3 +112,8 @@ body {
 }
 
 .scrollbar-thin { scrollbar-width: thin; }
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* iPhones zoom into any field under 16px; keep every field at 16px on phones */
+@media (max-width: 767px) { input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px !important; } }
