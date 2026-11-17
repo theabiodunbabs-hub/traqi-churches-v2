@@ -57,19 +57,19 @@ export function TemplatePicker({ person, category, onClose, vars = {}, onSent }:
   const wa = person.whatsapp || person.phone;
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal aria-label="Choose a message">
-      <button aria-label="Close" className="fade absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+      <button type="button" aria-label="Close" className="fade absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="rise relative w-full max-w-lg rounded-t-3xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl">
-        <div className="flex items-center gap-2"><WhatsAppIcon size={18} /><p className="font-display text-lg font-semibold">Message to {person.firstName}</p><button onClick={onClose} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-page" aria-label="Close"><X size={17} /></button></div>
+        <div className="flex items-center gap-2"><WhatsAppIcon size={18} /><p className="font-display text-lg font-semibold">Message to {person.firstName}</p><button type="button" onClick={onClose} className="ml-auto rounded-lg p-1.5 text-muted hover:bg-page" aria-label="Close"><X size={17} /></button></div>
         <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
           {list.map((t, k) => (
-            <button key={t.id} onClick={() => choose(k)} className={cx("flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[13px] ring-1", i === k ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>
+            <button type="button" key={t.id} onClick={() => choose(k)} className={cx("flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[13px] ring-1", i === k ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>
               {t.ownerId && <Star size={12} className={i === k ? "fill-white" : "fill-glow text-glow"} />}{t.name}
             </button>
           ))}
         </div>
         <div className="mt-3 rounded-2xl bg-[#e7fbe9] p-3"><textarea value={text} onChange={(e) => setText(e.target.value)} className="min-h-32 w-full resize-none bg-transparent text-[14.5px] leading-relaxed outline-none" aria-label="Message" /></div>
         <div className="mt-3 flex gap-2">
-          {text !== fill(list[i]?.body ?? "", values) && <button onClick={() => {
+          {text !== fill(list[i]?.body ?? "", values) && <button type="button" onClick={() => {
             const body = text.split(person.firstName).join("{first_name}").split(state.church.name).join("{church_name}");
             put("templates", { id: newId("tp"), category, name: "My version", body, ownerId: me?.id });
             toast("Saved as your own version");
@@ -121,13 +121,13 @@ export function ContactPrompt() {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal aria-label="How did it go?">
-      <button aria-label="Close" className="fade absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => { finishContact(null); setShow(false); }} />
+      <button type="button" aria-label="Close" className="fade absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => { finishContact(null); setShow(false); }} />
       <div className="rise relative w-full max-w-md rounded-t-3xl bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl">
         <p className="text-sm text-muted">{pc.method === "call" ? "You called" : "You opened WhatsApp with"} {p.firstName}</p>
         <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight">How did it go?</h2>
         <div className="mt-5 space-y-2">
           {OUTCOMES[pc.method].map((o) => (
-            <button key={o.text} onClick={() => save(o)}
+            <button type="button" key={o.text} onClick={() => save(o)}
               className={cx("flex h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-[15px] font-medium ring-1 transition active:scale-[.99]",
                 o.reached ? "bg-good-soft text-good ring-good/20 hover:ring-good/40" : "bg-page text-ink ring-line hover:ring-ink/20")}>
               <span className={cx("size-2.5 rounded-full", o.reached ? "bg-good" : "bg-muted/50")} />{o.text}
@@ -136,7 +136,7 @@ export function ContactPrompt() {
         </div>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional): coming on Sunday"
           className="mt-4 w-full rounded-xl bg-page px-3.5 py-3 text-[15px] ring-1 ring-line outline-none placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-brand" />
-        <button onClick={() => { finishContact(null); setShow(false); }} className="mt-3 w-full py-2 text-sm text-muted hover:text-ink">Skip for now</button>
+        <button type="button" onClick={() => { finishContact(null); setShow(false); }} className="mt-3 w-full py-2 text-sm text-muted hover:text-ink">Skip for now</button>
       </div>
     </div>
   );

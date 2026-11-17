@@ -179,7 +179,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
             {err && <p className="text-sm text-alert" role="alert">{err}</p>}
             <Button variant="primary" type="submit" disabled={busy} className="h-13 w-full py-3.5 text-[16px]">{busy ? "Checking in…" : "Check me in"} <ArrowRight size={17} /></Button>
           </form>
-          <button onClick={() => setStep("new")} className="mt-4 w-full rounded-2xl p-3 text-center text-[14.5px] text-ink-soft hover:bg-page">First time here? <b className="text-brand">Say hello</b></button>
+          <button type="button" onClick={() => setStep("new")} className="mt-4 w-full rounded-2xl p-3 text-center text-[14.5px] text-ink-soft hover:bg-page">First time here? <b className="text-brand">Say hello</b></button>
         </Card>
       )}
 
@@ -202,7 +202,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
             {err && <p className="text-sm text-alert" role="alert">{err}</p>}
             <Button variant="primary" type="submit" disabled={busy} className="w-full py-3.5 text-[16px]">{busy ? "Saving…" : "Say hello"}</Button>
           </form>
-          {!startNew && <button onClick={() => setStep("phone")} className="mt-3 w-full p-2 text-center text-sm text-muted">I&apos;ve been here before</button>}
+          {!startNew && <button type="button" onClick={() => setStep("phone")} className="mt-3 w-full p-2 text-center text-sm text-muted">I&apos;ve been here before</button>}
         </Card>
       )}
 

@@ -92,7 +92,7 @@ export function LiveSignIn({ returnTo = "/login", startMode = "in" }: { returnTo
       </form>
       <p className="mt-5 text-center text-sm text-ink-soft">
         {mode === "in" ? "No account yet? " : "Already have an account? "}
-        <button className={cx("font-medium text-brand")} onClick={() => { setMode(mode === "in" ? "up" : "in"); setErr(""); }}>{mode === "in" ? "Create one" : "Sign in"}</button>
+        <button type="button" className={cx("font-medium text-brand")} onClick={() => { setMode(mode === "in" ? "up" : "in"); setErr(""); }}>{mode === "in" ? "Create one" : "Sign in"}</button>
       </p>
       {returnTo !== "/signup" && <p className="mt-2 text-center text-sm text-ink-soft">Setting up a new church? <Link href="/signup" className="font-medium text-brand">Start here</Link></p>}
     </div>

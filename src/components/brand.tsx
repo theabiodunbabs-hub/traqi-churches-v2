@@ -39,7 +39,7 @@ export function Logo({ light, small }: { light?: boolean; small?: boolean }) {
       <LogoMark size={small ? 28 : 36} />
       <span className="leading-none">
         <Wordmark light={light} className={small ? "text-[19px]" : undefined} />
-        <span className={cx("block text-[11px] font-medium tracking-wide", light ? "text-white/60" : "text-muted")}>for churches</span>
+        <span className={cx("block text-[12px] font-medium tracking-wide", light ? "text-white/60" : "text-muted")}>for churches</span>
       </span>
     </span>
   );

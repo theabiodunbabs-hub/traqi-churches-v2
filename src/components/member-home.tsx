@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Users } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, UserRound, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Avatar, Button, JourneyTrack, Sheet, cx } from "./ui";
+import { Avatar, Button, Sheet, cx } from "./ui";
 import { WhatsAppIcon } from "./care";
+import { NewRoleCard } from "./role-cards";
+import { MetSomeoneButton } from "./outreach";
+import { TodayService } from "./rollcall";
 import { COVERS } from "./brand";
 import { eventWhen } from "./event-page";
 import { useWords } from "./theme";
-import { isLimited, isUnconfirmed, nextMeeting, openMeeting, progress, sundayDots } from "@/lib/domain";
+import { isLimited, isUnconfirmed, nextMeeting, openMeeting, progress } from "@/lib/domain";
 import { nextStepFor } from "@/lib/journey-engine";
-import { daysToBirthday, fullName, greeting, shortDate, timeOf, todayLong } from "@/lib/format";
-import { kindOf } from "@/lib/journey";
+import { daysToBirthday, fullName, greeting, shortDate, stageInfo, timeOf, todayLong } from "@/lib/format";
 import type { Resource } from "@/lib/types";
 
 const RES_ICON: Record<Resource["kind"], typeof Film> = { youtube: Film, telegram: Send, drive: FolderOpen, podcast: Mic, website: Globe, instagram: Globe, facebook: Globe, other: ExternalLink };
@@ -42,33 +44,50 @@ export function MemberHome() {
   const myRegs = state.registrations.filter((r) => r.personId === me.id && r.status === "confirmed");
   const events = state.events.filter((e) => e.status === "published" && Date.parse(e.end) > now).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 3);
   const live = events.find((e) => Date.parse(e.start) - 30 * 6e4 <= now && myRegs.some((r) => r.eventId === e.id));
-  const ids = new Set(myGroups.map((g) => g.id));
-  const news = me.prefs?.noAnnouncements ? [] : state.announcements
-    .filter((a) => a.audience.type === "all" || (a.audience.type === "group" && ids.has(a.audience.id ?? "")) || (a.audience.type === "stage" && kindOf(me.stage) === kindOf(a.audience.id ?? "")))
-    .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
-  const dots = sundayDots(state, me.id);
-  const household = state.people.filter((p) => p.householdId && p.householdId === me.householdId && p.id !== me.id);
   const b = daysToBirthday(me.birthday);
   const showCommunity = !!profile?.whatsapp && (!unconfirmed || profile.whatsappForUnconfirmed);
   const deptLinks = serving.filter((g) => g.whatsapp);
-  const prayers = state.prayers.filter((p) => p.personId === me.id && !p.answered);
+  const prayers = state.prayers.filter((p) => p.personId === me.id);
+  const prayedLately = prayers.filter((p) => p.prayed.some((x) => now - Date.parse(x.at) < 7 * 864e5));
+  const answered = prayers.filter((p) => p.answered && now - Date.parse(p.answered) < 7 * 864e5);
+  const myWelfare = state.welfare.filter((x) => x.personId === me.id && (x.givenAt || x.decision) && now - Date.parse(x.givenAt ?? x.decision!.at) < 7 * 864e5);
   const teamGroup = state.groups.find((g) => g.id === team);
   const teammates = (gid: string) => {
     const g = state.groups.find((x) => x.id === gid)!;
     return [...new Set([...g.leaderIds, ...g.memberIds])].filter((id) => id !== me.id).map((id) => state.people.find((p) => p.id === id)!).filter((p) => p && !p.inactive);
   };
+  // Events only show when they need you: open for registration, or you're registered and it's coming
+  const toRegister = events.filter((e) => !myRegs.some((r) => r.eventId === e.id) && (!e.closesAt || Date.parse(e.closesAt) > now)).slice(0, 2);
+  const registered = events.filter((e) => myRegs.some((r) => r.eventId === e.id) && e.id !== live?.id);
+  const days = (iso: string) => Math.max(0, Math.ceil((Date.parse(iso) - now) / 864e5));
+  const links = [
+    showCommunity && { href: profile!.whatsapp!, label: "Church WhatsApp", icon: "wa" as const },
+    ...deptLinks.map((g) => ({ href: g.whatsapp!, label: `${g.name} group`, icon: "wa" as const })),
+    profile?.pinnedMessage?.url && { href: profile.pinnedMessage.url, label: profile.pinnedMessage.title || "Latest message", icon: Film },
+    ...(profile?.resources ?? []).map((r) => ({ href: r.url, label: r.title, icon: RES_ICON[r.kind] ?? ExternalLink })),
+  ].filter(Boolean) as { href: string; label: string; icon: "wa" | typeof Film }[];
+  const stageName = stageInfo(me.stage).label;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-2xl">
       {/* Hello */}
-      <section className="hero rise relative overflow-hidden rounded-[28px] p-6 text-white md:p-8">
-        <p className="text-[14px] text-white/65">{todayLong()}</p>
-        <h1 className="mt-1 font-display text-[30px] font-semibold tracking-tight md:text-[38px]">{greeting()}, {me.firstName}.</h1>
+      <section className="hero rise relative overflow-hidden rounded-[28px] p-6 text-white md:p-7">
+        <p className="text-[14px] text-white/75">{todayLong()}</p>
+        <h1 className="mt-1 font-display text-[28px] font-semibold tracking-tight md:text-[34px]">{greeting()}, {me.firstName}.</h1>
         {b !== null && b <= 7 && <p className="mt-1.5 text-[#ffd48a]">{b === 0 ? "Happy birthday! The whole church is celebrating you today." : `Your birthday is in ${b} day${b === 1 ? "" : "s"}.`}</p>}
-        <div className="mt-6 rounded-2xl bg-surface p-4 text-ink md:p-5">
-          <p className="mb-3 text-[13px] font-medium text-ink-soft">Your journey at {state.church.name}</p>
-          <JourneyTrack stage={me.stage} />
-        </div>
+        {/* Next service, or check in when it's open */}
+        {open ? (
+          <Link href={`/checkin/${state.church.slug}`} className={cx("mt-5 flex items-center gap-3 rounded-2xl p-4", checkedIn ? "bg-white/12" : "bg-white text-ink")}>
+            <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-xl text-white", checkedIn ? "bg-good" : "bg-brand pulse")}><CheckCircle2 size={21} /></span>
+            <span className="min-w-0 flex-1"><b className="block font-semibold">{checkedIn ? "You're checked in" : `Check in to ${open.name}`}</b><span className={cx("text-[13.5px]", checkedIn ? "text-white/75" : "text-ink-soft")}>{checkedIn ? "Glad you're here." : "Open now. One tap."}</span></span>
+            {!checkedIn && <ArrowRight size={18} className="text-brand" />}
+          </Link>
+        ) : next && (
+          <div className="mt-5 flex items-center gap-3 rounded-2xl bg-white/12 p-4">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><CalendarDays size={20} /></span>
+            <span className="min-w-0 flex-1"><b className="block font-semibold">{next.name}</b><span className="text-[13.5px] text-white/75">{shortDate(next.date)}, {timeOf(next.start)}. Check-in opens 30 minutes before.</span></span>
+          </div>
+        )}
       </section>
 
       {unconfirmed && (
@@ -78,154 +97,115 @@ export function MemberHome() {
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
-        {/* Check in: live from 30 minutes before */}
-        {open ? (
-          <Link href={`/checkin/${state.church.slug}`} className={cx("card card-hover flex items-center gap-4 p-5 sm:col-span-2", !checkedIn && "ring-2 ring-brand")}>
-            <span className={cx("flex size-12 shrink-0 items-center justify-center rounded-2xl text-white", checkedIn ? "bg-good" : "bg-brand pulse")}><CheckCircle2 size={22} /></span>
-            <span className="flex-1"><b className="block font-display text-[18px] font-semibold">{checkedIn ? "You're checked in" : `Check in to ${open.name}`}</b><span className="text-sm text-ink-soft">{checkedIn ? "Glad you're here." : "Open now. One tap."}</span></span>
-            {!checkedIn && <ArrowRight size={18} className="text-brand" />}
-          </Link>
-        ) : next && (
-          <div className="card flex items-center gap-4 p-5">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-page text-ink-soft ring-1 ring-line"><CalendarDays size={21} /></span>
-            <span className="flex-1"><b className="block font-display text-[16px] font-semibold">{next.name}</b><span className="text-[13.5px] text-ink-soft">{shortDate(next.date)}, {timeOf(next.start)}. Check-in opens 30 minutes before.</span></span>
-          </div>
-        )}
-
+      <div className="mt-4 space-y-3">
+        <NewRoleCard />
+        <TodayService />
+        {/* For you: each card only when it applies */}
         {live && (
           <Link href={`/events/${live.id}`} className="card card-hover flex items-center gap-4 p-5 ring-2 ring-glow">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-glow text-white"><Sparkles size={21} /></span>
-            <span className="flex-1"><b className="block font-display text-[16px] font-semibold">{live.title}</b><span className="text-[13.5px] text-ink-soft">Show your ticket at the door</span></span>
-          </Link>
-        )}
-
-        {/* Next step on their journey */}
-        {step && (
-          <Link href={step.href ?? `/people/${me.id}`} className="card card-hover flex items-center gap-4 p-5">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-glow-soft text-glow-ink"><Sparkles size={21} /></span>
-            <span className="min-w-0 flex-1"><span className="block text-[11.5px] font-semibold uppercase tracking-wider text-muted">Your next step</span><b className="block font-display text-[16px] font-semibold">{step.title}</b><span className="text-[13.5px] text-ink-soft">{step.body}</span></span>
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-glow text-white"><Ticket size={21} /></span>
+            <span className="min-w-0 flex-1"><b className="block font-display text-[17px] font-semibold">{live.title} is starting</b><span className="text-[13.5px] text-ink-soft">Show your ticket at the door</span></span>
             <ChevronRight size={18} className="shrink-0 text-muted" />
           </Link>
         )}
-
-        {/* Community */}
-        {(showCommunity || deptLinks.length > 0) && (
-          <div className="card p-5">
-            <p className="font-display text-[16px] font-semibold">Stay connected</p>
-            <ul className="mt-3 space-y-2">
-              {showCommunity && <WaLink href={profile!.whatsapp!} label={`${state.church.name} community`} />}
-              {deptLinks.map((g) => <WaLink key={g.id} href={g.whatsapp!} label={`${g.name} group`} />)}
-            </ul>
-          </div>
-        )}
-
-        {/* Where you serve, and your team */}
-        <div className="card p-5">
-          {serving.length ? (
-            <>
-              <p className="font-display text-[16px] font-semibold">Where you serve</p>
-              <ul className="mt-3 space-y-2">
-                {serving.map((g) => {
-                  const t = teammates(g.id);
-                  const assistant = g.assistants?.find((a) => a.personId === me.id);
-                  return (
-                    <li key={g.id}>
-                      <button onClick={() => setTeam(g.id)} className="flex w-full items-center gap-3 rounded-2xl bg-page px-3.5 py-2.5 text-left ring-1 ring-line hover:ring-brand/40">
-                        <span className="min-w-0 flex-1"><span className="block truncate font-medium">{g.name}</span><span className="block truncate text-[12.5px] text-muted">{assistant ? assistant.title : g.leaderIds.includes(me.id) ? "You lead this team" : `${t.length} on the team`}</span></span>
-                        <span className="flex -space-x-1.5">{t.slice(0, 3).map((p) => <span key={p.id} className="rounded-full ring-2 ring-page"><Avatar person={p} size={24} /></span>)}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              {me.probation && <p className="mt-3 rounded-xl bg-glow-soft px-3 py-2 text-[13px] text-glow-ink">Serving on probation until {shortDate(me.probation.until)}.</p>}
-            </>
-          ) : mine?.status === "open" ? (
-            <><p className="font-display text-[16px] font-semibold">Request sent</p><p className="mt-1 text-sm text-ink-soft">You asked to join {state.groups.find((g) => g.id === mine.groupId)?.name}. Someone will be in touch.</p></>
-          ) : (
-            <>
-              <p className="font-display text-[16px] font-semibold">Serve with us</p>
-              <p className="mt-1 text-sm text-ink-soft">{mine?.status === "declined" ? "That team is full for now. Try another." : `Find a ${w.department.toLowerCase()} where your gifts fit.`}</p>
-              <Button variant="primary" className="mt-4" onClick={() => setAsking(true)}>Ask to join</Button>
-            </>
-          )}
-        </div>
-
-        {/* Classes, only once enrolled */}
+        {registered.map((e) => (
+          <Link key={e.id} href={`/events/${e.id}`} className="card card-hover flex items-center gap-4 overflow-hidden p-0">
+            <span className="flex w-[92px] shrink-0 flex-col items-center justify-center self-stretch py-4 text-white" style={{ background: COVERS[e.cover % COVERS.length] }}>
+              <span className="num text-[30px] font-semibold leading-none">{days(e.start)}</span><span className="mt-1 text-[12px] text-white/85">{days(e.start) === 1 ? "day to go" : "days to go"}</span>
+            </span>
+            <span className="min-w-0 flex-1 py-4"><span className="block text-[12px] font-semibold uppercase tracking-wider text-good">You&apos;re registered</span><b className="block truncate font-display text-[17px] font-semibold">{e.title}</b><span className="text-[13.5px] text-ink-soft">{eventWhen(e)}</span></span>
+            <span className="pr-4 text-[13.5px] font-medium text-brand">Ticket</span>
+          </Link>
+        ))}
+        {toRegister.map((e) => (
+          <Link key={e.id} href={`/events/${e.id}`} className="card card-hover block overflow-hidden">
+            <div className="px-5 pb-4 pt-5 text-white" style={{ background: COVERS[e.cover % COVERS.length] }}>
+              <p className="text-[12px] uppercase tracking-wider text-white/85">{eventWhen(e)}</p>
+              <p className="mt-2 font-display text-[20px] font-semibold leading-tight">{e.title}</p>
+            </div>
+            <p className="flex items-center justify-between px-5 py-3 text-[14px]"><span className="text-ink-soft">Registration is open</span><span className="inline-flex items-center gap-1 font-semibold text-brand">Register <ArrowRight size={15} /></span></p>
+          </Link>
+        ))}
         {enrolments.length > 0 && (
-          <Link href="/classes" className="card card-hover p-5">
+          <Link href="/classes" className="card card-hover block p-5">
             <p className="font-display text-[16px] font-semibold">Your classes</p>
             {enrolments.map((e) => { const pr = progress(state, e); return (
-              <div key={e.id} className="mt-3"><div className="flex justify-between text-[13.5px]"><span>{pr.prog.name}</span><span className="text-muted">{pr.done.length}/{pr.prog.modules.length}</span></div><div className="mt-1.5 h-1.5 rounded-full bg-page"><div className="h-full rounded-full bg-brand" style={{ width: `${(pr.done.length / pr.prog.modules.length) * 100}%` }} /></div></div>
+              <div key={e.id} className="mt-3"><div className="flex justify-between text-[13.5px]"><span>{pr.prog.name}</span><span className="text-muted">{pr.done.length} of {pr.prog.modules.length}</span></div><div className="mt-1.5 h-2 rounded-full bg-page"><div className="h-full rounded-full bg-brand" style={{ width: `${(pr.done.length / pr.prog.modules.length) * 100}%` }} /></div></div>
             ); })}
           </Link>
         )}
-
-        {/* Latest message and resources: links only, they open where they live */}
-        {(profile?.pinnedMessage?.url || (profile?.resources ?? []).length > 0) && (
-          <div className="card p-5 sm:col-span-2">
-            {profile?.pinnedMessage?.url && (
-              <a href={profile.pinnedMessage.url} target="_blank" rel="noreferrer" className="hero group flex items-center gap-4 rounded-2xl p-4 text-white">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><Film size={20} /></span>
-                <span className="min-w-0 flex-1"><span className="block text-[11.5px] uppercase tracking-wider text-white/65">Latest message</span><b className="block truncate font-display text-[16px] font-semibold">{profile.pinnedMessage.title || "Watch"}</b></span>
-                <ExternalLink size={16} className="shrink-0 opacity-75" />
-              </a>
-            )}
-            {(profile?.resources ?? []).length > 0 && (
-              <ul className={cx("grid grid-cols-2 gap-2 sm:grid-cols-3", profile?.pinnedMessage?.url && "mt-3")}>
-                {profile!.resources!.map((r) => { const I = RES_ICON[r.kind] ?? ExternalLink; return (
-                  <li key={r.id}><a href={r.url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 rounded-xl bg-page px-3 py-2.5 text-[13.5px] ring-1 ring-line hover:ring-brand/40"><I size={16} className="shrink-0 text-brand" /><span className="truncate">{r.title}</span></a></li>
-                ); })}
-              </ul>
-            )}
+        {(answered.length > 0 || prayedLately.length > 0) && (
+          <Link href="/prayer" className="card card-hover flex items-center gap-4 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"><HandHeart size={19} /></span>
+            <span className="min-w-0 flex-1 text-[14px]">{answered.length ? "A prayer request was marked answered. Praise God!" : `Someone prayed for your request this week.`}</span>
+          </Link>
+        )}
+        {myWelfare.length > 0 && (
+          <Link href="/welfare" className="card card-hover flex items-center gap-4 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-glow-soft text-glow-ink"><HeartHandshake size={19} /></span>
+            <span className="min-w-0 flex-1 text-[14px]">There&apos;s an update on your support request.</span>
+          </Link>
+        )}
+        {mine?.status === "declined" && Date.now() - Date.parse(mine.decidedAt ?? mine.at) < 14 * 864e5 && (
+          <div className="card flex items-center gap-4 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-page text-ink-soft"><Users size={19} /></span>
+            <span className="min-w-0 flex-1 text-[14px]">{state.groups.find((g) => g.id === mine.groupId)?.name} can&apos;t take you just now.{mine.reply ? ` “${mine.reply}”` : ""} You can ask to join another team.</span>
+          </div>
+        )}
+        {mine?.status === "open" && (
+          <div className="card flex items-center gap-4 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-page text-ink-soft"><Users size={19} /></span>
+            <span className="min-w-0 flex-1 text-[14px]">You asked to join {state.groups.find((g) => g.id === mine.groupId)?.name}. The head will reply soon.</span>
           </div>
         )}
 
-        {/* Prayer and support */}
-        <Link href="/prayer" className="card card-hover flex items-start gap-4 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand"><HandHeart size={20} /></span>
-          <span><b className="block font-display text-[16px] font-semibold">Prayer</b><span className="text-[13.5px] text-ink-soft">{prayers.length ? `${prayers.filter((p) => p.prayed.length).length} of your ${prayers.length} requests prayed for` : "Share a request with your pastors."}</span></span>
-        </Link>
-        <Link href="/welfare" className="card card-hover flex items-start gap-4 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-glow-soft text-glow-ink"><HeartHandshake size={20} /></span>
-          <span><b className="block font-display text-[16px] font-semibold">Need support?</b><span className="text-[13.5px] text-ink-soft">Ask privately. Only the {w.welfare} head and the pastors see it.</span></span>
-        </Link>
+        {/* Your journey, in one line */}
+        <div className="card flex items-center gap-4 p-5">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-glow-soft text-glow-ink"><Sparkles size={21} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] text-ink-soft">You&apos;re a <b className="font-semibold text-ink">{stageName}</b> at {state.church.name}</span>
+            {step && <b className="block font-display text-[16px] font-semibold">{step.title}</b>}
+            {step && <span className="block text-[13.5px] text-ink-soft">{step.body}</span>}
+          </span>
+          {step?.href === "/departments" && !serving.length && mine?.status !== "open"
+            ? <Button variant="primary" className="shrink-0" onClick={() => setAsking(true)}>Ask to join</Button>
+            : step?.href ? <Link href={step.href} className="shrink-0 rounded-xl bg-brand-soft px-3.5 py-2 text-sm font-semibold text-brand">Go</Link> : null}
+        </div>
 
-        {/* Events */}
-        {events.map((e) => {
-          const reg = myRegs.some((r) => r.eventId === e.id);
-          return (
-            <Link key={e.id} href={`/events/${e.id}`} className="card card-hover overflow-hidden">
-              <div className="p-5 text-white" style={{ background: COVERS[e.cover % COVERS.length] }}>
-                <p className="text-[12px] uppercase tracking-wider text-white/75">{eventWhen(e)}</p>
-                <p className="mt-3 font-display text-xl font-semibold leading-tight">{e.title}</p>
-              </div>
-              <p className="flex items-center justify-between px-5 py-3 text-[13.5px]"><span className="text-ink-soft">{reg ? "You're registered" : "Register in a tap"}</span><ArrowRight size={15} className="text-brand" /></p>
-            </Link>
-          );
-        })}
-
-        {news.length > 0 && (
-          <div className="card p-5 sm:col-span-2">
-            <p className="font-display text-[16px] font-semibold">From the church</p>
-            <ul className="mt-3 space-y-2.5">{news.map((a) => <li key={a.id} className="rounded-2xl bg-page p-3.5"><p className="font-medium">{a.title}</p><p className="mt-0.5 line-clamp-2 text-[13.5px] text-ink-soft">{a.body}</p><p className="mt-1 text-[12px] text-muted">{shortDate(a.at.slice(0, 10))}</p></li>)}</ul>
-          </div>
-        )}
-
-        {dots.length > 0 && (
+        {/* Where you serve */}
+        {serving.length > 0 && (
           <div className="card p-5">
-            <div className="flex items-center justify-between"><p className="font-display text-[16px] font-semibold">Your Sundays</p><span className="text-[13px] text-muted">{dots.filter((d) => d.came).length} of {dots.length}</span></div>
-            <div className="mt-3 flex gap-1">{dots.map((d) => <span key={d.date} className={cx("h-7 flex-1 rounded-md", d.came ? "bg-brand" : d.away ? "bg-glow-soft" : "bg-page ring-1 ring-line")} title={shortDate(d.date)} />)}</div>
-            <Link href={`/people/${me.id}`} className="mt-3 inline-flex text-[13px] font-medium text-brand">Travelling? Tell us you&apos;ll be away</Link>
+            <p className="font-display text-[16px] font-semibold">Where you serve</p>
+            <ul className="mt-3 space-y-2">
+              {serving.map((g) => {
+                const t = teammates(g.id);
+                const assistant = g.assistants?.find((a) => a.personId === me.id);
+                return (
+                  <li key={g.id}>
+                    <button type="button" onClick={() => setTeam(g.id)} className="flex w-full items-center gap-3 rounded-2xl bg-page px-3.5 py-2.5 text-left ring-1 ring-line hover:ring-brand/40">
+                      <span className="min-w-0 flex-1"><span className="block truncate font-medium">{g.name}</span><span className="block truncate text-[12.5px] text-muted">{assistant ? assistant.title : g.leaderIds.includes(me.id) ? "You lead this team" : `${t.length} on the team`}</span></span>
+                      <span className="flex -space-x-1.5">{t.slice(0, 3).map((p) => <span key={p.id} className="rounded-full ring-2 ring-page"><Avatar person={p} size={24} /></span>)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {me.probation && <p className="mt-3 rounded-xl bg-glow-soft px-3 py-2 text-[13px] text-glow-ink">Serving on probation until {shortDate(me.probation.until)}.</p>}
           </div>
         )}
 
-        <Link href={`/people/${me.id}`} className="card card-hover p-5">
-          <p className="font-display text-[16px] font-semibold">You and your family</p>
-          <div className="mt-3 flex -space-x-1.5"><span className="rounded-full ring-[2.5px] ring-surface"><Avatar person={me} size={34} /></span>{household.map((h) => <span key={h.id} className="rounded-full ring-[2.5px] ring-surface"><Avatar person={h} size={34} /></span>)}</div>
-          <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand">Update your details <ArrowRight size={14} /></span>
-        </Link>
+        {/* Church links and quick places */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {links.map((l) => { const I = l.icon; return (
+            <a key={l.href + l.label} href={l.href} target="_blank" rel="noreferrer" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40">
+              {I === "wa" ? <span className="text-[#25D366]"><WhatsAppIcon size={16} /></span> : <I size={15} className="text-brand" />}<span className="max-w-[12rem] truncate">{l.label}</span>
+            </a>
+          ); })}
+          <MetSomeoneButton />
+          <Link href="/prayer" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><HandHeart size={15} className="text-brand" /> Prayer request</Link>
+          <Link href="/welfare" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><HeartHandshake size={15} className="text-brand" /> Need support?</Link>
+          <Link href={`/people/${me.id}`} className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><UserRound size={15} className="text-brand" /> My details</Link>
+        </div>
       </div>
 
       {/* Fellow workers in a department: names and faces, no phone numbers */}

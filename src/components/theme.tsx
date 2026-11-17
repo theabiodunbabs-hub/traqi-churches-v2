@@ -59,9 +59,9 @@ export function ThemeSwitch({ dark = false, className }: { dark?: boolean; class
   return (
     <div role="radiogroup" aria-label="Theme" className={cx("flex rounded-xl p-0.5", dark ? "bg-white/[.07]" : "bg-page ring-1 ring-line", className)}>
       {opts.map(({ k, label, I }) => (
-        <button key={k} role="radio" aria-checked={mode === k} aria-label={label} title={label} onClick={() => setMode(k)}
+        <button type="button" key={k} role="radio" aria-checked={mode === k} aria-label={label} title={label} onClick={() => setMode(k)}
           className={cx("flex flex-1 items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-[12px] font-medium transition",
-            mode === k ? (dark ? "bg-white/15 text-white" : "bg-surface text-ink shadow-sm") : dark ? "text-white/55 hover:text-white" : "text-muted hover:text-ink")}>
+            mode === k ? (dark ? "bg-white/15 text-white" : "bg-surface text-ink shadow-sm") : dark ? "text-white/70 hover:text-white" : "text-muted hover:text-ink")}>
           <I size={13} />{label === "Automatic" ? "Auto" : label}
         </button>
       ))}

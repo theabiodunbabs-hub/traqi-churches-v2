@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRightLeft, Pencil, Plane, Sparkles, Trash2, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, Pencil, Plane, Sparkles, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { followSettings, teamLoad } from "@/lib/metrics";
+import { followSettings, followTeam, isFollowLead, teamLoad } from "@/lib/metrics";
 import { fullName } from "@/lib/format";
 import { Avatar, Button, Field, FieldGroup, Panel, Sheet, Toggle, cx, inputCls, toast } from "./ui";
 import type { Assistant, AssistantPerm, Group } from "@/lib/types";
@@ -55,8 +55,8 @@ export function AssistantsPanel({ group: g }: { group: Group }) {
                 </div>
                 {canAppoint && (
                   <>
-                    <button onClick={() => setEditing(a)} className="rounded-lg p-2.5 text-muted hover:bg-page hover:text-ink" aria-label={`Edit ${fullName(p)}`}><Pencil size={15} /></button>
-                    <button onClick={() => updateGroup(g.id, { assistants: list.filter((x) => x.personId !== a.personId) })} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${fullName(p)} as assistant`}><Trash2 size={15} /></button>
+                    <button type="button" onClick={() => setEditing(a)} className="rounded-lg p-2.5 text-muted hover:bg-page hover:text-ink" aria-label={`Edit ${fullName(p)}`}><Pencil size={15} /></button>
+                    <button type="button" onClick={() => updateGroup(g.id, { assistants: list.filter((x) => x.personId !== a.personId) })} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${fullName(p)} as assistant`}><Trash2 size={15} /></button>
                   </>
                 )}
               </li>
@@ -125,27 +125,28 @@ export function FollowupPanel({ group: g }: { group: Group }) {
   const cfg = followSettings(state);
   const team = teamLoad(state);
   const [handing, setHanding] = useState<string | null>(null);
-  const canSet = !!me && (g.leaderIds.includes(me.id) || !!access?.isPastoral);
-  const set = (patch: Partial<NonNullable<Group["followup"]>>) => updateGroup(g.id, { followup: { auto: cfg.auto, limit: cfg.limit, sameGender: cfg.sameGender, ...patch } });
+  const canSet = !!me && (isFollowLead(state, { personId: me.id }) || !!access?.isPastoral);
+  const set = (patch: Partial<NonNullable<Group["followup"]>>) => updateGroup(g.id, { followup: { auto: false, limit: cfg.limit, sameGender: cfg.sameGender, team: g.followup?.team ?? followTeam(state), ...patch } });
+  const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState("");
+  const teamIds = followTeam(state);
+  const candidates = state.people.filter((p) => !p.isChild && !p.inactive && !teamIds.includes(p.id) && (!q.trim() || fullName(p).toLowerCase().includes(q.trim().toLowerCase())))
+    .sort((a, b) => Number(b.stage === "leader" || b.stage === "worker") - Number(a.stage === "leader" || a.stage === "worker") || fullName(a).localeCompare(fullName(b))).slice(0, 25);
   const full = team.filter((t) => t.full && !t.away).length;
   const free = team.filter((t) => t.ok).length;
 
   return (
-    <Panel title="Follow-up team" action={<span className="text-xs text-muted">{free} can take more · {full} full</span>}>
+    <Panel title="Follow-up team" action={canSet ? <Button className="py-1.5 text-[13px]" onClick={() => setAdding(true)}><UserPlus size={14} /> Add to team</Button> : <span className="text-xs text-muted">{free} can take more · {full} full</span>}>
+      <p className="mb-4 text-[13.5px] text-ink-soft">Only people on this team can be given first-timers to follow up. Nobody is assigned automatically: the follow-up head chooses. {free} can take more · {full} full.</p>
       {canSet && (
         <ul className="mb-5 divide-y divide-line rounded-2xl ring-1 ring-line">
-          <li className="flex items-center gap-3 px-4 py-3">
-            <Sparkles size={17} className="shrink-0 text-brand" />
-            <span className="flex-1"><span className="block text-[15px]">Assign first-timers automatically</span><span className="block text-[12.5px] text-muted">To whoever has the fewest open, nearest area first</span></span>
-            <Toggle label="Assign automatically" on={cfg.auto} onChange={(v) => set({ auto: v })} />
-          </li>
           <li className="flex items-center gap-3 px-4 py-3">
             <Users size={17} className="shrink-0 text-brand" />
             <span className="flex-1"><span className="block text-[15px]">Most open at once, per person</span><span className="block text-[12.5px] text-muted">When everyone reaches this, you&apos;ll be told</span></span>
             <div className="flex items-center gap-1">
-              <button className="size-9 rounded-lg bg-page text-lg ring-1 ring-line disabled:opacity-40" disabled={cfg.limit <= 1} onClick={() => set({ limit: cfg.limit - 1 })} aria-label="Fewer">−</button>
+              <button type="button" className="size-9 rounded-lg bg-page text-lg ring-1 ring-line disabled:opacity-40" disabled={cfg.limit <= 1} onClick={() => set({ limit: cfg.limit - 1 })} aria-label="Fewer">−</button>
               <span className="w-8 text-center font-display text-lg font-semibold tabular-nums">{cfg.limit}</span>
-              <button className="size-9 rounded-lg bg-page text-lg ring-1 ring-line" onClick={() => set({ limit: cfg.limit + 1 })} aria-label="More">+</button>
+              <button type="button" className="size-9 rounded-lg bg-page text-lg ring-1 ring-line" onClick={() => set({ limit: cfg.limit + 1 })} aria-label="More">+</button>
             </div>
           </li>
           <li className="flex items-center gap-3 px-4 py-3">
@@ -168,13 +169,24 @@ export function FollowupPanel({ group: g }: { group: Group }) {
             </span>
             {canSet && (
               <>
-                <button onClick={() => updatePerson(t.person.id, { unavailable: !t.away })} className={cx("rounded-lg p-2.5", t.away ? "bg-glow-soft text-glow-ink" : "text-muted hover:bg-page")} aria-label={t.away ? `Mark ${t.person.firstName} back` : `Mark ${t.person.firstName} away`} title={t.away ? "Back" : "Away"}><Plane size={15} /></button>
-                {t.open > 0 && <button onClick={() => setHanding(t.person.id)} className="rounded-lg p-2.5 text-muted hover:bg-page hover:text-ink" aria-label={`Hand over ${t.person.firstName}'s follow-ups`} title="Hand over"><ArrowRightLeft size={15} /></button>}
+                <button type="button" onClick={() => updatePerson(t.person.id, { unavailable: !t.away })} className={cx("rounded-lg p-2.5", t.away ? "bg-glow-soft text-glow-ink" : "text-muted hover:bg-page")} aria-label={t.away ? `Mark ${t.person.firstName} back` : `Mark ${t.person.firstName} away`} title={t.away ? "Back" : "Away"}><Plane size={15} /></button>
+                {t.open === 0 && <button type="button" onClick={() => set({ team: teamIds.filter((x) => x !== t.person.id) })} className="rounded-lg p-2.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Take ${t.person.firstName} off the team`} title="Take off the team"><UserMinus size={16} /></button>}
+                {t.open > 0 && <button type="button" onClick={() => setHanding(t.person.id)} className="rounded-lg p-2.5 text-muted hover:bg-page hover:text-ink" aria-label={`Hand over ${t.person.firstName}'s follow-ups`} title="Hand over"><ArrowRightLeft size={15} /></button>}
               </>
             )}
           </li>
         ))}
       </ul>
+      <Sheet open={adding} onClose={() => { setAdding(false); setQ(""); }} title="Add to the follow-up team">
+        <p className="mb-3 text-[13.5px] text-ink-soft">Anyone in the church can be on the team. Members of Follow-up, Membership Ministry and leaders are good choices.</p>
+        <input type="search" className={inputCls} placeholder="Search by name" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" />
+        <ul className="mt-3 divide-y divide-line">{candidates.map((p) => (
+          <li key={p.id} className="flex items-center gap-3 py-2.5">
+            <Avatar person={p} size={34} /><span className="min-w-0 flex-1"><span className="block truncate font-medium">{fullName(p)}</span><span className="block text-[12.5px] text-muted">{p.location ?? ""}</span></span>
+            <Button className="py-1.5 text-[13px]" onClick={() => { set({ team: [...teamIds, p.id] }); toast(`${p.firstName} is on the follow-up team`); }}>Add</Button>
+          </li>
+        ))}</ul>
+      </Sheet>
       {handing && <HandOver fromId={handing} onClose={() => setHanding(null)} onDone={(n) => { toast(`${n} follow-up${n === 1 ? "" : "s"} handed over`); setHanding(null); }} handOver={handOver} />}
     </Panel>
   );

@@ -26,7 +26,7 @@ export function StackedBars({ data, keys, colors, labels, height = 180, format =
         {data.map((d, i) => {
           const total = d.values.reduce((a, b) => a + b, 0);
           return (
-            <button key={d.label} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)}
+            <button type="button" key={d.label} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)}
               aria-label={`${d.label}: ${format(total)}`}
               className="group flex h-full flex-1 flex-col justify-end">
               <span className={cx("flex w-full flex-col-reverse overflow-hidden rounded-t-[10px] rounded-b-[4px] transition-all duration-500", show === i ? "opacity-100" : "opacity-55 group-hover:opacity-80")}
@@ -38,7 +38,7 @@ export function StackedBars({ data, keys, colors, labels, height = 180, format =
         })}
       </div>
       <div className="mt-2 flex gap-1.5 md:gap-2.5">
-        {data.map((d, i) => <span key={d.label} className={cx("flex-1 truncate text-center text-[10.5px]", show === i ? "font-semibold text-ink" : "text-muted")}>{d.label.replace(/^\w+ /, "")}</span>)}
+        {data.map((d, i) => <span key={d.label} className={cx("flex-1 truncate text-center text-[12px]", show === i ? "font-semibold text-ink" : "text-muted")}>{d.label.replace(/^\w+ /, "")}</span>)}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { QR } from "./public";
 import { WhatsAppIcon } from "./care";
 import { usePublicTheme } from "./theme";
 import { digits } from "@/lib/format";
+import { ticketCanvas, saveCanvas, shareCanvas, type Format } from "@/lib/keepsake";
 import { daysOf, eventPath, happeningNow, lagosISO, peopleOf, regTypesOf, themeOf } from "@/lib/events";
 import { shareImage } from "@/lib/share-image";
 import { saveBlob } from "@/lib/download";
@@ -61,7 +62,9 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
   const people = peopleOf(e);
   const live = happeningNow(e, now);
   const ended = Date.parse(e.end) < now;
+  const regOn = e.registration !== false;
   const closed = ended || (!!e.closesAt && Date.parse(e.closesAt) < now);
+  const showReg = regOn && !closed;
   const full = !!e.capacity && registered >= e.capacity;
   const theme = themeOf(e);
   const vars = { "--ev-page": tpl.page, "--ev-card": tpl.card, "--ev-fg": tpl.fg, "--ev-muted": tpl.muted, "--ev-line": tpl.line, "--ev-accent": color, "--ev-heading": tpl.heading } as CSSProperties;
@@ -86,15 +89,15 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
           <div className="ml-auto hidden items-center gap-1 md:flex">
             {sections.map((s) => <a key={s.id} href={`#${s.id}`} className="rounded-full px-3 py-1.5 text-[14px] text-[var(--ev-muted)] hover:text-[var(--ev-fg)]">{s.label}</a>)}
           </div>
-          {!closed && <a href="#register" className="ml-auto rounded-full bg-[var(--ev-accent)] px-4 py-2 text-[14px] font-semibold text-white shadow-lg shadow-black/10 md:ml-2">Register</a>}
+          {showReg && <a href="#register" className="ml-auto rounded-full bg-[var(--ev-accent)] px-4 py-2 text-[14px] font-semibold text-white shadow-lg shadow-black/10 md:ml-2">Register</a>}
         </div>
       </nav>
 
       {live && !ended && <LiveBar e={e} live={live} people={people} />}
 
-      {e.template === "bold" ? <BoldHero e={e} church={church} registered={registered} recent={recent} people={people} closed={closed} H={H} />
-        : e.template === "elegant" ? <ElegantHero e={e} church={church} registered={registered} recent={recent} closed={closed} H={H} />
-        : <FlyerHero e={e} church={church} registered={registered} recent={recent} closed={closed} H={H} color={color} />}
+      {e.template === "bold" ? <BoldHero e={e} church={church} registered={registered} recent={recent} people={people} closed={!showReg} H={H} />
+        : e.template === "elegant" ? <ElegantHero e={e} church={church} registered={registered} recent={recent} closed={!showReg} H={H} />
+        : <FlyerHero e={e} church={church} registered={registered} recent={recent} closed={!showReg} H={H} color={color} />}
 
       <main className="mx-auto max-w-6xl px-4 pb-24">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -113,15 +116,16 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
           </div>
 
           <aside id="register" className="scroll-mt-20 pt-12 lg:sticky lg:top-16 lg:h-fit lg:self-start">
-            <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} H={H} />
+            {regOn ? <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} H={H} />
+              : <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>No registration needed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Just come. Everyone is welcome.</p></div>}
             {url && !closed && (
               <div className="mt-4 flex items-center gap-4 rounded-3xl bg-[var(--ev-card)] p-4 ring-1 ring-[var(--ev-line)]">
                 <div className="rounded-xl bg-white p-1.5"><QR value={url} size={78} /></div>
                 <div className="min-w-0 text-[13px] text-[var(--ev-muted)]"><p>Scan to open on another phone, or share:</p>
                   <div className="mt-2 flex gap-2">
                     <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer" className="flex size-9 items-center justify-center rounded-xl bg-[#25d366] text-white" aria-label="Share on WhatsApp"><WhatsAppIcon size={17} /></a>
-                    <button onClick={() => { navigator.clipboard?.writeText(url); }} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Copy link"><Copy size={15} /></button>
-                    <button onClick={async () => saveBlob(await shareImage(e, { name: church.name, color: church.profile?.color, logo: church.profile?.logo }, url), `${e.slug}-share.png`)} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Download share image"><ImageIcon size={15} /></button>
+                    <button type="button" onClick={() => { navigator.clipboard?.writeText(url); }} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Copy link"><Copy size={15} /></button>
+                    <button type="button" onClick={async () => saveBlob(await shareImage(e, { name: church.name, color: church.profile?.color, logo: church.profile?.logo }, url), `${e.slug}-share.png`)} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Download share image"><ImageIcon size={15} /></button>
                   </div>
                 </div>
               </div>
@@ -135,7 +139,7 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
         <p className="mt-1">Powered by <b className="font-semibold">Traqi</b></p>
       </footer>
 
-      {!closed && (
+      {showReg && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--ev-line)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden" style={{ background: `color-mix(in oklab, ${tpl.page} 88%, transparent)` }}>
           <a href="#register" className="flex items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 font-semibold text-white shadow-lg">
             <Ticket size={18} /> {full ? "Join the waiting list" : e.needsApproval ? "Request a place" : "Register free"}
@@ -155,7 +159,7 @@ function Countdown({ to, dark = true }: { to: string; dark?: boolean }) {
   if (ms <= 0) return null;
   const parts = [[Math.floor(ms / 864e5), "days"], [Math.floor(ms / 36e5) % 24, "hrs"], [Math.floor(ms / 6e4) % 60, "mins"], [Math.floor(ms / 1e3) % 60, "secs"]] as const;
   return (
-    <div className="flex gap-2" aria-label="Time until it starts">{parts.map(([n, l]) => (
+    <div className="flex gap-2" role="timer" aria-label="Time until it starts">{parts.map(([n, l]) => (
       <div key={l} className={cx("min-w-[64px] rounded-2xl px-3 py-2.5 text-center backdrop-blur", dark ? "bg-white/12 ring-1 ring-white/15" : "bg-[var(--ev-card)] ring-1 ring-[var(--ev-line)]")}>
         <p className="num text-[26px] font-semibold leading-none">{String(n).padStart(2, "0")}</p>
         <p className={cx("mt-1 text-[10.5px] uppercase tracking-wider", dark ? "text-white/60" : "text-[var(--ev-muted)]")}>{l}</p>
@@ -247,7 +251,7 @@ function BoldHero({ e, church, registered, recent, people, closed, H }: HeroProp
         <div className="mt-8 flex flex-wrap items-end gap-6"><Countdown to={e.start} /><CTA closed={closed} dark /></div>
         {people.length > 0 && (
           <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <span className="text-[12px] font-semibold uppercase tracking-[.25em] text-white/55">Featuring</span>
+            <span className="text-[12px] font-semibold uppercase tracking-[.25em] text-white/70">Featuring</span>
             {people.slice(0, 5).map((p) => (
               <span key={p.id} className="flex items-center gap-2.5">
                 <Face p={p} size={40} ring="ring-2 ring-white/30" />
@@ -359,7 +363,7 @@ function PeopleGrid({ e, people, H }: { e: ChurchEvent; people: EventPerson[]; H
       <SectionTitle id="people" kicker="On the programme" title={people.every((p) => p.label === "Speaker") ? "Speakers" : "Ministering"} H={H} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {sorted.map((p) => (
-          <button key={p.id} onClick={() => setOpen(p)} className={cx(card, "group overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-xl")}>
+          <button type="button" key={p.id} onClick={() => setOpen(p)} className={cx(card, "group overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-xl")}>
             <div className="relative aspect-square overflow-hidden">
               {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                 : <div className="flex h-full items-center justify-center" style={{ background: COVERS[(p.name.length + (e.cover ?? 0)) % COVERS.length] }}><span className="font-display text-[56px] font-bold text-white/90">{initials(p.name)}</span></div>}
@@ -372,7 +376,7 @@ function PeopleGrid({ e, people, H }: { e: ChurchEvent; people: EventPerson[]; H
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm md:items-center" onClick={() => setOpen(null)} role="dialog" aria-modal aria-label={open.name}>
           <div className={cx(card, "pop relative w-full max-w-md p-6 text-[var(--ev-fg)]")} style={{ background: "var(--ev-card)" }} onClick={(x) => x.stopPropagation()}>
-            <button onClick={() => setOpen(null)} className="absolute right-4 top-4 rounded-full p-1.5 text-[var(--ev-muted)] hover:bg-black/5" aria-label="Close"><X size={18} /></button>
+            <button type="button" onClick={() => setOpen(null)} className="absolute right-4 top-4 rounded-full p-1.5 text-[var(--ev-muted)] hover:bg-black/5" aria-label="Close"><X size={18} /></button>
             <div className="flex items-center gap-4"><Face p={open} size={72} /><div><p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ev-accent)]">{open.label}</p><p className={cx(H, "text-[22px] font-semibold leading-tight")}>{open.name}</p>{open.from && <p className="text-[14px] text-[var(--ev-muted)]">{open.from}</p>}</div></div>
             {open.bio && <p className="mt-5 text-[15.5px] leading-relaxed text-[var(--ev-muted)]">{open.bio}</p>}
           </div>
@@ -393,7 +397,7 @@ function Programme({ e, people, H, now }: { e: ChurchEvent; people: EventPerson[
       <SectionTitle id="programme" kicker="Programme" title={days.length > 1 ? `${days.length} days` : "On the day"} H={H} />
       {days.length > 1 && (
         <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{days.map((x, i) => (
-          <button key={x.date} onClick={() => setD(i)} className={cx("shrink-0 rounded-2xl px-4 py-2.5 text-left ring-1 transition", i === d ? "bg-[var(--ev-accent)] text-white ring-transparent" : "bg-[var(--ev-card)] ring-[var(--ev-line)]")}>
+          <button type="button" key={x.date} onClick={() => setD(i)} className={cx("shrink-0 rounded-2xl px-4 py-2.5 text-left ring-1 transition", i === d ? "bg-[var(--ev-accent)] text-white ring-transparent" : "bg-[var(--ev-card)] ring-[var(--ev-line)]")}>
             <span className="block text-[12px] font-semibold uppercase tracking-wider opacity-80">Day {i + 1}{live?.dayIndex === i ? " · Today" : ""}</span>
             <span className="block text-[14.5px] font-semibold">{fmtDay(x.date, { weekday: "short", day: "numeric", month: "short" })}</span>
           </button>
@@ -463,7 +467,7 @@ function Faq({ items, H }: { items: { q: string; a: string }[]; H: string }) {
       <ul className={cx(card, "divide-y divide-[var(--ev-line)]")}>
         {items.map((f, i) => (
           <li key={i}>
-            <button onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-center gap-3 px-5 py-4 text-left" aria-expanded={open === i}>
+            <button type="button" onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-center gap-3 px-5 py-4 text-left" aria-expanded={open === i}>
               <span className="flex-1 text-[16px] font-semibold">{f.q}</span><ChevronDown size={18} className={cx("shrink-0 transition", open === i && "rotate-180")} />
             </button>
             {open === i && <p className="-mt-1 px-5 pb-5 text-[15px] leading-relaxed text-[var(--ev-muted)]">{f.a}</p>}
@@ -480,7 +484,7 @@ function Gallery({ images, H }: { images: string[]; H: string }) {
     <section>
       <SectionTitle id="gallery" kicker="Gallery" title="Moments from before" H={H} />
       <div className="columns-2 gap-3 md:columns-3 [&>button]:mb-3">
-        {images.map((src, i) => <button key={i} onClick={() => setBig(src)} className="block w-full overflow-hidden rounded-2xl"><img src={src} alt="" className="w-full transition duration-500 hover:scale-105" loading="lazy" /></button>)}
+        {images.map((src, i) => <button type="button" key={i} onClick={() => setBig(src)} className="block w-full overflow-hidden rounded-2xl"><img src={src} alt="" className="w-full transition duration-500 hover:scale-105" loading="lazy" /></button>)}
       </div>
       {big && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" onClick={() => setBig(null)} role="dialog" aria-modal aria-label="Photo"><img src={big} alt="" className="max-h-[90vh] max-w-full rounded-2xl" /></div>}
     </section>
@@ -516,7 +520,7 @@ function Give({ give, H }: { give: NonNullable<ChurchEvent["give"]>; H: string }
             <p className="text-[14px] text-[var(--ev-muted)]">{give.accountName}</p>
           </div>
         ) : <p className="flex-1 text-[15px] text-[var(--ev-muted)]">Every gift helps us welcome more people.</p>}
-        {give.account && <button onClick={() => { navigator.clipboard?.writeText(give.account!); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]">{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy number"}</button>}
+        {give.account && <button type="button" onClick={() => { navigator.clipboard?.writeText(give.account!); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]">{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy number"}</button>}
         {give.url && <a href={give.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[var(--ev-accent)] px-4 py-2.5 text-[14px] font-semibold text-white">Give online <ArrowRight size={15} /></a>}
       </div>
     </section>
@@ -547,7 +551,7 @@ function Contact({ e, church, H, share, url }: { e: ChurchEvent; church: ChurchI
           {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent(`Hello, I have a question about ${e.title}.`)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[#25d366] px-4 py-2.5 text-[14px] font-semibold text-white"><WhatsAppIcon size={16} /> WhatsApp</a>}
           {c?.email && <a href={`mailto:${c.email}`} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><Mail size={15} /> Email</a>}
           <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><Share2 size={15} /> Invite a friend</a>
-          {url && <button onClick={() => icsFile(e, church.name, url)} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><CalendarPlus size={15} /> Add to calendar</button>}
+          {url && <button type="button" onClick={() => icsFile(e, church.name, url)} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><CalendarPlus size={15} /> Add to calendar</button>}
         </div>
       </div>
     </section>
@@ -557,7 +561,7 @@ function Contact({ e, church, H, share, url }: { e: ChurchEvent; church: ChurchI
 // ---------------- Registration: a step at a time ----------------
 const field = "w-full rounded-xl bg-[var(--ev-page)] px-3.5 py-3 text-[15.5px] text-[var(--ev-fg)] ring-1 ring-[var(--ev-line)] outline-none placeholder:text-[var(--ev-muted)]/70 focus:ring-2 focus:ring-[var(--ev-accent)]";
 const TYPE_INFO: Record<RegType, { icon: typeof UserRound; title: string; body: string }> = {
-  individual: { icon: UserRound, title: "Just me", body: "Register yourself" },
+  individual: { icon: UserRound, title: "In person", body: "Come to the venue" },
   group: { icon: UsersRound, title: "Me and others", body: "Family, friends or your group. Everyone gets a ticket." },
   online: { icon: Wifi, title: "Online", body: "Join from anywhere. We'll send the link." },
 };
@@ -591,73 +595,64 @@ function QuestionInput({ q, value, onChange }: { q: EventQuestion; value: string
 const blank = (): Attendee => ({ name: "", phone: "", email: "", answers: {} });
 
 function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; H: string }) {
-  const types = regTypesOf(e);
+  // One path: your details, then register. "Register someone else" comes after, for families and friends.
+  const types = (() => { const t = regTypesOf(e).filter((x) => x !== "group"); return t.length ? t : (["individual"] as RegType[]); })();
   const days = daysOf(e);
-  const [step, setStep] = useState<"type" | "you" | "others" | "done">(types.length > 1 ? "type" : "you");
+  const first = types.length > 1 ? "type" : "you";
+  const [step, setStep] = useState<"type" | "you" | "done">(first);
   const [type, setType] = useState<RegType>(types[0]);
   const [me, setMe] = useState<Attendee>(blank());
-  const [others, setOthers] = useState<Attendee[]>([blank()]);
   const [pickDays, setPickDays] = useState(days.map((d) => d.date));
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<RegResult | null>(null);
+  const [mine, setMine] = useState<RegTicket[]>([]);
+  const [last, setLast] = useState<RegResult["status"] | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const go = (s: typeof step) => { setErr(""); setStep(s); topRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); };
-  const steps = useMemo(() => [...(types.length > 1 ? ["type"] : []), "you", ...(type === "group" ? ["others"] : [])], [types.length, type]);
-  const idx = steps.indexOf(step);
 
-  const check = (a: Attendee, who: string, needPhone = true) => {
-    if (a.name.trim().length < 2) return `Enter ${who} full name.`;
-    if (needPhone && digits(a.phone).length < 10) return `Enter ${who} phone number.`;
-    if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) return `Check ${who} email address.`;
+  const check = (a: Attendee) => {
+    if (a.name.trim().length < 2) return "Enter the full name.";
+    if (digits(a.phone).length < 10) return "Enter a phone number with at least 10 digits.";
+    if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) return "Check the email address.";
     const miss = e.questions.find((q) => q.required && !a.answers[q.id]?.trim());
-    return miss ? `Please answer “${miss.label}”${who === "your" ? "" : ` for ${a.name.split(" ")[0] || "them"}`}.` : "";
+    return miss ? `Please answer “${miss.label}”.` : "";
   };
   const submit = async () => {
+    const m = check(me); if (m) return setErr(m);
+    if (days.length > 1 && !pickDays.length) return setErr("Tick at least one day you'll attend.");
     setBusy(true); setErr("");
     try {
-      const r = await onRegister({ ...me, name: me.name.trim(), email: me.email?.trim() || undefined, type, days: pickDays, guests: 0, others: type === "group" ? others.map((o) => ({ ...o, name: o.name.trim(), email: o.email?.trim() || undefined })) : [] });
-      setRes(r); setStep("done");
+      const r = await onRegister({ ...me, name: me.name.trim(), email: me.email?.trim() || undefined, type, days: pickDays, guests: 0, others: [] });
+      const got = r.tickets?.length ? r.tickets : [{ name: me.name.trim(), ticket: r.ticket, status: r.status }];
+      setMine((x) => [...x.filter((t) => !got.some((g) => g.ticket === t.ticket)), ...got.map((t) => ({ ...t, name: t.name || me.name.trim() }))]);
+      setLast(r.status); go("done");
     } catch (x) { setErr(x instanceof Error ? x.message : "Something went wrong. Please try again."); }
     setBusy(false);
   };
-  const next = () => {
-    if (step === "type") return go("you");
-    if (step === "you") {
-      const m = check(me, "your"); if (m) return setErr(m);
-      if (days.length > 1 && !pickDays.length) return setErr("Tick at least one day you'll attend.");
-      return type === "group" ? go("others") : void submit();
-    }
-    if (step === "others") {
-      for (const [i, o] of others.entries()) { const m = check(o, `person ${i + 2}'s`, false); if (m) return setErr(m); }
-      return void submit();
-    }
-  };
+  const another = () => { setMe(blank()); setPickDays(days.map((d) => d.date)); go(first); };
 
-  if (closed) return <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>Registration has closed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Thank you for your interest. See you next time!</p></div>;
-  if (step === "done" && res) return <Tickets e={e} church={church} url={url} res={res} H={H} />;
+  if (closed && !mine.length) return <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>Registration has closed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Thank you for your interest. See you next time!</p></div>;
+  if (step === "done" && last) return <Tickets e={e} church={church} url={url} tickets={mine} status={last} H={H} onAnother={closed ? undefined : another} />;
 
   return (
     <div ref={topRef} className={cx(card, "scroll-mt-24 overflow-hidden")}>
       <div className="flex items-center gap-2.5 border-b border-[var(--ev-line)] px-5 py-4">
         <Ticket size={20} className="text-[var(--ev-accent)]" />
-        <h2 className={cx(H, "text-[20px] font-semibold")}>Register</h2>
+        <h2 className={cx(H, "text-[20px] font-semibold")}>{mine.length ? "Register someone else" : "Register"}</h2>
         <span className="ml-auto rounded-full px-2.5 py-1 text-[12px] font-semibold text-white" style={{ background: "var(--ev-accent)" }}>Free</span>
       </div>
-      {steps.length > 1 && (
-        <div className="flex gap-1.5 px-5 pt-4" aria-label={`Step ${idx + 1} of ${steps.length}`}>{steps.map((s, i) => <span key={s} className={cx("h-1.5 flex-1 rounded-full", i <= idx ? "bg-[var(--ev-accent)]" : "bg-[var(--ev-line)]")} />)}</div>
-      )}
       <div className="space-y-4 p-5">
         {full && <p className="rounded-xl px-3 py-2 text-[13.5px]" style={{ background: "color-mix(in oklab, #f59e0b 18%, transparent)" }}>It&apos;s full. Register to join the waiting list.</p>}
+        {mine.length > 0 && <p className="rounded-xl px-3 py-2 text-[13.5px]" style={{ background: "color-mix(in oklab, var(--ev-accent) 10%, transparent)" }}>{mine.length} {mine.length === 1 ? "ticket" : "tickets"} so far. Each person gets their own.</p>}
 
         {step === "type" && (
           <div className="space-y-2">
-            <p className="text-[14px] text-[var(--ev-muted)]">How are you coming?</p>
+            <p className="text-[14px] text-[var(--ev-muted)]">How are you joining?</p>
             {types.map((t) => { const I = TYPE_INFO[t]; return (
-              <button key={t} type="button" onClick={() => setType(t)} className={cx("flex w-full items-center gap-3 rounded-2xl p-4 text-left ring-1", type === t ? "ring-2 ring-[var(--ev-accent)]" : "ring-[var(--ev-line)]")} style={type === t ? { background: "color-mix(in oklab, var(--ev-accent) 9%, transparent)" } : undefined}>
+              <button key={t} type="button" onClick={() => { setType(t); go("you"); }} className={cx("flex w-full items-center gap-3 rounded-2xl p-4 text-left ring-1", type === t ? "ring-2 ring-[var(--ev-accent)]" : "ring-[var(--ev-line)]")}>
                 <span className="flex size-10 items-center justify-center rounded-xl text-white" style={{ background: "var(--ev-accent)" }}><I.icon size={18} /></span>
                 <span className="flex-1"><b className="block text-[15px]">{I.title}</b><span className="text-[13px] text-[var(--ev-muted)]">{I.body}</span></span>
-                <span className={cx("flex size-5 items-center justify-center rounded-full ring-2", type === t ? "bg-[var(--ev-accent)] ring-[var(--ev-accent)] text-white" : "ring-[var(--ev-line)]")}>{type === t && <Check size={12} />}</span>
+                <ArrowRight size={16} className="text-[var(--ev-muted)]" />
               </button>
             ); })}
           </div>
@@ -665,7 +660,6 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: Chu
 
         {step === "you" && (
           <>
-            <p className="text-[14px] text-[var(--ev-muted)]">{type === "group" ? "First, your details." : "Your details."}</p>
             <AttendeeFields a={me} set={setMe} questions={e.questions} requirePhone />
             {days.length > 1 && (
               <div>
@@ -678,29 +672,15 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: Chu
                 ); })}</div>
               </div>
             )}
+            {err && <p className="rounded-xl px-3 py-2 text-[14px] text-[#be123c]" style={{ background: "#ffe4e6" }} role="alert">{err}</p>}
+            <div className="flex gap-2">
+              {(first === "type" || mine.length > 0) && <button type="button" onClick={() => (mine.length && first !== "type" ? go("done") : go(first === "type" ? "type" : "done"))} className="flex items-center gap-1.5 rounded-2xl px-4 py-3.5 text-[15px] font-semibold ring-1 ring-[var(--ev-line)]"><ArrowLeft size={16} /> Back</button>}
+              <button type="button" disabled={busy} onClick={() => void submit()} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 text-[16px] font-semibold text-white shadow-lg disabled:opacity-60">
+                {busy ? "Registering…" : e.needsApproval ? "Request a place" : "Register"}
+              </button>
+            </div>
           </>
         )}
-
-        {step === "others" && (
-          <>
-            <p className="text-[14px] text-[var(--ev-muted)]">Who is coming with you? Each person gets their own ticket.</p>
-            {others.map((o, i) => (
-              <div key={i} className="rounded-2xl p-4 ring-1 ring-[var(--ev-line)]">
-                <div className="mb-3 flex items-center justify-between"><b className="text-[14px]">Person {i + 2}</b>{others.length > 1 && <button type="button" onClick={() => setOthers(others.filter((_, j) => j !== i))} className="text-[13px] text-[var(--ev-muted)] hover:text-[#e11d48]">Remove</button>}</div>
-                <AttendeeFields a={o} set={(v) => setOthers(others.map((x, j) => (j === i ? v : x)))} questions={e.questions} />
-              </div>
-            ))}
-            {others.length < 20 && <button type="button" onClick={() => setOthers([...others, blank()])} className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-semibold border border-dashed border-[var(--ev-line)]"><Plus size={15} /> Add another person</button>}
-          </>
-        )}
-
-        {err && <p className="rounded-xl px-3 py-2 text-[14px] text-[#be123c]" style={{ background: "#ffe4e6" }} role="alert">{err}</p>}
-        <div className="flex gap-2">
-          {idx > 0 && <button type="button" onClick={() => go(steps[idx - 1] as typeof step)} className="flex items-center gap-1.5 rounded-2xl px-4 py-3.5 text-[15px] font-semibold ring-1 ring-[var(--ev-line)]"><ArrowLeft size={16} /> Back</button>}
-          <button type="button" disabled={busy} onClick={next} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 text-[16px] font-semibold text-white shadow-lg disabled:opacity-60">
-            {busy ? "Registering…" : step === "type" || (step === "you" && type === "group") ? <>Continue <ArrowRight size={16} /></> : type === "group" ? `Register ${others.length + 1} people` : e.needsApproval ? "Request a place" : "Register"}
-          </button>
-        </div>
         <p className="text-center text-[12px] text-[var(--ev-muted)]">{church.name} will use these details for this event{e.followup ? " and to stay in touch" : ""}.</p>
       </div>
     </div>
@@ -720,39 +700,52 @@ function AttendeeFields({ a, set, questions, requirePhone }: { a: Attendee; set:
   );
 }
 
-/** One ticket per person, with a QR code for the door. */
-function Tickets({ e, church, url, res, H }: { e: ChurchEvent; church: ChurchInfo; url: string; res: RegResult; H: string }) {
-  const list = res.tickets?.length ? res.tickets : [{ name: "", ticket: res.ticket, status: res.status }];
-  const st = res.status;
+/** One ticket per person: a clean card with their name and a QR code for the door, downloadable on its own. */
+function Tickets({ e, church, url, tickets, status, H, onAnother }: { e: ChurchEvent; church: ChurchInfo; url: string; tickets: RegTicket[]; status: RegResult["status"]; H: string; onAnother?: () => void }) {
+  const [busy, setBusy] = useState("");
+  const color = church.profile?.color ?? "#4f46e5";
+  const label = (st: RegTicket["status"]) => (st === "confirmed" ? "Confirmed" : st === "waitlist" ? "Waiting list" : st === "pending" ? "Waiting for approval" : "Registered");
+  const info = (t: RegTicket) => ({ event: e.title, when: whenLine(e), venue: e.mode === "virtual" ? "Online" : e.venue, name: t.name, code: t.ticket, status: label(t.status), church: { name: church.name, logo: church.profile?.logo, color } });
+  const save = async (t: RegTicket, f: Format) => { setBusy(t.ticket + f); try { await saveCanvas(await ticketCanvas(info(t)), `${e.title} ticket ${t.name}`, f); } finally { setBusy(""); } };
+  const share = async (t: RegTicket) => {
+    setBusy(t.ticket + "share");
+    const text = `Ticket for ${e.title}: ${t.ticket}\n${whenLine(e)}\n${url}`;
+    try { if (!(await shareCanvas(await ticketCanvas(info(t)), `${e.title} ticket`, text))) window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); } finally { setBusy(""); }
+  };
   return (
     <div className="space-y-3">
-      <Confetti show={st === "confirmed"} />
+      <Confetti show={status === "confirmed"} />
       <div className={cx(card, "p-5 text-center")}>
-        <p className={cx(H, "text-[24px] font-semibold")}>{st === "confirmed" ? "You're in!" : st === "already" ? "You're already registered" : st === "waitlist" ? "You're on the waiting list" : "Thank you! We'll confirm soon"}</p>
-        <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{st === "waitlist" ? "We'll let you know if a place opens up." : list.length > 1 ? `${list.length} tickets below. Send each person theirs.` : "Show this ticket at the door."}</p>
+        <p className={cx(H, "text-[24px] font-semibold")}>{status === "confirmed" ? "You're in!" : status === "already" ? "Already registered" : status === "waitlist" ? "You're on the waiting list" : "Thank you! We'll confirm soon"}</p>
+        <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{status === "waitlist" ? "We'll let you know if a place opens up." : tickets.length > 1 ? `${tickets.length} tickets below. Send each person theirs.` : "Show this ticket at the door."}</p>
       </div>
-      {list.map((t) => (
-        <div key={t.ticket} className="relative overflow-hidden rounded-3xl bg-white text-[#111] shadow-xl ring-1 ring-black/5">
-          <div className="p-5 text-white" style={{ background: e.flyer ? `linear-gradient(90deg, rgba(0,0,0,.75), rgba(0,0,0,.35)), url(${e.flyer}) center/cover` : COVERS[e.cover % COVERS.length] }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-white/75">{church.name}</p>
-            <p className="mt-1 font-display text-[20px] font-bold leading-tight">{e.title}</p>
-            <p className="mt-1 text-[13px] text-white/85">{whenLine(e)}</p>
-          </div>
-          <div className="relative flex items-center gap-4 p-5">
-            <span aria-hidden className="absolute -left-3 -top-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} /><span aria-hidden className="absolute -right-3 -top-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} />
-            <QR value={t.ticket} size={112} />
-            <div className="min-w-0">
-              {t.name && <p className="truncate text-[16px] font-semibold">{t.name}</p>}
-              <p className="num mt-1 text-[20px] font-bold tracking-[.12em]">{t.ticket}</p>
-              <p className="mt-1 text-[12.5px] text-[#666]">{t.status === "confirmed" ? "Confirmed" : t.status === "waitlist" ? "Waiting list" : t.status === "pending" ? "Waiting for approval" : "Registered"}</p>
-              <a href={`https://wa.me/?text=${encodeURIComponent(`Your ticket for ${e.title}: ${t.ticket}\n${whenLine(e)}\n${url}`)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#128c4a]"><WhatsAppIcon size={14} /> Send ticket</a>
+      {tickets.map((t) => (
+        <div key={t.ticket} className="overflow-hidden rounded-3xl bg-white text-[#151226] shadow-xl ring-1 ring-black/5">
+          <div className="flex">
+            <div className="min-w-0 flex-1 p-5 text-white" style={{ background: `linear-gradient(135deg, ${color}, #151226)` }}>
+              <p className="truncate text-[11.5px] font-semibold uppercase tracking-[.18em] text-white/80">{church.name}</p>
+              <p className="mt-1.5 font-display text-[19px] font-bold leading-tight">{e.title}</p>
+              <p className="mt-1 text-[13px] text-white/85">{whenLine(e)}</p>
+              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[.18em] text-white/70">Admit one</p>
+              <p className="truncate text-[17px] font-semibold">{t.name || "Guest"}</p>
             </div>
+            <div className="relative flex w-[132px] shrink-0 flex-col items-center justify-center gap-1.5 border-l-2 border-dashed border-[#d6d3e4] p-3">
+              <span aria-hidden className="absolute -left-3 -top-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} /><span aria-hidden className="absolute -bottom-3 -left-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} />
+              <QR value={t.ticket} size={100} />
+              <p className="num text-[14px] font-bold tracking-[.06em]">{t.ticket}</p>
+              <p className="text-[11.5px] text-[#6b6885]">{label(t.status)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 border-t border-[#eceaf3] p-2.5">
+            <button type="button" disabled={!!busy} onClick={() => void save(t, "png")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === t.ticket + "png" ? "Saving…" : "Image"}</button>
+            <button type="button" disabled={!!busy} onClick={() => void save(t, "pdf")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === t.ticket + "pdf" ? "Saving…" : "PDF"}</button>
+            <button type="button" disabled={!!busy} onClick={() => void share(t)} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold text-[#128c4a] hover:bg-[#f4f3f8]"><WhatsAppIcon size={15} /> Send</button>
           </div>
         </div>
       ))}
-      <div className="flex gap-2">
-        <button onClick={() => icsFile(e, church.name, url)} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-card)] py-3 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><CalendarPlus size={15} /> Add to calendar</button>
-        <button onClick={() => window.print()} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-card)] py-3 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><Download size={15} /> Save</button>
+      <div className="flex flex-wrap gap-2">
+        {onAnother && <button type="button" onClick={onAnother} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] px-4 text-[14.5px] font-semibold text-white shadow-lg"><Plus size={16} /> Register someone else</button>}
+        <button type="button" onClick={() => icsFile(e, church.name, url)} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-card)] px-4 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><CalendarPlus size={15} /> Add to calendar</button>
       </div>
     </div>
   );
@@ -774,7 +767,7 @@ function FeedbackForm({ e, H, onSend }: { e: ChurchEvent; H: string; onSend: (ti
             <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Your ticket code</span><input className={cx(field, "uppercase")} value={ticket} onChange={(x) => setTicket(x.target.value)} placeholder="RISE-XXXXXX" /></label>
             {qs.map((q) => <QuestionInput key={q.id} q={q} value={a[q.id] ?? ""} onChange={(v) => setA({ ...a, [q.id]: v })} />)}
             {err && <p className="text-[14px] text-[#be123c]" role="alert">{err}</p>}
-            <button onClick={async () => { setErr(""); if (ticket.trim().length < 4) return setErr("Enter the code on your ticket."); try { await onSend(ticket.trim().toUpperCase(), a); setDone(true); } catch (x) { setErr(x instanceof Error ? x.message : "That didn't work."); } }}
+            <button type="button" onClick={async () => { setErr(""); if (ticket.trim().length < 4) return setErr("Enter the code on your ticket."); try { await onSend(ticket.trim().toUpperCase(), a); setDone(true); } catch (x) { setErr(x instanceof Error ? x.message : "That didn't work."); } }}
               className="rounded-2xl bg-[var(--ev-accent)] px-5 py-3 text-[15px] font-semibold text-white">Send feedback</button>
           </>
         )}

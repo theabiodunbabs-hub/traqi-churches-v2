@@ -9,7 +9,7 @@ import { cx } from "./ui";
 /** The frame for signing in, joining and starting a church: a dark story panel and a calm form side. */
 export function OnboardFrame({ children, title, points, back, wide }: { children: ReactNode; title: string; points?: string[]; back?: { href: string; label: string }; wide?: boolean }) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
       <section className="relative hidden overflow-hidden p-12 text-white lg:flex lg:flex-col" style={{ background: "linear-gradient(160deg, var(--color-deep), var(--color-deep-2))" }}>
         <div aria-hidden className="pointer-events-none absolute -right-28 -top-36 size-[480px] rounded-full opacity-60 blur-3xl" style={{ background: "var(--hero-a)" }} />
         <div aria-hidden className="pointer-events-none absolute -bottom-40 left-10 size-[380px] rounded-full opacity-30 blur-3xl" style={{ background: "var(--color-accent)" }} />

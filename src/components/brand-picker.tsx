@@ -61,9 +61,9 @@ export function BrandPicker({ name, value, onChange, compact }: { name: string; 
         <div>
           <p className="mb-2 text-sm font-medium">Accent colour <span className="font-normal text-muted">(optional)</span></p>
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => onChange({ ...value, accent: undefined })} className={cx("rounded-xl px-3 py-2 text-sm ring-1", !value.accent ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>Choose for me</button>
+            <button type="button" onClick={() => onChange({ ...value, accent: undefined })} className={cx("rounded-xl px-3 py-2 text-sm ring-1", !value.accent ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>Choose for me</button>
             {["#f59e0b", "#e11d48", "#0f766e", "#0ea5e9", "#a855f7", "#84cc16"].map((c) => (
-              <button key={c} onClick={() => onChange({ ...value, accent: c })} aria-label={`Accent ${c}`} className={cx("flex size-9 items-center justify-center rounded-full text-white transition", value.accent === c && "ring-4 ring-offset-2 ring-offset-surface")} style={{ background: c, ["--tw-ring-color" as string]: `${c}66` }}>{value.accent === c && <Check size={14} />}</button>
+              <button type="button" key={c} onClick={() => onChange({ ...value, accent: c })} aria-label={`Accent ${c}`} className={cx("flex size-9 items-center justify-center rounded-full text-white transition", value.accent === c && "ring-4 ring-offset-2 ring-offset-surface")} style={{ background: c, ["--tw-ring-color" as string]: `${c}66` }}>{value.accent === c && <Check size={14} />}</button>
             ))}
           </div>
           <p className="mt-1.5 text-[12.5px] text-muted">Used for highlights and celebrations.</p>
@@ -75,10 +75,10 @@ export function BrandPicker({ name, value, onChange, compact }: { name: string; 
             {(Object.keys(HEADING_FONTS) as HeadingStyle[]).map((k) => {
               const f = HEADING_FONTS[k]; const on = (value.heading ?? "modern") === k;
               return (
-                <button key={k} onClick={() => onChange({ ...value, heading: k })} className={cx("rounded-2xl p-3 text-left ring-1 transition", on ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
+                <button type="button" key={k} onClick={() => onChange({ ...value, heading: k })} className={cx("rounded-2xl p-3 text-left ring-1 transition", on ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
                   <span className="block text-[22px] leading-none" style={{ fontFamily: f.family, fontWeight: f.weight, letterSpacing: f.tracking }}>Aa</span>
                   <span className="mt-2 block text-[13px] font-semibold">{f.label}</span>
-                  <span className="block text-[11.5px] text-muted">{f.sample}</span>
+                  <span className="block text-[12px] text-muted">{f.sample}</span>
                 </button>
               );
             })}
@@ -94,7 +94,7 @@ export function BrandPicker({ name, value, onChange, compact }: { name: string; 
 function Swatches({ colours, value, onPick }: { colours: string[]; value: string; onPick: (c: string) => void }) {
   return (
     <div className="flex flex-wrap gap-2">{colours.map((c) => (
-      <button key={c} onClick={() => onPick(c)} aria-label={c} className={cx("flex size-10 items-center justify-center rounded-full text-white transition hover:scale-105", value.toLowerCase() === c.toLowerCase() && "scale-110 ring-4 ring-offset-2 ring-offset-surface")} style={{ background: c, ["--tw-ring-color" as string]: `${c}66` }}>
+      <button type="button" key={c} onClick={() => onPick(c)} aria-label={c} className={cx("flex size-10 items-center justify-center rounded-full text-white transition hover:scale-105", value.toLowerCase() === c.toLowerCase() && "scale-110 ring-4 ring-offset-2 ring-offset-surface")} style={{ background: c, ["--tw-ring-color" as string]: `${c}66` }}>
         {value.toLowerCase() === c.toLowerCase() && <Check size={16} />}
       </button>
     ))}</div>
@@ -113,7 +113,7 @@ export function LivePreview({ name, look }: { name: string; look: Look }) {
         <p className="text-sm font-medium">Live preview</p>
         <div className="flex rounded-lg bg-page p-0.5 ring-1 ring-line">
           {(["light", "dark"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} aria-label={`${m} theme`} className={cx("flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px]", mode === m ? "bg-surface font-medium text-ink shadow-sm" : "text-muted")}>
+            <button type="button" key={m} onClick={() => setMode(m)} aria-label={`${m} theme`} className={cx("flex items-center gap-1 rounded-md px-2 py-1 text-[12px]", mode === m ? "bg-surface font-medium text-ink shadow-sm" : "text-muted")}>
               {m === "light" ? <Sun size={12} /> : <Moon size={12} />}{m === "light" ? "Light" : "Dark"}
             </button>
           ))}
@@ -124,7 +124,7 @@ export function LivePreview({ name, look }: { name: string; look: Look }) {
           <div className="side w-[92px] shrink-0 space-y-2 p-2.5">
             <ChurchMark church={{ name: name || "Church", profile: look as ChurchProfile }} size={30} />
             {["People", "Events", "Classes", "Offerings"].map((x, i) => (
-              <div key={x} className={cx("rounded-lg px-2 py-1.5 text-[10px]", i === 0 ? "bg-white/[.12] font-semibold text-white" : "text-white/60")}>{i === 0 && <span className="mr-1 inline-block size-1.5 rounded-full" style={{ background: "var(--color-accent)" }} />}{x}</div>
+              <div key={x} className={cx("rounded-lg px-2 py-1.5 text-[12px]", i === 0 ? "bg-white/[.12] font-semibold text-white" : "text-white/60")}>{i === 0 && <span className="mr-1 inline-block size-1.5 rounded-full" style={{ background: "var(--color-accent)" }} />}{x}</div>
             ))}
           </div>
           <div className="min-w-0 flex-1 space-y-2.5 p-3">
@@ -139,9 +139,9 @@ export function LivePreview({ name, look }: { name: string; look: Look }) {
               <p className="mt-1.5 text-[9.5px]" style={{ color: "var(--color-muted)" }}>12 of 18 reached in 48 hours</p>
             </div>
             <div className="flex gap-1.5">
-              <span className="rounded-lg px-2.5 py-1.5 text-[10.5px] font-semibold text-white" style={{ background: "var(--color-brand)" }}>Check in</span>
-              <span className="rounded-lg px-2.5 py-1.5 text-[10.5px] font-medium" style={{ background: "var(--color-brand-soft)", color: "var(--color-brand)" }}>Register</span>
-              <span className="rounded-lg px-2.5 py-1.5 text-[10.5px] font-medium" style={{ background: "var(--color-glow-soft)", color: "var(--color-glow-ink)" }}>Waiting</span>
+              <span className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-white" style={{ background: "var(--color-brand)" }}>Check in</span>
+              <span className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ background: "var(--color-brand-soft)", color: "var(--color-brand)" }}>Register</span>
+              <span className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ background: "var(--color-glow-soft)", color: "var(--color-glow-ink)" }}>Waiting</span>
             </div>
           </div>
         </div>

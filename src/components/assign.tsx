@@ -22,7 +22,7 @@ export function AssignPicker({ caseId, open, onClose }: { caseId: string | null;
       <ul className="space-y-2">
         {team.map((t, i) => (
           <li key={t.person.id}>
-            <button
+            <button type="button"
               onClick={() => { assignCase(c.id, t.person.id); onClose(); }}
               className={cx("flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left ring-1 transition hover:ring-brand/50",
                 c.assigneeId === t.person.id ? "bg-brand-soft ring-brand" : "bg-surface ring-line")}
@@ -31,7 +31,7 @@ export function AssignPicker({ caseId, open, onClose }: { caseId: string | null;
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 font-medium">
                   {fullName(t.person)}
-                  {i === 0 && <span className="inline-flex items-center gap-1 rounded-md bg-glow-soft px-1.5 text-[11px] font-semibold text-glow-ink"><Sparkles size={11} /> Suggested</span>}
+                  {i === 0 && <span className="inline-flex items-center gap-1 rounded-md bg-glow-soft px-1.5 text-[12px] font-semibold text-glow-ink"><Sparkles size={11} /> Suggested</span>}
                 </span>
                 <span className="mt-0.5 flex items-center gap-3 text-[13px] text-muted">
                   <span>{t.open === 0 ? "Free" : `${t.open} open`}</span>

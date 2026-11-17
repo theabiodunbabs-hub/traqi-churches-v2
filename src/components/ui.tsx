@@ -47,7 +47,7 @@ export function JourneyTrack({ stage, compact }: { stage: Stage; compact?: boole
       </div>
       {!compact && (
         <>
-          <div className="mt-2 hidden text-[11px] text-muted sm:flex">
+          <div className="mt-2 hidden text-[12px] text-muted sm:flex">
             {STAGES_NOW().map((s, i) => (
               <span key={s.key} className={cx("flex-1", i === at && "font-semibold text-ink")}>{s.label}</span>
             ))}
@@ -62,9 +62,10 @@ export function JourneyTrack({ stage, compact }: { stage: Stage; compact?: boole
   );
 }
 
-export function Button({ variant = "secondary", className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "light" }) {
+export function Button({ variant = "secondary", className, type = "button", ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "light" }) {
   return (
     <button
+      type={type}
       {...rest}
       className={cx(
         "inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition active:scale-[.98] disabled:opacity-50",
@@ -121,11 +122,11 @@ export function Sheet({ open, onClose, title, children, footer, wide }: { open: 
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className="fixed inset-0 z-[55] flex h-[100dvh] justify-end" role="dialog" aria-modal aria-label={title}>
-      <button aria-label="Close" className="fade absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+      <button type="button" aria-label="Close" className="fade absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
       <div className={cx("sheet relative flex h-[100dvh] w-full flex-col bg-surface shadow-2xl", wide ? "max-w-xl" : "max-w-md")}>
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="font-display text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-ink/5" aria-label="Close"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-ink/5" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain p-5">{children}</div>
         {footer && <div className="border-t border-line bg-surface px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">{footer}</div>}
@@ -136,6 +137,21 @@ export function Sheet({ open, onClose, title, children, footer, wide }: { open: 
 }
 
 /** A label for a group of buttons (not a <label>, so taps on the buttons inside always land). */
+/** A save bar that stays on screen at the bottom of long forms, above the phone's bottom bar. */
+export function SaveBar({ dirty, children, note }: { dirty: boolean; children: ReactNode; note?: ReactNode }) {
+  return (
+    <>
+      <div className="h-20" aria-hidden />
+      <div className="fixed inset-x-0 bottom-[calc(58px+env(safe-area-inset-bottom))] z-30 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:bottom-0 lg:left-[264px]">
+        <div className="mx-auto flex max-w-5xl items-center gap-2">
+          <p className={cx("flex-1 text-[13.5px]", dirty ? "font-medium text-glow-ink" : "text-muted")}>{dirty ? "You have unsaved changes" : note ?? "All saved"}</p>
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function FieldGroup({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div role="group" aria-label={label}>
@@ -156,7 +172,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   );
 }
 
-export const inputCls = "w-full rounded-xl bg-page px-3.5 py-2.5 text-[15px] ring-1 ring-line outline-none transition placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-brand";
+export const inputCls = "w-full rounded-xl bg-page px-3.5 py-2.5 text-base ring-1 ring-line outline-none transition placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-brand";
 
 export function Empty({ title, body, action, icon }: { title: string; body: string; action?: ReactNode; icon?: ReactNode }) {
   return (
@@ -211,13 +227,25 @@ export function Stat({ n, label, sub, tone, icon }: { n: ReactNode; label: strin
 
 /** Segmented tabs. */
 export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { key: T; label: ReactNode; count?: number }[]; className?: string }) {
+  // Tabs scroll sideways on small screens; a soft fade at an edge says there is more, and the chosen tab is kept in view
+  const box = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ l: false, r: false });
+  const measure = () => { const b = box.current; if (b) setEdge({ l: b.scrollLeft > 2, r: b.scrollLeft + b.clientWidth < b.scrollWidth - 2 }); };
+  useEffect(() => {
+    const b = box.current; if (!b) return;
+    b.querySelector<HTMLElement>("[aria-selected=true]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(b);
+    return () => ro.disconnect();
+  }, [value, items.length]);
+  const fade = edge.l && edge.r ? "linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent)" : edge.r ? "linear-gradient(90deg, #000 calc(100% - 36px), transparent)" : edge.l ? "linear-gradient(90deg, transparent, #000 36px)" : undefined;
   return (
-    <div role="tablist" className={cx("inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-surface p-1 ring-1 ring-line scrollbar-thin", className)}>
+    <div ref={box} role="tablist" onScroll={measure} style={{ maskImage: fade, WebkitMaskImage: fade }} className={cx("inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-surface p-1 ring-1 ring-line scrollbar-none", className)}>
       {items.map((i) => (
-        <button key={i.key} role="tab" aria-selected={value === i.key} onClick={() => onChange(i.key)}
-          className={cx("flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm transition", value === i.key ? "bg-deep font-medium text-white shadow-sm" : "text-ink-soft hover:bg-page hover:text-ink")}>
+        <button type="button" key={i.key} role="tab" aria-selected={value === i.key} onClick={() => onChange(i.key)}
+          className={cx("flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm transition", value === i.key ? "bg-deep font-medium text-white shadow-sm" : "text-ink-soft hover:bg-page hover:text-ink")}>
           {i.label}
-          {i.count !== undefined && <span className={cx("rounded-full px-1.5 text-[11px]", value === i.key ? "bg-white/20" : "bg-page text-muted")}>{i.count}</span>}
+          {i.count !== undefined && <span className={cx("rounded-full px-1.5 text-[12px]", value === i.key ? "bg-white/20" : "bg-page text-muted")}>{i.count}</span>}
         </button>
       ))}
     </div>
@@ -226,7 +254,7 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
 
 export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
-    <button role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
+    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
       className={cx("relative h-6 w-11 shrink-0 rounded-full transition-colors", on ? "bg-brand" : "bg-line", disabled && "cursor-not-allowed opacity-60")}>
       <span className={cx("absolute top-0.5 size-5 rounded-full bg-surface shadow transition-all", on ? "left-[22px]" : "left-0.5")} />
     </button>
@@ -263,7 +291,7 @@ export function ProgressRing({ value, size = 44, stroke = 5, children }: { value
         <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" strokeWidth={stroke} fill="none" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - Math.max(0, Math.min(1, value)))} className="text-brand transition-all duration-700" />
       </svg>
-      <span className="absolute text-[11px] font-semibold">{children}</span>
+      <span className="absolute text-[12px] font-semibold">{children}</span>
     </span>
   );
 }
@@ -289,6 +317,39 @@ type ToastItem = { id: number; text: string; undo?: () => void; tone?: "good" | 
 let toasts: ToastItem[] = [];
 const listeners = new Set<(t: ToastItem[]) => void>();
 let tid = 0;
+/* ---------- Confirm and ask: Traqi's own dialogs instead of the browser's grey boxes ---------- */
+type Ask = { title: string; body?: string; ok?: string; danger?: boolean; input?: { label: string; value: string; placeholder?: string }; done: (v: string | boolean | null) => void };
+let askListener: ((a: Ask | null) => void) | null = null;
+/** "Are you sure?" in Traqi's style. Resolves true or false. */
+export function confirmAsk(title: string, opts: { body?: string; ok?: string; danger?: boolean } = {}): Promise<boolean> {
+  return new Promise((done) => askListener?.({ title, ...opts, done: (v) => done(v === true) }));
+}
+/** Ask for one line of text. Resolves the text, or null if cancelled. */
+export function textAsk(title: string, input: { label: string; value?: string; placeholder?: string }, ok = "Save"): Promise<string | null> {
+  return new Promise((done) => askListener?.({ title, ok, input: { value: "", ...input }, done: (v) => done(typeof v === "string" ? v : null) }));
+}
+export function Asker() {
+  const [a, setA] = useState<Ask | null>(null);
+  const [v, setV] = useState("");
+  useEffect(() => { askListener = (x) => { setA(x); setV(x?.input?.value ?? ""); }; return () => { askListener = null; }; }, []);
+  if (!a) return null;
+  const end = (r: string | boolean | null) => { a.done(r); setA(null); };
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center p-4 sm:items-center" role="alertdialog" aria-modal aria-label={a.title}>
+      <button type="button" aria-label="Cancel" className="fade absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => end(a.input ? null : false)} />
+      <form className="rise relative w-full max-w-sm rounded-3xl bg-surface p-6 shadow-2xl" onSubmit={(e) => { e.preventDefault(); end(a.input ? v : true); }}>
+        <p className="font-display text-[19px] font-semibold">{a.title}</p>
+        {a.body && <p className="mt-1.5 text-[14.5px] text-ink-soft">{a.body}</p>}
+        {a.input && <div className="mt-4"><Field label={a.input.label}><input autoFocus className={inputCls} value={v} onChange={(e) => setV(e.target.value)} placeholder={a.input.placeholder} /></Field></div>}
+        <div className="mt-6 flex gap-2">
+          <Button className="flex-1 py-2.5" onClick={() => end(a.input ? null : false)}>Cancel</Button>
+          <Button type="submit" variant="primary" className={cx("flex-1 py-2.5", a.danger && "bg-alert hover:bg-alert shadow-none")}>{a.ok ?? "Yes"}</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function toast(text: string, opts: { undo?: () => void; tone?: "good" | "dark" } = {}) {
   const t = { id: ++tid, text, ...opts };
   toasts = [...toasts.slice(-2), t];
@@ -306,7 +367,7 @@ export function Toasts() {
           <span className="size-2 rounded-full bg-[#7ee2b8]" />
           <span>{t.text}</span>
           {t.undo ? (
-            <button onClick={() => { t.undo?.(); toasts = toasts.filter((x) => x.id !== t.id); listeners.forEach((l) => l(toasts)); }}
+            <button type="button" onClick={() => { t.undo?.(); toasts = toasts.filter((x) => x.id !== t.id); listeners.forEach((l) => l(toasts)); }}
               className="rounded-xl bg-white/15 px-3 py-1.5 font-medium hover:bg-white/25">Undo</button>
           ) : <span className="w-2" />}
         </div>
@@ -329,6 +390,6 @@ export function Row({ left, title, sub, right, href, onClick }: { left?: ReactNo
   );
   const cls = "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-page";
   if (href) return <Link href={href} className={cls}>{inner}</Link>;
-  if (onClick) return <button onClick={onClick} className={cls}>{inner}</button>;
+  if (onClick) return <button type="button" onClick={onClick} className={cls}>{inner}</button>;
   return <div className={cls.replace(" hover:bg-page", "")}>{inner}</div>;
 }

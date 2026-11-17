@@ -56,7 +56,7 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
     <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
       <nav className="hidden space-y-1 lg:sticky lg:top-6 lg:block lg:self-start" aria-label="Event sections">
         {SECTIONS.map((s) => (
-          <button key={s.k} onClick={() => { setOpen(s.k); document.getElementById(`sec-${s.k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+          <button type="button" key={s.k} onClick={() => { setOpen(s.k); document.getElementById(`sec-${s.k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
             className={cx("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[14px]", open === s.k ? "bg-surface font-medium shadow-sm ring-1 ring-line" : "text-ink-soft hover:bg-surface/60")}>
             <s.icon size={16} className={open === s.k ? "text-brand" : ""} />{s.label}
           </button>
@@ -132,19 +132,11 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
         </Section>
 
         <Section k="registration" open={open} setOpen={setOpen}>
-          <div>
-            <span className="mb-1.5 block text-sm font-medium">Ways to register</span>
-            <div className="grid gap-1.5 sm:grid-cols-3">
-              {([["individual", "Just me"], ["group", "Me and others"], ["online", "Online"]] as [RegType, string][]).filter(([k]) => k !== "online" || e.mode !== "physical").map(([k, l]) => {
-                const cur = e.regTypes?.length ? e.regTypes : ["individual" as RegType];
-                const on = cur.includes(k);
-                return <button key={k} type="button" onClick={() => { const next = on ? cur.filter((x) => x !== k) : [...cur, k]; if (next.length) setE((x) => ({ ...x, regTypes: next, groupReg: next.includes("group") })); }} className={cx("flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm ring-1", on ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>
-                  <span className={cx("flex size-4.5 items-center justify-center rounded", on ? "bg-brand text-white" : "ring-1 ring-line")}>{on && <Check size={11} />}</span>{l}
-                </button>;
-              })}
-            </div>
-            <p className="mt-1.5 text-[12.5px] text-muted">With “Me and others”, each person gets their own ticket and answers the same questions.</p>
-          </div>
+          <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">People need to register<Toggle label="People need to register" on={e.registration !== false} onChange={(v) => set("registration", v)} /></label>
+          {e.registration !== false && e.mode !== "physical" && (
+            <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">Let people register to join online<Toggle label="Online registration" on={(e.regTypes ?? []).includes("online")} onChange={(v) => setE((x) => ({ ...x, regTypes: v ? ["individual", "online"] : ["individual"], groupReg: false }))} /></label>
+          )}
+          {e.registration !== false && <p className="text-[12.5px] text-muted">After registering, people can tap “Register someone else” for family and friends. Each person gets their own ticket.</p>}
           <div className="grid grid-cols-2 gap-2">
             <Field label="Places" hint="Empty for no limit."><input inputMode="numeric" className={inputCls} value={e.capacity ?? ""} onChange={(x) => set("capacity", Number(x.target.value.replace(/\D/g, "")) || undefined)} /></Field>
             <Field label="Registration closes"><input type="date" className={inputCls} value={e.closesAt?.slice(0, 10) ?? ""} onChange={(x) => set("closesAt", x.target.value ? new Date(`${x.target.value}T23:59:00+01:00`).toISOString() : undefined)} /></Field>
@@ -219,7 +211,7 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
       </div>
 
       {/* Save bar */}
-      <div className="fixed inset-x-0 bottom-[64px] z-30 border-t border-line bg-surface/92 px-4 py-3 backdrop-blur md:bottom-0 md:left-[272px]">
+      <div className="fixed inset-x-0 bottom-[calc(58px+env(safe-area-inset-bottom))] z-30 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:bottom-0 lg:left-[264px]">
         <div className="mx-auto flex max-w-5xl items-center gap-2">
           <p className="hidden flex-1 text-[13px] text-muted sm:block">{changed ? "Unsaved changes" : "All saved"} · Changing the dates or venue of a published event sends it back to a pastor.</p>
           {onDelete && <Button variant="ghost" className="text-alert" onClick={onDelete}><Trash2 size={15} /> Delete</Button>}

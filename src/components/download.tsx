@@ -50,8 +50,8 @@ export function DownloadButton({ what, sheets, label = "Download", small, classN
       </Button>
       {open && (
         <div role="menu" className="pop absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-2xl bg-surface p-1.5 shadow-xl ring-1 ring-line">
-          <button role="menuitem" onClick={() => go("xlsx")} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-page"><FileSpreadsheet size={16} className="text-good" /> Excel (.xlsx)</button>
-          <button role="menuitem" onClick={() => go("csv")} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-page"><FileText size={16} className="text-brand" /> CSV</button>
+          <button type="button" role="menuitem" onClick={() => go("xlsx")} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-page"><FileSpreadsheet size={16} className="text-good" /> Excel (.xlsx)</button>
+          <button type="button" role="menuitem" onClick={() => go("csv")} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-page"><FileText size={16} className="text-brand" /> CSV</button>
         </div>
       )}
     </div>

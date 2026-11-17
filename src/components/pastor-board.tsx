@@ -6,7 +6,7 @@ import { ArrowRight, Cake, Eye, EyeOff, Gem, HandHeart, Heart, MessageCircleQues
 import { useStore } from "@/lib/store";
 import { Avatar, Sheet, cx } from "./ui";
 import { ReachOut } from "./care";
-import { allowed, ask, type Answer } from "@/lib/ask";
+import { allowed, ask, searchAll, type Answer } from "@/lib/ask";
 import { attendance, cameBack } from "@/lib/metrics";
 import { daysToBirthday, fullName, hoursSince } from "@/lib/format";
 import { financeByMonth } from "@/lib/domain";
@@ -54,12 +54,19 @@ function AskTraqi() {
   const [list, setList] = useState(false);
   if (!access) return null;
   const chips = allowed(access).filter((c) => ["attendance", "firsttimers", "birthdays", "quiet"].includes(c.key));
-  const run = (text: string) => { setQ(text); setA(ask(state, access, text)); };
+  // Names open people; questions get answers
+  const run = (text: string) => {
+    setQ(text);
+    const r = searchAll(state, access, text);
+    if (r.answer || !r.people.length) return setA(r.answer ?? ask(state, access, text));
+    setA({ title: r.people.length === 1 ? fullName(r.people[0]) : `${r.people.length} people match “${text}”`, text: r.people.length === 1 ? "Open their profile to see everything about them." : "Tap a name to open their profile.", people: r.people, href: r.people.length === 1 ? `/people/${r.people[0].id}` : undefined });
+    if (r.people.length > 1) setList(true);
+  };
   return (
     <section className="card overflow-hidden p-0">
       <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) run(q); }} className="flex items-center gap-3 border-b border-line px-4 py-3 md:px-5">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white"><Sparkles size={17} /></span>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Traqi…" aria-label="Ask Traqi"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name or ask Traqi…" aria-label="Search a name or ask Traqi"
           className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-muted" />
         <button type="submit" className="flex size-9 items-center justify-center rounded-xl text-muted hover:bg-page hover:text-ink" aria-label="Ask"><Search size={17} /></button>
       </form>
@@ -71,7 +78,7 @@ function AskTraqi() {
               <p className="font-display text-[16px] font-semibold">{a.title}</p>
               <p className="mt-0.5 text-[14.5px] text-ink-soft">{a.text}</p>
               <div className="mt-2 flex flex-wrap gap-3 text-[13.5px] font-medium">
-                {a.people && a.people.length > 0 && <button className="text-brand" onClick={() => setList(true)}>See the {a.people.length} {a.people.length === 1 ? "person" : "people"}</button>}
+                {a.people && a.people.length > 0 && <button type="button" className="text-brand" onClick={() => setList(true)}>See the {a.people.length} {a.people.length === 1 ? "person" : "people"}</button>}
                 {a.href && <Link href={a.href} className="text-brand">Open <ArrowRight size={13} className="inline" /></Link>}
               </div>
             </div>
@@ -80,7 +87,7 @@ function AskTraqi() {
       )}
       <div className="flex gap-2 overflow-x-auto px-4 py-3 md:flex-wrap md:px-5">
         {chips.map((c) => (
-          <button key={c.key} onClick={() => run(c.label)} className="shrink-0 rounded-full bg-page px-3 py-1.5 text-[13px] text-ink-soft ring-1 ring-line transition hover:text-ink hover:ring-brand/40">
+          <button type="button" key={c.key} onClick={() => run(c.label)} className="shrink-0 rounded-full bg-page px-3 py-1.5 text-[13px] text-ink-soft ring-1 ring-line transition hover:text-ink hover:ring-brand/40">
             <MessageCircleQuestion size={12} className="mr-1 inline text-brand" />{c.label}
           </button>
         ))}
@@ -147,7 +154,7 @@ function Giving() {
   return (
     <section>
       <Title>Giving</Title>
-      <button onClick={() => setShow(!show)} className="card flex w-full items-center gap-4 p-5 text-left" aria-pressed={show}>
+      <button type="button" onClick={() => setShow(!show)} className="card flex w-full items-center gap-4 p-5 text-left" aria-pressed={show}>
         <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-glow-soft text-glow-ink"><Gem size={20} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] text-muted">This month</span>
