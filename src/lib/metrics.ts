@@ -1,3 +1,4 @@
+import { nearness } from "./areas";
 import type { SeedState } from "./seed";
 import type { FollowCase, Person, RoleKey } from "./types";
 import { fullName, hoursSince } from "./format";
@@ -33,33 +34,51 @@ export function escalation(s: SeedState, c: FollowCase): { level: 0 | 1 | 2 | 3;
 /** The follow-up team's settings, with sensible defaults: auto on, 5 open cases each, any gender. */
 export function followSettings(s: SeedState) {
   const g = s.groups.find((x) => x.tags?.includes("followup"));
-  return { auto: false, limit: g?.followup?.limit ?? 5, sameGender: g?.followup?.sameGender ?? false, groupId: g?.id };
+  return { auto: true, limit: g?.followup?.limit ?? 5, sameGender: g?.followup?.sameGender ?? false, groupId: g?.id };
 }
 
 /**
  * Who could follow someone up, best first: available people with the fewest open cases,
  * same area as a tiebreaker, and same gender first when the team asks for that.
  */
-export function teamLoad(s: SeedState, forPerson?: Person) {
-  const cfg = followSettings(s);
-  return followTeam(s)
-    .map((id) => {
-      const p = s.people.find((x) => x.id === id)!;
-      const open = s.cases.filter((c) => c.assigneeId === id && ["new", "contacted", "visited"].includes(c.stage)).length;
-      const near = !!forPerson?.location && p?.location === forPerson.location;
-      const sameGender = !!forPerson && p?.gender === forPerson.gender;
-      const away = !!p?.unavailable;
-      const full = open >= cfg.limit;
-      return { person: p, open, near, sameGender, away, full, ok: !away && !full && (!cfg.sameGender || !forPerson || sameGender) };
-    })
-    .filter((x) => x.person)
-    .sort((a, b) => Number(b.ok) - Number(a.ok) || a.open - b.open || Number(b.near) - Number(a.near)
-      || fullName(a.person).localeCompare(fullName(b.person)));
+/** How often someone came to services in the last eight weeks, from 0 to 1. */
+export function attendanceRate(s: SeedState, personId: string) {
+  const since = Date.now() - 56 * 864e5;
+  const services = s.meetings.filter((m) => (m.kind === "sunday" || m.kind === "midweek") && Date.parse(m.start) > since && Date.parse(m.start) < Date.now());
+  if (!services.length) return 0.5;
+  const came = new Set(s.attendance.filter((x) => x.personId === personId && (!x.status || x.status === "present" || x.status === "late")).map((x) => x.meetingId));
+  return services.filter((m) => came.has(m.id)).length / services.length;
 }
 
-/** The person auto-assign would choose, or nobody when auto is off or everyone is full or away. */
-/** Nobody is assigned automatically any more: the follow-up head assigns. Kept so older calls still work. */
-export function autoPick(_s: SeedState, _forPerson: Person): Person | undefined { return undefined; }
+/**
+ * The follow-up team ranked for one first-timer: same gender, living nearby and coming to church regularly count for;
+ * people already carrying many open follow-ups, or away, count against.
+ */
+export function teamLoad(s: SeedState, forPerson?: Person, pool?: string[]) {
+  const cfg = followSettings(s);
+  return (pool ?? followTeam(s))
+    .map((id) => {
+      const p = s.people.find((x) => x.id === id)!;
+      if (!p) return null;
+      const open = s.cases.filter((c) => (c.assigneeId === id || c.helperIds?.includes(id)) && ["new", "contacted", "visited"].includes(c.stage)).length
+        + s.outreachContacts.filter((c) => c.assigneeId === id && c.status === "new").length;
+      const nearBy = nearness(forPerson?.location, p.location);
+      const sameGender = !!forPerson && !!p.gender && p.gender === forPerson.gender;
+      const away = !!p.unavailable;
+      const full = open >= cfg.limit;
+      const rate = attendanceRate(s, id);
+      const score = (sameGender ? 4 : 0) + nearBy * 1.6 + rate * 3 - open * 0.8 - (full ? 4 : 0) - (away ? 100 : 0);
+      return { person: p, open, near: nearBy > 0, nearBy, sameGender, away, full, rate, score, ok: !away && !full };
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x)
+    .sort((a, b) => b.score - a.score || a.open - b.open || fullName(a.person).localeCompare(fullName(b.person)));
+}
+
+/** Assigned the moment someone is added: the best match, and still someone when everyone is busy (never someone away). */
+export function autoPick(s: SeedState, forPerson: Person, pool?: string[]): Person | undefined {
+  const ranked = teamLoad(s, forPerson, pool).filter((x) => !x.away && x.person.id !== forPerson.id);
+  return ranked[0]?.person;
+}
 
 /** Who leads follow-up: the follow-up department's heads, its assistants allowed to assign, and the Follow-up lead role. */
 export function isFollowLead(s: SeedState, a: { personId: string }) {
@@ -68,10 +87,10 @@ export function isFollowLead(s: SeedState, a: { personId: string }) {
   const role = s.roles.find((r) => r.key === "followup");
   return !!role && s.assignments.some((x) => x.personId === a.personId && x.roleId === role.id && !x.pending);
 }
-/** The pastors step in only when nobody was assigned in 24 hours, or the person assigned hasn't made contact by 48 hours. */
+/** Pastors step in only after 48 hours: nobody assigned, or no contact made yet. */
 export const pastorMayAssign = (c: { assigneeId?: string; createdAt: string; stage: string; contacts: unknown[] }) => {
   const h = (Date.now() - Date.parse(c.createdAt)) / 36e5;
-  return (!c.assigneeId && h > 24) || (!!c.assigneeId && c.stage === "new" && !c.contacts.length && h > 48);
+  return h > 48 && (!c.assigneeId || (c.stage === "new" && !c.contacts.length));
 };
 
 /** True when nobody on the follow-up team can take another case. */

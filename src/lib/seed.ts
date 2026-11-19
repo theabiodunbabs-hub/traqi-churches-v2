@@ -77,6 +77,7 @@ export const P = {
   technical: person({ firstName: "Ogunkola", lastName: "Kolawole", gender: "M", stage: "leader", occupation: "Sound engineer" }),
   protocol: person({ firstName: "Chinonso", lastName: "Ogwurumba", gender: "M", stage: "leader", occupation: "Civil engineer" }),
   family: person({ firstName: "Omotayo", lastName: "Babatunde", gender: "F", stage: "leader", occupation: "Family counsellor" }),
+  bursar: person({ firstName: "Olumide", lastName: "Fashola", gender: "M", stage: "leader", occupation: "Chartered accountant" }),
 };
 
 // The wider congregation
@@ -198,12 +199,14 @@ export const ALL: PermissionKey[] = ["people.view", "people.edit", "people.conta
 export const DEFAULT_ROLES: Role[] = [
   { id: "r-lead", key: "lead", name: "Lead pastor", level: 1, isDefault: true, description: "Sees everything, assigns oversight, approves corrections", permissions: ALL },
   { id: "r-pastor", key: "pastor", name: "Pastorate", level: 2, isDefault: true, description: "Resident and associate pastors; oversee their assigned areas", permissions: ["people.view", "people.edit", "people.contacts", "care.view", "followup.assign", "followup.log", "groups.manage", "attendance.record", "classes.manage", "events.manage", "messages.bulk"] },
-  { id: "r-admin", key: "admin", name: "Admin", level: 3, isDefault: true, description: "Setup, records, events, communication and classes", permissions: ["people.view", "people.edit", "people.contacts", "followup.assign", "followup.log", "groups.manage", "attendance.record", "checkin.code", "classes.manage", "events.manage", "messages.bulk", "roles.manage", "sheets.connect", "activity.view", "billing.manage"] },
+  { id: "r-admin", key: "admin", name: "Admin", level: 3, isDefault: true, description: "Setup, records, events, communication and classes", permissions: ["people.view", "people.edit", "people.contacts", "followup.assign", "followup.log", "groups.manage", "attendance.record", "rollcall.leaders", "classes.manage", "events.manage", "messages.bulk", "roles.manage", "sheets.connect", "activity.view", "billing.manage"] },
   { id: "r-dept", key: "dept", name: "Department leader", level: 4, isDefault: true, description: "Leads a department or unit and its people", permissions: ["people.view", "people.edit", "people.contacts", "groups.manage", "attendance.record", "messages.bulk"] },
-  { id: "r-follow-lead", key: "followup", name: "Follow-up lead", level: 4, isDefault: true, description: "Receives and assigns first-timers", permissions: ["followup.assign", "followup.log", "people.contacts"] },
+  { id: "r-follow-lead", key: "followup", name: "Follow-up lead", level: 4, isDefault: true, description: "Receives and assigns first-timers; runs check-in", permissions: ["followup.assign", "followup.log", "people.contacts", "checkin.code"] },
   { id: "r-care", key: "care", name: "Care leader", level: 4, isDefault: true, description: "Faculty of Training and Membership Ministry leaders who read care notes", permissions: ["care.view"] },
-  { id: "r-usher", key: "usher", name: "Head usher", level: 4, isDefault: true, description: "Submits service cash counts; can delegate", permissions: ["finance.count" as PermissionKey, "attendance.record"] },
-  { id: "r-media", key: "media", name: "Media head", level: 4, isDefault: true, description: "Sets the check-in code for each service", permissions: ["checkin.code"] },
+  { id: "r-usher", key: "usher", name: "Head usher", level: 4, isDefault: true, description: "Takes the headcount and submits service cash counts; can delegate", permissions: ["finance.count" as PermissionKey, "headcount.record"] },
+  { id: "r-media", key: "media", name: "Media head", level: 4, isDefault: true, description: "Runs check-in: codes and the check-in screen", permissions: ["checkin.code"] },
+  { id: "r-finance-lead", key: "financelead", name: "Finance lead", level: 4, isDefault: true, description: "Leads the finance team: enters income, reviews and pays fund requests", permissions: ["finance.view", "finance.transfers", "finance.review", "finance.approve"] },
+  { id: "r-finance", key: "finance", name: "Finance team", level: 5, isDefault: true, description: "Bursar, treasurer, financial secretary or accountant: enters income and reviews fund requests", permissions: ["finance.view", "finance.transfers", "finance.review"] },
   { id: "r-worker", key: "worker", name: "Worker", level: 5, isDefault: true, description: "Serves in a department; handles tasks assigned to them", permissions: ["followup.log"] },
   { id: "r-member", key: "member", name: "Member", level: 6, isDefault: true, description: "Their own profile, household, classes and events", permissions: [] },
 ];
@@ -224,6 +227,7 @@ const assignments: RoleAssignment[] = [
   { personId: P.training.id, roleId: "r-care", scope: church },
   { personId: P.media.id, roleId: "r-dept", scope: groupsScope("g-media") },
   { personId: P.media.id, roleId: "r-media", scope: church },
+  { personId: P.bursar.id, roleId: "r-finance-lead", scope: church },
   { personId: P.usher.id, roleId: "r-dept", scope: groupsScope("g-ushering") },
   { personId: P.usher.id, roleId: "r-usher", scope: church },
   { personId: P.welfare.id, roleId: "r-dept", scope: groupsScope("g-welfare") },

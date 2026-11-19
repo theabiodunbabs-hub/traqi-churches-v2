@@ -6,7 +6,7 @@ import { defaultJourney } from "./journey";
 import { DEFAULT_TEMPLATES } from "./templates";
 import type {
   Announcement, Attendance, Away, ChurchEvent, ChurchProfile, ClassSession, Enrolment, FollowCase, Group, Headcount, Invite, Lodgement,
-  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog, Outreach, OutreachContact } from "./types";
+  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog, Outreach, OutreachContact, Challenge, ChurchInvite, FundRequest, CounselRequest } from "./types";
 
 function rng(seed: number) {
   return () => {
@@ -19,7 +19,7 @@ function rng(seed: number) {
 
 type Input = {
   people: Person[]; groups: Group[]; cases: FollowCase[];
-  P: Record<"lead" | "resident" | "associate" | "admin" | "outreach" | "membership" | "training" | "media" | "usher" | "welfare" | "worker" | "member" | "choir" | "technical" | "protocol" | "family", Person>;
+  P: Record<"lead" | "resident" | "associate" | "admin" | "outreach" | "membership" | "training" | "media" | "usher" | "welfare" | "worker" | "member" | "choir" | "technical" | "bursar" | "protocol" | "family", Person>;
   dayISO: (d: number) => string; stampISO: (h: number) => string;
 };
 
@@ -316,6 +316,66 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
       contacts: i < 2 ? [{ at: stampISO(-3 * 24), byId: P.worker.id, outcome: "Called. Happy to come on Sunday." }] : [] })),
     { id: "oc6", name: "Ifeoma Eze", phone: "0806 555 0106", area: "Yaba", byId: P.member.id, at: stampISO(-30), consent: true, status: "new", note: "My colleague at work. Asked about our youth programme." },
   ];
+  // The youth conference has a planning committee and two department budgets waiting on it
+  const yev = events.find((e) => e.id === "ev-youth");
+  if (yev) yev.committee = {
+    members: [{ personId: P.outreach.id, role: "Committee head" }, { personId: P.media.id, role: "Publicity and live stream" }, { personId: P.protocol.id, role: "Guest ministers" }, { personId: P.usher.id, role: "Seating and crowd" }, { personId: P.choir.id, role: "Music" }],
+    headId: P.outreach.id, assistantId: P.media.id,
+    messages: [{ id: "cm1", byId: P.lead.id, at: stampISO(-50), to: "heads", text: "Please keep the budget lean this year. Let's prioritise the sound and the guest ministers' hospitality." },
+      { id: "cm2", byId: P.outreach.id, at: stampISO(-30), to: "all", text: "Each department should send its budget here by Friday. Meeting after second service on Sunday." }],
+  };
+  // Sermon platforms for "Listen to messages"
+  profile.sermonLinks = [{ platform: "YouTube", url: "https://youtube.com/@heirschurch" }, { platform: "Spotify", url: "https://open.spotify.com/show/heirschurch" }, { platform: "Mixlr", url: "https://heirschurch.mixlr.com" }];
+  // Fund requests at every step: waiting on finance, waiting on the pastor, paid and awaiting a report, returned, and closed
+  const fl = (id: string, item: string, qty: number, unit: number, groupId?: string) => ({ id, item, qty, unit, groupId });
+  const h = (hrs: number, byId: string, action: string, note?: string) => ({ at: stampISO(hrs), byId, action, note });
+  const funds: FundRequest[] = [
+    { id: "fr1", byId: P.media.id, at: stampISO(-30), title: "Two wireless microphones", purpose: "The pulpit mics keep cutting out during the sermon.", groupId: "g-media", category: "Equipment",
+      lines: [fl("l1", "Shure BLX24 wireless mic", 2, 285000), fl("l2", "Rechargeable batteries (pack of 8)", 1, 18500)], neededBy: dayISO(10), stage: "finance", history: [h(-30, P.media.id, "Sent")], payments: [] },
+    { id: "fr2", byId: P.outreach.id, at: stampISO(-75), title: "Hospital outreach supplies", purpose: "Gift packs for patients at LASUTH on the 2nd Saturday.", groupId: "g-outreach", category: "Outreach",
+      lines: [fl("l1", "Gift packs (toiletries, biscuits, drinks)", 120, 3500), fl("l2", "Bus hire", 1, 45000), fl("l3", "Tracts and flyers", 500, 60)], timeline: "Before the second Saturday of the month", stage: "pastor",
+      history: [h(-75, P.outreach.id, "Sent"), h(-50, P.bursar.id, "Reviewed by finance and sent to the pastor", "Figures checked. We have the money in the outreach budget.")], payments: [] },
+    { id: "fr3", byId: P.choir.id, at: stampISO(-24 * 9), title: "Choir robes repair", purpose: "Mending and dry cleaning 30 robes before the carol service.", groupId: "g-choir", category: "Maintenance",
+      lines: [fl("l1", "Tailoring per robe", 30, 2500), fl("l2", "Dry cleaning per robe", 30, 1500)], neededBy: dayISO(-2), stage: "paid",
+      history: [h(-24 * 9, P.choir.id, "Sent"), h(-24 * 8, P.bursar.id, "Sent to the pastor"), h(-24 * 7, P.lead.id, "Approved"), h(-24 * 6, P.bursar.id, "Paid ₦70,000 (part payment)"), h(-24 * 3, P.bursar.id, "Paid ₦50,000")],
+      payments: [{ id: "py1", at: stampISO(-24 * 6), byId: P.bursar.id, amount: 70000, note: "Part payment" }, { id: "py2", at: stampISO(-24 * 3), byId: P.bursar.id, amount: 50000 }] },
+    { id: "fr4", byId: P.technical.id, at: stampISO(-24 * 4), title: "Generator servicing", purpose: "Quarterly service and two new filters.", groupId: "g-technical", category: "Maintenance",
+      lines: [fl("l1", "Servicing", 1, 65000), fl("l2", "Oil and fuel filters", 2, 22000)], stage: "returned", returnedFrom: "finance",
+      history: [h(-24 * 4, P.technical.id, "Sent"), h(-24 * 3, P.bursar.id, "Sent back", "Please attach the technician's quote and confirm if diesel is included.")], payments: [] },
+    { id: "fr5", byId: P.welfare.id, at: stampISO(-24 * 25), title: "Food items for the welfare store", purpose: "Monthly restock for families on support.", groupId: "g-welfare", category: "Welfare",
+      lines: [fl("l1", "Bags of rice (50kg)", 4, 78000), fl("l2", "Cartons of noodles", 10, 9800), fl("l3", "Vegetable oil (5L)", 6, 11500)], stage: "closed",
+      history: [h(-24 * 25, P.welfare.id, "Sent"), h(-24 * 24, P.lead.id, "Approved"), h(-24 * 23, P.bursar.id, "Paid ₦479,000"), h(-24 * 18, P.welfare.id, "Sent the spending report"), h(-24 * 17, P.bursar.id, "Report accepted")],
+      payments: [{ id: "py3", at: stampISO(-24 * 23), byId: P.bursar.id, amount: 479000 }],
+      report: { at: stampISO(-24 * 18), lines: [fl("r1", "Bags of rice (50kg)", 4, 76500), fl("r2", "Cartons of noodles", 10, 9800), fl("r3", "Vegetable oil (5L)", 6, 11200)], returned: 6800, note: "Rice was cheaper at Mile 12. Balance returned to the bursar.", reviewedById: P.bursar.id, reviewedAt: stampISO(-24 * 17) } },
+    { id: "fr6", byId: P.protocol.id, at: stampISO(-6), title: "Refund: fuel for the guest minister", purpose: "Bought fuel for the guest minister's car on Sunday. The office was closed.", groupId: "g-protocol", category: "Hospitality", refund: true,
+      lines: [fl("l1", "Fuel (40 litres)", 40, 1150)], stage: "finance", history: [h(-6, P.protocol.id, "Asked for a refund")], payments: [] },
+    { id: "fr7", byId: P.choir.id, at: stampISO(-26), title: "Rise conference: music", purpose: "Band hire and in-ear monitors for three nights.", groupId: "g-choir", eventId: "ev-youth", category: "Events",
+      lines: [fl("l1", "Session drummer (3 nights)", 3, 40000), fl("l2", "In-ear monitor rental", 6, 7500)], stage: "committee", history: [h(-26, P.choir.id, "Sent to the Rise: Youth Conference 2026 committee")], payments: [] },
+    { id: "fr8", byId: P.protocol.id, at: stampISO(-20), title: "Rise conference: guest ministers", purpose: "Hotel and transport for two guest ministers.", groupId: "g-protocol", eventId: "ev-youth", category: "Events",
+      lines: [fl("l1", "Hotel nights", 4, 55000), fl("l2", "Airport pickups and drops", 4, 15000), fl("l3", "Honorarium gifts", 2, 50000)], stage: "committee",
+      history: [h(-20, P.protocol.id, "Sent to the Rise: Youth Conference 2026 committee"), h(-10, P.outreach.id, "Acknowledged by the committee")], payments: [] },
+  ];
+  // Counselling requests: one waiting on the PA, one scheduled, one referred
+  const counsel: CounselRequest[] = [
+    { id: "cs1", personId: P.member.id, at: stampISO(-20), urgency: "soon", description: "My wife and I keep arguing about money and it's affecting the children. We'd like to talk to a pastor together.", tags: ["Marriage", "Finances"], status: "new", log: [{ at: stampISO(-20), byId: P.member.id, text: "Asked for counselling" }] },
+    { id: "cs2", personId: P.worker.id, at: stampISO(-24 * 3), urgency: "convenient", timeline: "Any Saturday in the next month", description: "Pre-marital counselling before our wedding.", tags: ["Pre-marital"], status: "scheduled", handlerId: P.lead.id,
+      appt: { date: dayISO(5), time: "11:00", mode: "in-person", venue: "Pastor's office" }, log: [{ at: stampISO(-24 * 3), byId: P.worker.id, text: "Asked for counselling" }, { at: stampISO(-24 * 2), byId: P.admin.id, text: "Booked for the pastor" }] },
+  ];
+  profile.finance = { route: 2, limit: 50000, categories: ["Equipment", "Outreach", "Welfare", "Maintenance", "Hospitality", "Events", "Utilities", "Other"], budgets: [{ groupId: "g-media", period: "year", amount: 2500000 }, { groupId: "g-outreach", period: "quarter", amount: 900000 }] };
+  profile.counselling = { step: 4, done: true, delegates: [{ personId: P.admin.id, title: "Personal assistant", perms: ["manage", "approve", "reply", "reassign"] }, { personId: P.protocol.id, title: "Head of protocol", perms: ["manage"] }], link: "https://meet.google.com/heirs-counsel", venue: "Pastor's office" };
+  // A member invited the church to her wedding
+  const churchInvites: ChurchInvite[] = [{ id: "ci1", byId: P.worker.id, at: stampISO(-26), kind: "wedding", details: "The wedding of Ifeoma Nwosu and Chidi Okeke. We'd be honoured to have the church celebrate with us.",
+    date: dayISO(24), time: "10:00", venue: "Heirs Church main auditorium, then reception at Eko Hotel", audience: "church", wants: ["officiate", "choir"], wantsOther: "Ushers for the reception, if possible", announce: true, status: "new" }];
+  // A 40-day soul-winning challenge running now
+  const challenges: Challenge[] = [{ id: "ch1", name: "40 Souls in 40 Days", description: "Share the love of Christ and invite someone every week.", start: dayISO(-10), end: dayISO(30), target: 40, targetEach: 5,
+    createdById: P.outreach.id, at: stampISO(-10 * 24), participantIds: [P.outreach.id, P.worker.id, P.membership.id, P.member.id, P.media.id], extraFollowers: { leaders: true } }];
+  outreachContacts.push(
+    { id: "oc7", name: "Damilola Ajayi", phone: "0810 555 0107", area: "Ikeja", challengeId: "ch1", byId: P.worker.id, at: stampISO(-50), consent: true, status: "new" },
+    { id: "oc8", name: "Peter Okafor", phone: "0811 555 0108", area: "Ogba", challengeId: "ch1", byId: P.worker.id, at: stampISO(-40), consent: true, status: "reached", contacts: [{ at: stampISO(-20), byId: P.membership.id, outcome: "Reached. Will come next Sunday." }] },
+    { id: "oc9", name: "Zainab Musa", phone: "0812 555 0109", area: "Yaba", challengeId: "ch1", byId: P.member.id, at: stampISO(-30), consent: true, status: "new" },
+    { id: "oc10", name: "Kunle Adeyemi", phone: "0813 555 0110", area: "Ketu", challengeId: "ch1", byId: P.outreach.id, at: stampISO(-24), consent: true, status: "new" },
+    { id: "oc11", name: "Esther Bassey", phone: "0814 555 0111", area: "Ojota", challengeId: "ch1", byId: P.worker.id, at: stampISO(-6), consent: true, status: "new" },
+  );
   const appFeedback: AppFeedback[] = [{ id: "fb1", byId: P.usher.id, screen: "Finance", text: "Please let ushers save a count halfway and finish it later.", at: stampISO(-26) }];
 
   // First-timers' feedback on the welcome form
@@ -331,7 +391,7 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     profile,
     collections: {
       meetings, headcounts, attendance: [...attendance, ...classAttendance], away, welfare, programmes, sessions, enrolments, events, registrations,
-      counts, lodgements, transfers, templates, announcements, wishes, invites, appFeedback, prayers, downloads, outreaches, outreachContacts,
+      counts, lodgements, transfers, templates, announcements, wishes, invites, appFeedback, prayers, downloads, outreaches, outreachContacts, challenges, churchInvites, funds, counsel,
     },
   };
 }
@@ -350,5 +410,5 @@ export const emptyCollections = () => ({
   programmes: [] as Programme[], sessions: [] as ClassSession[], enrolments: [] as Enrolment[], events: [] as ChurchEvent[], registrations: [] as Registration[],
   counts: [] as ServiceCount[], lodgements: [] as Lodgement[], transfers: [] as Transfer[], templates: DEFAULT_TEMPLATES.map((t) => ({ ...t })) as MessageTemplate[],
   announcements: [] as Announcement[], wishes: [] as Wish[], invites: [] as Invite[], appFeedback: [] as AppFeedback[],
-  prayers: [] as PrayerRequest[], downloads: [] as DownloadLog[], outreaches: [] as Outreach[], outreachContacts: [] as OutreachContact[],
+  prayers: [] as PrayerRequest[], downloads: [] as DownloadLog[], outreaches: [] as Outreach[], outreachContacts: [] as OutreachContact[], challenges: [] as Challenge[], funds: [] as FundRequest[], counsel: [] as CounselRequest[], churchInvites: [] as ChurchInvite[],
 });

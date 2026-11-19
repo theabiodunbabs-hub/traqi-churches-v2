@@ -8,6 +8,8 @@ import type { Access } from "./access";
 import type { Attendance, ChurchEvent, ClassSession, Enrolment, Meeting, Person, Programme, ServiceSlot, Signer, OfferingType, Transfer, WelfareRequest } from "./types";
 import { addDays, at, lastSunday } from "./seed-more";
 import { daysToBirthday, fullName, hoursSince, todayLagos } from "./format";
+import { actionsFor } from "./funds";
+const today0 = () => todayLagos();
 import { escalation, goneQuiet } from "./metrics";
 
 // ---------------- Attendance ----------------
@@ -252,7 +254,7 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
   state.cases.filter((c) => c.stage === "new" && c.assigneeId).forEach((c) => {
     const e = escalation(state, c);
     const p = state.people.find((x) => x.id === c.personId);
-    if (c.assigneeId === me.id && hoursSince(c.createdAt) <= 48) out.push({ key: `call-${c.id}`, title: `Call ${p?.firstName ?? "a first-timer"}`, body: "Assigned to you. Reach them within 48 hours.", href: `/people/${c.personId}`, tone: "brand", at: c.createdAt });
+    if ((c.assigneeId === me.id || c.helperIds?.includes(me.id)) && hoursSince(c.createdAt) <= 48) out.push({ key: `call-${c.id}`, title: `Call ${p?.firstName ?? "a first-timer"}`, body: "Assigned to you. Reach them within 48 hours.", href: `/people/${c.personId}`, tone: "brand", at: c.createdAt });
     else if (e.level > 0 && e.who?.id === me.id) out.push({ key: `esc-${c.id}-${e.level}`, title: `${p ? fullName(p) : "A first-timer"} hasn't been reached`, body: e.label, href: `/people/${c.personId}`, tone: "alert", at: c.createdAt });
   });
   state.welfare.forEach((w) => {
@@ -269,6 +271,18 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
     out.push({ key: `pl-${x.id}`, title: `${p?.firstName ?? "A member"} wants to join`, body: state.groups.find((g) => g.id === x.groupId)?.name ?? "", href: "/today", tone: "good", at: x.at });
   });
   if (a.isLead) state.counts.filter((c) => c.correction?.status === "pending").forEach((c) => out.push({ key: `fc-${c.id}`, title: "A count correction needs your approval", body: c.correction!.reason, href: "/finance", tone: "glow", at: c.correction!.at }));
+  // Fund requests waiting on me, and my own requests that moved
+  state.funds.filter((f) => !f.parentId && actionsFor(state, a, f).length).forEach((f) => out.push({ key: `fund-${f.id}-${f.stage}-${f.payments.length}-${!!f.report}`, title: f.stage === "paid" && f.report ? "A spending report needs checking" : f.stage === "approved" || f.stage === "paid" ? "A fund request is ready to pay" : "A fund request needs you", body: f.title, href: `/funds?id=${f.id}`, tone: "glow", at: f.history.at(-1)?.at ?? f.at }));
+  state.funds.filter((f) => f.byId === me.id && (f.stage === "returned" || f.stage === "declined" || (f.stage === "paid" && !f.report && !f.refund))).forEach((f) => out.push({ key: `myfund-${f.id}-${f.stage}`, title: f.stage === "returned" ? "Your fund request was sent back" : f.stage === "declined" ? "Your fund request was declined" : "Send your spending report", body: f.title, href: `/funds?id=${f.id}`, tone: f.stage === "paid" ? "glow" : "alert", at: f.history.at(-1)?.at ?? f.at }));
+  // Counselling: new requests for the pastor and his helpers; bookings for the member; referrals for whoever receives them
+  const cs = state.church.profile?.counselling;
+  const helpsPastor = !!cs?.delegates.some((d) => d.personId === me.id && d.perms.includes("manage"));
+  state.counsel.forEach((r) => {
+    if (r.status === "new" && r.personId !== me.id && ((a.isLead && !r.branchId) || (helpsPastor && !r.branchId))) out.push({ key: `cs-${r.id}`, title: r.urgency === "urgent" ? "Urgent counselling request" : "New counselling request", body: "Open to book a session", href: "/counselling", tone: r.urgency === "urgent" ? "alert" : "glow", at: r.at });
+    else if ((r.status === "forwarded" || r.status === "referred") && r.handlerId === me.id) out.push({ key: `cs-${r.id}-${r.status}`, title: r.status === "referred" ? "A counselling request was referred to you" : "A counselling request was forwarded to you", body: "Open to book a session", href: "/counselling", tone: "glow", at: r.log.at(-1)?.at ?? r.at });
+    else if (r.personId === me.id && r.status === "scheduled" && r.appt && r.appt.date >= today0()) out.push({ key: `csm-${r.id}-${r.appt.date}${r.appt.time}`, title: "Your counselling session is booked", body: `${r.appt.date} at ${r.appt.time}`, href: "/counselling", tone: "good", at: r.log.at(-1)?.at ?? r.at });
+  });
+  if (a.isPastoral || a.isAdmin) { const n = state.churchInvites.filter((i) => i.status === "new").length; if (n) out.push({ key: `ci-${n}`, title: `${n} invitation${n > 1 ? "s" : ""} to the church`, body: "Weddings, namings and more", href: "/invitations", tone: "brand", at: state.churchInvites.find((i) => i.status === "new")!.at }); }
   // Journey: finished a class and waiting for a leader; probation periods that are over
   if (a.isPastoral || a.can("people.edit")) {
     const awaiting = state.people.filter((p) => p.awaitingStage && !p.inactive && a.can("people.edit", { personId: p.id }));
@@ -304,6 +318,8 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
     if (b.length) out.push({ key: `bd-${todayLagos()}`, title: `${b.length} birthday${b.length > 1 ? "s" : ""} today`, body: b.slice(0, 3).map((p) => p.firstName).join(", "), href: "/messages", tone: "good", at: new Date().toISOString() });
     // "Gone quiet" is shown on Home and People, not in the bell: the bell is only for things to act on
   }
+  // Course changes waiting for the owner's approval
+  state.programmes.filter((x) => x.pendingEdit && approvesCourseEdit(x, a)).forEach((x) => out.push({ key: `pe-${x.id}`, title: `Approve a change to ${x.name}`, body: `${state.people.find((p) => p.id === x.pendingEdit!.byId)?.firstName ?? "Someone"} suggested changes.`, href: `/classes/${x.id}`, at: x.pendingEdit!.at, tone: "brand" } as Note));
   return out.sort((x, y) => y.at.localeCompare(x.at));
 }
 
@@ -326,3 +342,23 @@ export const offeringTypes = (p?: { offeringTypes?: OfferingType[]; categories?:
 export const INCOME_METHODS: { k: NonNullable<Transfer["method"]>; label: string }[] = [
   { k: "transfer", label: "Bank transfer" }, { k: "cheque", label: "Cheque" }, { k: "pos", label: "POS" }, { k: "online", label: "Online giving" }, { k: "other", label: "Other" },
 ];
+
+// ---------- Who may edit a course ----------
+/**
+ * The owner edits directly (faculty of training for its courses, family life for theirs). Faculty can also edit family life
+ * courses and the pastorate any course, but those edits wait for the owner to approve. Family life can't edit faculty courses.
+ */
+export function courseEditRights(p: Pick<Programme, "owner">, a: { isPastoral: boolean; leadsTraining: boolean; leadsFamilyLife: boolean; can: (k: "classes.manage") => boolean }): "direct" | "approval" | "none" {
+  const faculty = a.leadsTraining || a.can("classes.manage");
+  if ((p.owner ?? "training") === "family") {
+    if (a.leadsFamilyLife) return "direct";
+    if (faculty || a.isPastoral) return "approval";
+    return "none";
+  }
+  if (a.leadsTraining || (faculty && !a.isPastoral)) return "direct";
+  if (a.isPastoral) return "approval";
+  return "none";
+}
+/** Who approves an edit: the owner's side. */
+export const approvesCourseEdit = (p: Pick<Programme, "owner">, a: { leadsTraining: boolean; leadsFamilyLife: boolean; can: (k: "classes.manage") => boolean; isPastoral: boolean }) =>
+  (p.owner ?? "training") === "family" ? a.leadsFamilyLife : a.leadsTraining || (a.can("classes.manage") && !a.isPastoral);

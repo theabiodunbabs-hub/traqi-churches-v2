@@ -61,6 +61,8 @@ export type PendingContact = { personId: string; method: "call" | "whatsapp"; at
 
 export type Household = { id: string; name: string; address?: string };
 
+/** A department's regular meeting or one-off programme, shown on its members' Home. */
+export type DeptMeeting = { id: string; title: string; kind: "regular" | "programme"; weekday?: number; every?: "week" | "fortnight" | "month"; date?: string; time: string; venue?: string; link?: string };
 export type Group = {
   id: string;
   name: string;
@@ -78,6 +80,7 @@ export type Group = {
   assistants?: Assistant[];
   /** Optional: only people at this stage (or later) can join. */
   requiresStage?: string;
+  meetings?: DeptMeeting[];
   /** Optional: only people who finished this class can join. */
   requiresClassId?: string;
   /** Follow-up only: assignment settings. */
@@ -86,7 +89,7 @@ export type Group = {
   branchId?: string;
 };
 
-export type AssistantPerm = "people.edit" | "people.manage" | "rollcall" | "message" | "followup.assign" | "followup.reports";
+export type AssistantPerm = "people.edit" | "people.manage" | "rollcall" | "message" | "followup.assign" | "followup.reports" | "headcount" | "checkin";
 export type Assistant = { personId: string; title: string; perms: AssistantPerm[] };
 
 export type GroupTag = "followup" | "membership" | "training" | "ushering" | "media" | "welfare" | "children" | "family" | "outreach";
@@ -101,7 +104,10 @@ export type PermissionKey =
   | "groups.manage"
   | "attendance.record"
   | "checkin.code"
+  | "headcount.record"
+  | "rollcall.leaders"
   | "finance.count"
+  | "finance.review"
   | "finance.approve"
   | "finance.transfers"
   | "finance.view"
@@ -113,7 +119,7 @@ export type PermissionKey =
   | "activity.view"
   | "billing.manage";
 
-export type RoleKey = "lead" | "pastor" | "admin" | "dept" | "followup" | "care" | "usher" | "media" | "worker" | "member" | "custom";
+export type RoleKey = "lead" | "pastor" | "admin" | "dept" | "followup" | "care" | "usher" | "media" | "worker" | "member" | "finance" | "financelead" | "custom";
 
 export type Role = {
   id: string;
@@ -142,6 +148,8 @@ export type FollowStage = "new" | "contacted" | "visited" | "returned" | "in_cla
 export type Contact = { at: string; byId: string; method: "call" | "whatsapp" | "visit"; outcome: string; reached?: boolean };
 
 export type FollowCase = {
+  /** Others the follow-up lead added to help with this person. */
+  helperIds?: string[];
   id: string;
   personId: string;
   assigneeId?: string;
@@ -208,9 +216,17 @@ export type Programme = {
   /** What the church calls it and each part of it. Default: Course and Lesson. */
   words?: { course: string; part: string };
   signers?: Signer[];
+  /** Who started it: the faculty of training (default) or family life. Edits by anyone else wait for them to approve. */
+  owner?: "training" | "family";
+  /** For couples' courses: two people enrol separately, and share one certificate. */
+  couples?: boolean;
+  /** An edit waiting for the owner's approval. */
+  pendingEdit?: { byId: string; at: string; next: Omit<Programme, "pendingEdit">; finish?: "member" | "worker" | "growth" };
 };
 export type ClassSession = { id: string; programmeId: string; moduleId: string; date: string; start: string; venue?: string; link?: string; recording?: string; cancelled?: boolean; teacherId?: string };
-export type Enrolment = { id: string; programmeId: string; personId: string; status: "active" | "completed"; enrolledAt: string; completedAt?: string; certNo?: string };
+export type Enrolment = { id: string; programmeId: string; personId: string; status: "active" | "completed"; enrolledAt: string; completedAt?: string; certNo?: string;
+  /** In a couples' course, the person they're taking it with. */
+  partnerId?: string };
 
 export type QuestionType = "text" | "long" | "choice" | "multi" | "yesno" | "number" | "date" | "phone" | "email";
 export type EventQuestion = { id: string; label: string; type: QuestionType; options?: string[]; required?: boolean; help?: string; /** Ask once per person when registering others too */ perPerson?: boolean };
@@ -235,6 +251,8 @@ export type ChurchEvent = {
   coOrganisers: { groupId: string; status: "requested" | "approved" }[]; createdAt: string;
   /** False when people just come, with no registration. */
   registration?: boolean;
+  /** The planning committee: picked by the admin or pastorate, led by a head and an assistant head. */
+  committee?: Committee;
   // ---- Round 2 ----
   theme?: string;
   verse?: { text: string; ref: string };
@@ -288,13 +306,85 @@ export type Wish = { personId: string; kind: "birthday" | "anniversary"; year: n
 export type Invite = { token: string; personId: string; roleId?: string; byId: string; at: string; usedAt?: string };
 /** A prayer request. Only the people the lead pastor chose can read it; it's never downloaded. */
 /** An outreach or evangelism the church plans, with its own link for the team. */
-export type Outreach = { id: string; name: string; date: string; area?: string; createdById: string; at: string };
+/** Who else follows up the people met, besides the Follow-up department: all leaders, and/or whole departments. */
+export type ExtraFollowers = { leaders?: boolean; groupIds?: string[] };
+export type Outreach = { id: string; name: string; date: string; area?: string; createdById: string; at: string; extraFollowers?: ExtraFollowers };
+/** A soul-winning challenge: people join, log who they meet, and see how everyone is doing. */
+export type Challenge = {
+  id: string; name: string; description?: string; start: string; end: string; target?: number; targetEach?: number;
+  createdById: string; at: string; participantIds: string[]; extraFollowers?: ExtraFollowers;
+};
 /** Someone met during an outreach, or invited by anyone in the church. They agreed to be contacted. */
 export type OutreachContact = {
-  id: string; name: string; phone: string; area?: string; note?: string; outreachId?: string; byId: string; at: string;
+  id: string; name: string; phone: string; area?: string; note?: string; outreachId?: string; challengeId?: string; byId: string; at: string;
   consent: true; assigneeId?: string; status: "new" | "reached";
   contacts?: { at: string; byId: string; outcome: string }[];
 };
+export type Committee = {
+  members: { personId: string; role?: string }[];
+  headId?: string; assistantId?: string;
+  approvedById?: string; approvedAt?: string;
+  /** Instructions: the pastorate and admin write to the heads; the heads write to everyone. */
+  messages: { id: string; byId: string; at: string; to: "heads" | "all"; text: string }[];
+};
+/** An invitation to the church: a wedding, naming, birthday, burial or other occasion. */
+export type ChurchInvite = {
+  id: string; byId: string; at: string;
+  kind: "wedding" | "naming" | "birthday" | "burial" | "thanksgiving" | "other"; kindOther?: string;
+  details: string; date: string; time: string; venue?: string; link?: string;
+  audience: "pastorate" | "leaders" | "workforce" | "church";
+  wants: ("officiate" | "attend" | "choir")[]; wantsOther?: string;
+  announce: boolean; flyer?: string;
+  status: "new" | "contacted" | "confirmed" | "declined"; handledById?: string; reply?: string;
+};
+/** One line of a fund request or spending report. */
+export type FundLine = { id: string; item: string; qty: number; unit: number; groupId?: string; receipt?: string };
+export type FundStage = "committee" | "finance" | "pastor" | "approved" | "returned" | "declined" | "paid" | "closed";
+/**
+ * A fund request: a leader asks for money with a budget. It moves along the church's chosen route
+ * (pastor; finance then pastorate; or finance can approve up to a limit), is paid in one or more parts,
+ * then closed with a retirement / spending report.
+ */
+export type FundRequest = {
+  id: string; byId: string; at: string; title: string; purpose: string;
+  groupId?: string; eventId?: string; category: string;
+  lines: FundLine[];
+  /** When the money is needed: a date, or words like "Before the December retreat". */
+  neededBy?: string; timeline?: string;
+  /** Spent already (urgent), asking to be refunded. */
+  refund?: boolean;
+  stage: FundStage; returnedFrom?: FundStage;
+  /** Event budgets: department requests gathered by the committee into one request. */
+  parentId?: string; childIds?: string[];
+  history: { at: string; byId: string; action: string; note?: string }[];
+  payments: { id: string; at: string; byId: string; amount: number; note?: string }[];
+  report?: { at: string; lines: FundLine[]; returned?: number; note?: string; reviewedById?: string; reviewedAt?: string };
+};
+/** How fund requests flow. Set by the pastor or finance lead. */
+export type FinanceSetup = {
+  route: 1 | 2 | 3;
+  /** Route 3: finance approves and pays up to this amount. */
+  limit?: number;
+  /** Who in finance reviews requests. Empty: everyone with the review right. */
+  reviewerIds?: string[];
+  /** The pastor can hide balances from the finance team. */
+  hideBalance?: boolean;
+  categories?: string[];
+  budgets?: { groupId: string; period: "year" | "quarter"; amount: number }[];
+};
+/** A counselling request. Only the handler and the pastor read what it says. */
+export type CounselRequest = {
+  id: string; personId: string; at: string;
+  urgency: "urgent" | "soon" | "convenient"; timeline?: string;
+  description: string; tags: string[];
+  branchId?: string;
+  status: "new" | "forwarded" | "scheduled" | "referred" | "done" | "cancelled";
+  handlerId?: string;
+  appt?: { date: string; time: string; mode: "in-person" | "virtual" | "phone"; venue?: string; link?: string };
+  log: { at: string; byId: string; text: string }[];
+};
+export type CounselDelegate = { personId: string; title: string; perms: ("manage" | "approve" | "reply" | "reassign")[] };
+export type CounselSetup = { step: number; done?: boolean; delegates: CounselDelegate[]; link?: string; venue?: string };
 export type PrayerRequest = { id: string; personId: string; body: string; at: string; anonymous?: boolean; answered?: string; prayed: { byId: string; at: string }[] };
 /** Every download is written down: who, what, when. */
 export type DownloadLog = { id: string; byId: string; what: string; rows: number; at: string };
@@ -304,6 +394,8 @@ export type ChurchProfile = {
   /** Bigger features stay hidden until the church switches them on. */
   features?: { branches?: boolean; assistants?: boolean };
   offeringTypes?: OfferingType[];
+  /** People the admin named to take the leaders' roll call for them. */
+  leadersRollcallBy?: string[];
   logo?: string; color?: string; email?: string; phone?: string; address?: string; welcome?: string;
   socials?: { instagram?: string; facebook?: string; youtube?: string; x?: string };
   liveStream?: string; services: ServiceSlot[]; approvalLimit: number; witness: boolean;
@@ -328,6 +420,10 @@ export type ChurchProfile = {
   resources?: Resource[];
   /** A sermon the admin pins for everyone; otherwise the latest from the YouTube channel. */
   pinnedMessage?: { title: string; url: string; thumb?: string };
+  /** Where the church keeps its sermons: shown behind "Listen to messages". */
+  sermonLinks?: { platform: string; url: string }[];
+  finance?: FinanceSetup;
+  counselling?: CounselSetup;
   /** People (besides pastors and Membership Ministry) who see prayer requests. */
   prayerViewers?: string[];
   /** For churches with branches: whether offerings are recorded per branch or at headquarters. */

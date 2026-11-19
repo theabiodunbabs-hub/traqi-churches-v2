@@ -10,10 +10,13 @@ export const PERMISSIONS: { key: PermissionKey; label: string; area: string }[] 
   { key: "followup.log", label: "Log follow-up contacts", area: "Follow-up" },
   { key: "groups.manage", label: "Manage departments and units", area: "Departments" },
   { key: "attendance.record", label: "Record attendance and headcounts", area: "Attendance" },
-  { key: "checkin.code", label: "Set service check-in codes", area: "Attendance" },
+  { key: "checkin.code", label: "Run check-in: codes and the check-in screen", area: "Attendance" },
+  { key: "headcount.record", label: "Take the service headcount", area: "Attendance" },
+  { key: "rollcall.leaders", label: "Take roll call of leaders and the pastorate", area: "Attendance" },
   { key: "finance.count", label: "Submit cash counts", area: "Finance" },
   { key: "finance.approve", label: "Approve count corrections", area: "Finance" },
-  { key: "finance.transfers", label: "Enter transfers", area: "Finance" },
+  { key: "finance.transfers", label: "Enter other income", area: "Finance" },
+  { key: "finance.review", label: "Review fund requests", area: "Finance" },
   { key: "finance.view", label: "See finance totals", area: "Finance" },
   { key: "classes.manage", label: "Manage classes", area: "Classes" },
   { key: "events.manage", label: "Create and publish events", area: "Events" },
@@ -34,10 +37,13 @@ export const PERMISSION_SAYS: Record<PermissionKey, string> = {
   "followup.log": "log calls and visits to first-timers",
   "groups.manage": "manage departments, units and their members",
   "attendance.record": "take roll call and record headcounts",
-  "checkin.code": "set the check-in code for services",
+  "checkin.code": "run check-in: codes and the check-in screen",
+  "headcount.record": "take the service headcount",
+  "rollcall.leaders": "take roll call of leaders and the pastorate",
   "finance.count": "submit offering counts",
   "finance.approve": "approve corrections to counts",
-  "finance.transfers": "enter bank transfers",
+  "finance.transfers": "enter income from transfers, cheques and other sources",
+  "finance.review": "review fund requests",
   "finance.view": "see giving totals",
   "classes.manage": "run classes and mark completion",
   "events.manage": "create and publish events",
@@ -49,7 +55,7 @@ export const PERMISSION_SAYS: Record<PermissionKey, string> = {
 };
 
 /** Only the lead pastor can hand out these, so no one can widen their own access. */
-export const SENSITIVE: PermissionKey[] = ["care.view", "finance.count", "finance.approve", "finance.transfers", "finance.view", "roles.manage", "billing.manage"];
+export const SENSITIVE: PermissionKey[] = ["care.view", "finance.count", "finance.approve", "finance.transfers", "finance.view", "finance.review", "roles.manage", "billing.manage"];
 
 /** Roles a church often adds, ready to use. */
 export const READY_ROLES: { name: string; description: string; permissions: PermissionKey[]; level: number }[] = [
@@ -96,6 +102,8 @@ const ASSISTANT_PERMS: Record<AssistantPerm, PermissionKey[]> = {
   message: ["messages.bulk"],
   "followup.assign": ["followup.assign", "followup.log", "people.contacts"],
   "followup.reports": [],
+  headcount: ["headcount.record"],
+  checkin: ["checkin.code"],
 };
 
 /** A role counts once it's approved and until its end date. */
@@ -145,6 +153,24 @@ export function accessFor(state: SeedState, personId: string) {
   const keyOf = (roleId: string) => state.roles.find((r) => r.id === roleId)?.key;
   const isPastoral = mine.some((a) => keyOf(a.roleId) === "lead" || keyOf(a.roleId) === "pastor");
   const isLead = mine.some((a) => keyOf(a.roleId) === "lead");
+  const isAdmin = mine.some((a) => keyOf(a.roleId) === "admin");
+  /** Heads (and for some, their assistants) of departments with a church-wide job. */
+  const headsTag = (tags: string[], withAssistants = false) => state.groups.some((g) => g.tags?.some((t) => tags.includes(t))
+    && (g.leaderIds.includes(personId) || (withAssistants && !!g.assistants?.some((x) => x.personId === personId))));
+  /**
+   * Who sees everyone in the church: pastors, the admin, the follow-up and Membership leads and their assistants,
+   * and the faculty of training, media, welfare and family life leads. Everyone else sees their own department.
+   */
+  /** Branch and regional pastors see their own branches, not the whole church. */
+  const wholeChurchPastor = mine.some((a) => (keyOf(a.roleId) === "lead" || keyOf(a.roleId) === "pastor") && a.scope.type !== "branch" && a.scope.type !== "region");
+  const seesEveryone = wholeChurchPastor || isAdmin || headsTag(["followup", "membership"], true) || headsTag(["training", "media", "welfare", "family"]);
+  /** The follow-up team, as picked by the follow-up head (or the follow-up department until they pick). */
+  const fuGroup = state.groups.find((g) => g.tags?.includes("followup"));
+  const onFollowTeam = !!fuGroup && (fuGroup.followup?.team ?? [...fuGroup.leaderIds, ...fuGroup.memberIds]).includes(personId);
+  /** First-timer details: follow-up, Membership and outreach leads and assistants, the follow-up team, and pastors. */
+  const seesAllCases = wholeChurchPastor || headsTag(["followup", "membership", "outreach"], true) || onFollowTeam;
+  /** Assigning by hand: the follow-up lead and their assistants. */
+  const assignsCases = headsTag(["followup"], true) || mine.some((a) => keyOf(a.roleId) === "followup");
 
   function can(p: PermissionKey, ctx?: { personId?: string; groupId?: string }) {
     const b = branchPerms.get(p);
@@ -164,25 +190,27 @@ export function accessFor(state: SeedState, personId: string) {
 
   /** Who this person may see in People. */
   function visiblePeople(): Person[] {
-    if (perms.get("people.view") === "church") return state.people;
+    if (seesEveryone || perms.get("people.view") === "church") return state.people;
     const ids = new Set<string>([personId]);
     const bv = branchPerms.get("people.view");
     if (bv?.size) state.people.filter((x) => x.branchId && bv.has(x.branchId)).forEach((x) => ids.add(x.id));
     const v = perms.get("people.view");
     if (v instanceof Set) state.groups.filter((g) => v.has(g.id)).forEach((g) => g.memberIds.forEach((m) => ids.add(m)));
-    // First-timers: everyone's for church-wide follow-up; a branch's own for branch staff
-    if (perms.get("followup.assign") === "church") state.cases.forEach((c) => ids.add(c.personId));
+    // First-timers: everyone's for the follow-up team and leads; a branch's own for branch staff
+    if (seesAllCases) state.cases.forEach((c) => ids.add(c.personId));
     else if (branchPerms.get("followup.assign")?.size) {
       const bs = branchPerms.get("followup.assign")!;
       state.cases.forEach((c) => { const p = state.people.find((x) => x.id === c.personId); if (p?.branchId && bs.has(p.branchId)) ids.add(c.personId); });
     }
-    state.cases.filter((c) => c.assigneeId === personId).forEach((c) => ids.add(c.personId));
+    state.cases.filter((c) => c.assigneeId === personId || c.helperIds?.includes(personId)).forEach((c) => ids.add(c.personId));
+    // Team-mates in their own departments
+    state.groups.filter((g) => g.memberIds.includes(personId) || g.leaderIds.includes(personId)).forEach((g) => [...g.memberIds, ...g.leaderIds].forEach((m) => ids.add(m)));
     return state.people.filter((p) => ids.has(p.id));
   }
 
   /** A first-timer this person handles: church-wide follow-up sees all; branch staff see their branch's; anyone sees their own. */
-  function seesCase(c: { personId: string; assigneeId?: string }) {
-    if (c.assigneeId === personId || perms.get("followup.assign") === "church") return true;
+  function seesCase(c: { personId: string; assigneeId?: string; helperIds?: string[] }) {
+    if (c.assigneeId === personId || c.helperIds?.includes(personId) || seesAllCases) return true;
     const bs = branchPerms.get("followup.assign");
     if (!bs?.size) return false;
     const p = state.people.find((x) => x.id === c.personId);
@@ -231,7 +259,10 @@ export function accessFor(state: SeedState, personId: string) {
     personId, can, perms, roleNames, seesCase, scopedGroups, visiblePeople, canSeeContacts, canReadNote, isPastoral, isLead, isMemberOnly,
     seesWelfare: seesWelfare || inWelfareTeam || leads.size > 0, handlesPlacement, decidesPlacement, leads, isWelfareHead, inWelfareTeam, leadsTraining, isMediaHead,
     canFinance: perms.has("finance.view") || perms.has("finance.count") || perms.has("finance.transfers") || branchPerms.has("finance.view"),
-    myBranches, seesFollowupReports, branchPerms,
+    myBranches, seesFollowupReports, branchPerms, isAdmin, seesEveryone, seesAllCases, assignsCases, onFollowTeam,
+    /** Special leads open on their own department, with a "See other departments" button. */
+    seesAllDepartments: isPastoral || isAdmin || headsTag(["training", "welfare", "media", "followup", "membership"]),
+    leadsFamilyLife: headsTag(["family"], true),
     /** Prayer requests: the lead pastor, pastors, Membership Ministry leaders, and anyone the lead pastor added. */
     seesPrayers: isPastoral || state.groups.some((g) => g.tags?.includes("membership") && g.leaderIds.includes(personId))
       || (state.church.profile?.prayerViewers ?? []).includes(personId),

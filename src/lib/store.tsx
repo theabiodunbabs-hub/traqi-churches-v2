@@ -1,5 +1,6 @@
 "use client";
 
+import { clearCache, readCache, writeCache } from "./cache";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LIVE, newId, supabase } from "./supabase";
 import { EMPTY, createChurchV2, joinChurchLive, loadChurch, mergeJoiner as mergeJoinerLive, snapshotOf, syncState, type Snapshot } from "./live";
@@ -18,7 +19,7 @@ import type { Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, Follo
  * Demo data layer. Every action here maps to a Supabase call once the
  * database is connected; the shapes match supabase/migrations.
  */
-const DATA_KEY = "traqi-demo-v6";
+const DATA_KEY = "traqi-demo-v7";
 const USER_KEY = "traqi-demo-user";
 
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
@@ -47,6 +48,8 @@ type Store = {
   findByPhone: (phone: string) => Person | undefined;
   addFirstTimer: (p: NewPerson) => string;
   assignCase: (caseId: string, assigneeId: string) => void;
+  /** Others asked to help follow up the same person. */
+  toggleHelper: (caseId: string, personId: string) => void;
   moveCase: (caseId: string, stage: FollowStage) => void;
   logContact: (caseId: string, c: Omit<Contact, "at" | "byId">) => void;
   startContact: (personId: string, method: PendingContact["method"]) => void;
@@ -100,7 +103,7 @@ type Store = {
 
 export type ListKey = "meetings" | "headcounts" | "attendance" | "away" | "welfare" | "programmes" | "sessions" | "enrolments" | "events" | "registrations"
   | "counts" | "lodgements" | "transfers" | "templates" | "announcements" | "wishes" | "invites" | "appFeedback" | "prayers" | "downloads"
-  | "outreaches" | "outreachContacts";
+  | "outreaches" | "outreachContacts" | "challenges" | "churchInvites" | "funds" | "counsel";
 
 /** How items in each collection are identified. */
 export const keyOf = (key: ListKey, item: Record<string, unknown>): string =>
@@ -137,6 +140,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!LIVE) return;
+    // Show the copy kept on this device straight away (read-only until fresh data arrives)
+    let userId: string | undefined;
+    try {
+      userId = (await supabase!.auth.getSession()).data.session?.user.id;
+      if (userId && !churchId.current) {
+        const c = await readCache<SeedState>(userId);
+        if (c) { loaded.current = c.state; setState(c.state); setMeId(c.meId); setAuthStatus("ready"); setReady(true); }
+      }
+    } catch { /* no copy on this device */ }
     try {
       const r = await loadChurch();
       if (r.kind === "ready") {
@@ -148,6 +160,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState({ ...r.state, pendingContact: pending, templates: r.needsTemplates ? DEFAULT_TEMPLATES.map((t) => ({ ...t })) : r.state.templates });
         setMeId(r.meId);
         setAuthStatus("ready");
+        if (userId) void writeCache({ userId, churchId: r.churchId, meId: r.meId, at: Date.now(), state: r.state });
       } else {
         const { data } = await supabase!.auth.getSession();
         setAuthEmail(r.email);
@@ -167,6 +180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (event === "INITIAL_SESSION") setTimeout(() => (session ? refresh() : (setAuthStatus("signed-out"), setReady(true))), 0);
         if (event === "SIGNED_IN" && !churchId.current) setTimeout(refresh, 0);
         if (event === "SIGNED_OUT") {
+          void clearCache();
           snap.current = null; churchId.current = null; loaded.current = null;
           setState(EMPTY); setMeId(null); setAuthStatus("signed-out");
         }
@@ -263,6 +277,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const c = s.cases.find((x) => x.id === caseId);
         return log({ ...s, cases: s.cases.map((x) => (x.id === caseId ? { ...x, assigneeId } : x)) }, actor,
           `assigned ${nameOf(s, c?.personId)} to ${nameOf(s, assigneeId)} for follow-up`);
+      }),
+      toggleHelper: (caseId, pid) => setState((s) => {
+        const c = s.cases.find((x) => x.id === caseId);
+        if (!c) return s;
+        const on = c.helperIds?.includes(pid);
+        const helperIds = on ? c.helperIds!.filter((x) => x !== pid) : [...(c.helperIds ?? []), pid];
+        return log({ ...s, cases: s.cases.map((x) => (x.id === caseId ? { ...x, helperIds } : x)) }, actor,
+          on ? `stopped ${nameOf(s, pid)} helping with ${nameOf(s, c.personId)}` : `asked ${nameOf(s, pid)} to also follow up ${nameOf(s, c.personId)}`);
       }),
       moveCase: (caseId, stage) => setState((s) => {
         const c = s.cases.find((x) => x.id === caseId);

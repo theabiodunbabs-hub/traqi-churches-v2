@@ -6,7 +6,7 @@
 import { supabase } from "./supabase";
 import { DEFAULT_PROFILE, emptyCollections } from "./seed-more";
 import type { SeedState } from "./seed";
-import type { Activity, CareNote, Church, Contact, FollowCase, Group, Household, Person, Placement, Role, RoleAssignment, WelfareRequest } from "./types";
+import type { Activity, CareNote, Church, Contact, FollowCase, Group, Household, Person, Placement, Role, RoleAssignment, WelfareRequest, CounselRequest } from "./types";
 import { keyOf, type ListKey } from "./store";
 
 /**
@@ -37,6 +37,10 @@ const JSON_TABLES: { key: ListKey; table: string; cols: (x: Record<string, unkno
   { key: "prayers", table: "prayer_requests", cols: (x) => ({ person_id: x.personId }) },
   { key: "downloads", table: "download_log", cols: (x) => ({ by_id: x.byId }) },
   { key: "outreaches", table: "outreaches", cols: (x) => ({ by_id: x.createdById }) },
+  { key: "funds", table: "fund_requests", cols: (x) => ({ by_id: x.byId, group_id: x.groupId ?? null, stage: x.stage }) },
+  { key: "counsel", table: "counsel_requests", cols: (x) => ({ person_id: x.personId, handler_id: x.handlerId ?? null, status: x.status }) },
+  { key: "churchInvites", table: "church_invites", cols: (x) => ({ by_id: x.byId, audience: x.audience }) },
+  { key: "challenges", table: "challenges", cols: (x) => ({ by_id: x.createdById, participant_ids: x.participantIds }) },
   { key: "outreachContacts", table: "outreach_contacts", cols: (x) => ({ by_id: x.byId, assignee_id: x.assigneeId ?? null, phone: x.phone }) },
 ];
 
@@ -92,7 +96,7 @@ const personRow = (p: Person, c: string): Row => ({
 const groupRow = (g: Group, c: string): Row => ({
   id: g.id, church_id: c, name: g.name, kind: g.kind, purpose: nul(g.purpose), parent_id: nul(g.parentId),
   supervisor_id: nul(g.supervisorId), overseer_id: nul(g.overseerId), tags: g.tags ?? [], branch_id: nul(g.branchId),
-  extra: { whatsapp: g.whatsapp, assistants: g.assistants ?? [], requiresStage: g.requiresStage, requiresClassId: g.requiresClassId, followup: g.followup },
+  extra: { whatsapp: g.whatsapp, assistants: g.assistants ?? [], requiresStage: g.requiresStage, requiresClassId: g.requiresClassId, followup: g.followup, meetings: g.meetings ?? [] },
 });
 const roleRow = (r: Role, c: string): Row => ({ id: r.id, church_id: c, key: r.key, name: r.name, description: nul(r.description), level: r.level, is_default: r.isDefault, permissions: r.permissions });
 const assignmentRow = (a: RoleAssignment, c: string): Row => ({
@@ -100,7 +104,7 @@ const assignmentRow = (a: RoleAssignment, c: string): Row => ({
   scope_ref: a.scope.type === "branch" ? a.scope.branchId : a.scope.type === "region" ? a.scope.regionId : null,
   until: a.until ?? null, pending: a.pending ?? null, given_at: a.givenAt ?? null,
 });
-const caseRow = (f: FollowCase, c: string): Row => ({ id: f.id, church_id: c, person_id: f.personId, assignee_id: nul(f.assigneeId), stage: f.stage, created_at: f.createdAt });
+const caseRow = (f: FollowCase, c: string): Row => ({ id: f.id, church_id: c, person_id: f.personId, assignee_id: nul(f.assigneeId), stage: f.stage, created_at: f.createdAt, helper_ids: f.helperIds?.length ? f.helperIds : null });
 const noteRow = (n: CareNote, c: string): Row => ({ id: n.id, church_id: c, person_id: n.personId, level: n.level, body: n.body, author_id: n.authorId, shared_with: n.sharedWith, created_at: n.at });
 const placementRow = (p: Placement, c: string): Row => ({ id: p.id, church_id: c, person_id: p.personId, group_id: p.groupId, note: nul(p.note), status: p.status, created_at: p.at,
   reply: nul(p.reply), decided_by: isUuid(p.decidedById) ? p.decidedById : null, decided_at: p.decidedAt ?? null });
@@ -127,9 +131,11 @@ export function tables(s: SeedState, c: string) {
     ...Object.fromEntries(JSON_TABLES.map(({ key, table, cols }) => [table, new Map((s[key] as Record<string, unknown>[]).map((x) => {
       const id = keyOf(key, x);
       // Welfare minutes live in their own table so the person who asked can't read them.
-      const data = key === "welfare" ? { ...x, minutes: [] } : x;
+      // What someone shares in counselling lives in its own table, readable only by them, the handler and the pastor.
+      const data = key === "welfare" ? { ...x, minutes: [] } : key === "counsel" ? { ...x, description: "" } : x;
       return [id, { id, church_id: c, ...cols(x), data } as Row];
     }))])) as Record<string, Map<string, Row>>,
+    counsel_private: new Map(s.counsel.filter((r) => r.description).map((r) => [r.id, { id: r.id, church_id: c, request_id: r.id, body: r.description } as Row])),
     welfare_minutes: new Map(s.welfare.flatMap((w: WelfareRequest) => w.minutes.map((m, i) => [`${w.id}|${i}`, { id: `${w.id}|${i}`, church_id: c, request_id: w.id, data: m } as Row]))),
   };
 }
@@ -140,8 +146,8 @@ export const snapshotOf = (s: SeedState, c: string): Snapshot =>
 
 // Insert order respects foreign keys.
 const ORDER: string[] = ["churches", "people", "groups", "group_members", "roles", "role_assignments", "followup_cases", "followup_contacts", "care_notes", "placements",
-  ...JSON_TABLES.map((t) => t.table), "welfare_minutes", "activity_log"];
-const APPEND_ONLY = new Set<string>(["followup_contacts", "activity_log", "welfare_minutes", "app_feedback"]);
+  ...JSON_TABLES.map((t) => t.table), "welfare_minutes", "counsel_private", "activity_log"];
+const APPEND_ONLY = new Set<string>(["followup_contacts", "activity_log", "welfare_minutes", "counsel_private", "app_feedback"]);
 /** Collections whose removed items are deleted in the database too. */
 const DELETABLE = new Set<string>(["group_members", "role_assignments", "absences", "registrations", "message_templates", "class_sessions", "headcounts", "attendance_records"]);
 
@@ -188,23 +194,49 @@ export type LoadResult =
 /** Load the signed-in user's church. Links their account to their record by email first. */
 export async function loadChurch(): Promise<LoadResult> {
   const sb = db();
-  const { data: auth } = await sb.auth.getUser();
-  if (!auth.user) return { kind: "no-church" };
-  await sb.rpc("claim_person");
-  const { data: mine } = await sb.from("people").select("id, church_id").eq("user_id", auth.user.id);
-  if (!mine?.length) return { kind: "no-church", email: auth.user.email ?? undefined };
+  // The session is kept on the device, so this needs no trip to the server
+  const { data: sess } = await sb.auth.getSession();
+  const user = sess.session?.user;
+  if (!user) return { kind: "no-church" };
+  // One trip links the account by email and returns its churches (older databases: two trips)
+  let mine: { id: string; church_id: string }[] | null = null;
+  const started = await sb.rpc("start_session");
+  if (!started.error) mine = (started.data as { person_id: string; church_id: string }[]).map((r) => ({ id: r.person_id, church_id: r.church_id }));
+  else {
+    await sb.rpc("claim_person");
+    mine = (await sb.from("people").select("id, church_id").eq("user_id", user.id)).data as typeof mine;
+  }
+  if (!mine?.length) return { kind: "no-church", email: user.email ?? undefined };
   let pick = mine[0];
   try { const saved = localStorage.getItem("traqi-church"); pick = mine.find((m) => m.church_id === saved) ?? pick; } catch {}
   const c = pick.church_id as string;
 
-  const all = (t: string) => sb.from(t).select("*").eq("church_id", c);
-  const [ch, people, households, groups, members, roles, assigns, cases, contacts, notes, placements, activity] = await Promise.all([
+  // The server sends at most 1,000 rows at a time, so read every list in pages
+  const PAGE = 1000;
+  type Q = ReturnType<ReturnType<typeof db>["from"]>;
+  const pages = async (make: () => ReturnType<Q["select"]>) => {
+    const out: Row[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await make().range(from, from + PAGE - 1);
+      if (error) return { data: out.length ? out : null, error };
+      out.push(...((data ?? []) as Row[]));
+      if (!data || data.length < PAGE) return { data: out, error: null };
+    }
+  };
+  const all = (t: string) => pages(() => sb.from(t).select("*").eq("church_id", c));
+  // Attendance: the last six months is enough for Home, trends and journeys; reports fetch older history when asked
+  const since = new Date(Date.now() - 183 * 864e5).toISOString();
+  const recent = (t: string) => pages(() => sb.from(t).select("*").eq("church_id", c).gte("updated_at", since));
+  // Everything in one batch, side by side
+  const results = await Promise.all([
     sb.from("churches").select("*").eq("id", c).single(),
     all("people"), all("households"), all("groups"), all("group_members"), all("roles"), all("role_assignments"),
     all("followup_cases"), all("followup_contacts"), all("care_notes"), all("placements"),
     sb.from("activity_log").select("*").eq("church_id", c).order("at", { ascending: false }).limit(300),
+    ...JSON_TABLES.map((t) => (t.table === "attendance_records" ? recent(t.table) : all(t.table))), all("welfare_minutes"), all("counsel_private"),
   ]);
-  const extra = await Promise.all([...JSON_TABLES.map((t) => all(t.table)), all("welfare_minutes")]);
+  const [ch, people, households, groups, members, roles, assigns, cases, contacts, notes, placements, activity] = results as unknown as { data: Row[] | Row | null; error: unknown }[];
+  const extra = results.slice(12) as { data: Row[] | null }[];
   const json = Object.fromEntries(JSON_TABLES.map((t, i) => [t.key, ((extra[i].data ?? []) as Row[]).map((x) => x.data)]));
   // A church that has never saved templates starts with the ready-written set (saved on first sync).
   const needsTemplates = !(json.templates as unknown[]).length;
@@ -213,7 +245,9 @@ export async function loadChurch(): Promise<LoadResult> {
   (json.welfare as WelfareRequest[] | undefined)?.forEach((w) => {
     w.minutes = minutes.filter((x) => x.request_id === w.id).sort((a, b) => String(a.id).localeCompare(String(b.id))).map((x) => x.data as WelfareRequest["minutes"][number]);
   });
-  if (ch.error || !ch.data) throw new Error(ch.error?.message ?? "Church not found");
+  const bodies = new Map(((extra[JSON_TABLES.length + 1].data ?? []) as Row[]).map((x) => [x.request_id as string, x.body as string]));
+  (json.counsel as CounselRequest[] | undefined)?.forEach((x) => { x.description = bodies.get(x.id) ?? ""; });
+  if (ch.error || !ch.data) throw new Error((ch.error as { message?: string } | null)?.message ?? "Church not found");
   const r = ch.data as Row;
 
   const church: Church & { id: string } = {
@@ -244,7 +278,7 @@ export async function loadChurch(): Promise<LoadResult> {
       until: (a.until as string) ?? undefined, pending: (a.pending as RoleAssignment["pending"]) ?? undefined, givenAt: (a.given_at as string) ?? undefined,
     })),
     cases: ((cases.data ?? []) as Row[]).map((f): FollowCase => ({
-      id: f.id as string, personId: f.person_id as string, assigneeId: (f.assignee_id as string) ?? undefined, stage: f.stage as FollowCase["stage"], createdAt: f.created_at as string,
+      id: f.id as string, personId: f.person_id as string, assigneeId: (f.assignee_id as string) ?? undefined, stage: f.stage as FollowCase["stage"], createdAt: f.created_at as string, helperIds: (f.helper_ids as string[] | null) ?? undefined,
       contacts: ((contacts.data ?? []) as Row[]).filter((x) => x.case_id === f.id).sort((a, b) => String(a.at).localeCompare(String(b.at)))
         .map((x): Contact => ({ at: x.at as string, byId: x.by_id as string, method: x.method as Contact["method"], outcome: x.outcome as string, reached: (x.reached as boolean) ?? undefined })),
     })),
