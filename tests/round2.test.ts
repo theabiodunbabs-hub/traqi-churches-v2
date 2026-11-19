@@ -42,15 +42,15 @@ describe("assistants", () => {
 });
 
 describe("follow-up assignment", () => {
-  it("never assigns automatically; the team shows who is away or full", () => {
+  it("always assigns someone automatically; the team shows who is away or full", () => {
     const s = clone();
-    expect(autoPick(s, visitor())).toBeUndefined();
+    expect(autoPick(s, visitor())).toBeDefined();
     const team = teamLoad(s);
     expect(team.length).toBeGreaterThan(0);
     const g = s.groups.find((x) => x.tags?.includes("followup"))!;
     g.followup = { auto: false, limit: 0, sameGender: false };
     expect(teamFull(s)).toBe(true);
-    expect(followSettings(s).auto).toBe(false);
+    expect(followSettings(s).auto).toBe(true);
   });
   it("the follow-up head picks the team, from anyone in the church", () => {
     const s = clone();
@@ -59,10 +59,11 @@ describe("follow-up assignment", () => {
     g.followup = { auto: false, limit: 5, sameGender: false, team: [outsider.id] };
     expect(followTeam(s)).toEqual([outsider.id]);
   });
-  it("pastors step in only after 24 hours unassigned, or 48 hours without contact", () => {
+  it("pastors step in only after 48 hours unassigned or without contact", () => {
     const h = (n: number) => new Date(Date.now() - n * 36e5).toISOString();
     expect(pastorMayAssign({ createdAt: h(5), stage: "new", contacts: [] })).toBe(false);
-    expect(pastorMayAssign({ createdAt: h(25), stage: "new", contacts: [] })).toBe(true);
+    expect(pastorMayAssign({ createdAt: h(25), stage: "new", contacts: [] })).toBe(false);
+    expect(pastorMayAssign({ createdAt: h(49), stage: "new", contacts: [] })).toBe(true);
     expect(pastorMayAssign({ assigneeId: "x", createdAt: h(30), stage: "new", contacts: [] })).toBe(false);
     expect(pastorMayAssign({ assigneeId: "x", createdAt: h(49), stage: "new", contacts: [] })).toBe(true);
     expect(pastorMayAssign({ assigneeId: "x", createdAt: h(49), stage: "new", contacts: [{}] })).toBe(false);

@@ -49,6 +49,22 @@
   "shared_with",
   "created_at"
  ],
+ "challenges": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "participant_ids",
+  "updated_at"
+ ],
+ "church_invites": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "audience",
+  "updated_at"
+ ],
  "churches": [
   "id",
   "name",
@@ -72,6 +88,21 @@
   "church_id",
   "data",
   "programme_id",
+  "updated_at"
+ ],
+ "counsel_private": [
+  "id",
+  "church_id",
+  "request_id",
+  "body"
+ ],
+ "counsel_requests": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "handler_id",
+  "status",
   "updated_at"
  ],
  "download_log": [
@@ -116,7 +147,8 @@
   "stage",
   "due_at",
   "escalation_level",
-  "created_at"
+  "created_at",
+  "helper_ids"
  ],
  "followup_contacts": [
   "id",
@@ -127,6 +159,15 @@
   "outcome",
   "at",
   "reached"
+ ],
+ "fund_requests": [
+  "id",
+  "church_id",
+  "data",
+  "by_id",
+  "group_id",
+  "stage",
+  "updated_at"
  ],
  "group_members": [
   "group_id",

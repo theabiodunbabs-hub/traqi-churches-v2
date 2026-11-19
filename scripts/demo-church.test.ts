@@ -191,6 +191,7 @@ it("builds the Graceville demo", () => {
     { who: "Media head", personId: P.media.id, email: "media", sees: "Media department, a request to join Media, roll call, events, a media assistant" },
     { who: "Head usher", personId: P.usher.id, email: "usher", sees: "Today's service card, headcount, check-in screen, offering counts, a new-role card" },
     { who: "Welfare head", personId: P.welfare.id, email: "welfare", sees: "Welfare requests and decisions" },
+    { who: "Finance lead (bursar)", personId: P.bursar.id, email: "finance", sees: "Fund requests, payments, spending reports and finance insights" },
     { who: "Worker", personId: P.worker.id, email: "worker", sees: "Worker home: check-in, next step, her team" },
     { who: "Member", personId: P.member.id, email: "member", sees: "Member home: check-in, classes, prayer, events" },
     { who: "Branch pastor, Lekki", personId: lekki.pastorId!, email: "lekki.pastor", sees: "Only the Lekki branch: its people, departments and first-timers" },
@@ -232,7 +233,7 @@ it("builds the Graceville demo", () => {
   const userIds = LOGINS.map((l) => ({ ...l, uid: uuid(), pid: map.get(l.personId)! }));
   const ORDER = ["people", "groups", "group_members", "roles", "role_assignments", "followup_cases", "followup_contacts", "care_notes", "placements",
     "meetings", "headcounts", "attendance_records", "absences", "welfare_requests", "programmes", "class_sessions", "enrolments", "registrations", "service_counts", "lodgements",
-    "transfers", "message_templates", "announcements", "wishes", "invites", "app_feedback", "prayer_requests", "download_log", "outreaches", "outreach_contacts", "welfare_minutes", "activity_log"];
+    "transfers", "message_templates", "announcements", "wishes", "invites", "app_feedback", "prayer_requests", "download_log", "outreaches", "outreach_contacts", "challenges", "church_invites", "fund_requests", "counsel_requests", "counsel_private", "welfare_minutes", "activity_log"];
   const ins = (t: string, list: Record<string, unknown>[]) => {
     if (!list.length) return "";
     const cols = [...new Set(list.flatMap((x) => Object.keys(x)))];

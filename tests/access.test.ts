@@ -33,11 +33,14 @@ describe("who sees whom", () => {
   it("lead pastor sees everyone", () => {
     expect(accessFor(s, P.lead.id).visiblePeople().length).toBe(s.people.length);
   });
-  it("the media head sees Media and its units, not the whole church", () => {
-    const seen = new Set(accessFor(s, P.media.id).visiblePeople().map((p) => p.id));
-    const media = s.groups.filter((g) => g.id === "g-media" || g.parentId === "g-media").flatMap((g) => g.memberIds);
-    media.forEach((id) => expect(seen.has(id)).toBe(true));
+  it("a department head sees their department, not the whole church", () => {
+    const seen = new Set(accessFor(s, P.choir.id).visiblePeople().map((p) => p.id));
+    const choir = s.groups.filter((g) => g.id === "g-choir" || g.parentId === "g-choir").flatMap((g) => g.memberIds);
+    choir.forEach((id) => expect(seen.has(id)).toBe(true));
     expect(seen.size).toBeLessThan(s.people.length);
+  });
+  it("the media lead is one of the special leads who see the full list", () => {
+    expect(accessFor(s, P.media.id).visiblePeople().length).toBe(s.people.length);
   });
   it("a member sees only themselves", () => {
     expect(accessFor(s, P.member.id).visiblePeople().map((p) => p.id)).toEqual([P.member.id]);
