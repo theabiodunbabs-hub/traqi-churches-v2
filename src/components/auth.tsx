@@ -1,5 +1,6 @@
 "use client";
 
+import { Preloader } from "./preloader";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -51,10 +52,12 @@ export function LiveSignIn({ returnTo = "/login", startMode = "in" }: { returnTo
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   useEffect(() => { if (authStatus === "ready") router.replace("/today"); }, [authStatus, router]);
 
-  if (authStatus === "loading") return <p className="flex items-center gap-2 text-ink-soft"><Loader2 size={18} className="animate-spin" /> Checking your account…</p>;
+  if (authStatus === "loading") return <Preloader label="Checking your account" />;
+  if (entering && authStatus !== "no-church") return <Preloader />;
 
   if (authStatus === "no-church") return <GoStart />;
 
@@ -73,7 +76,8 @@ export function LiveSignIn({ returnTo = "/login", startMode = "in" }: { returnTo
     const e = mode === "in" ? await signInEmail(email.trim(), pw) : await signUpEmail(email.trim(), pw);
     setBusy(false);
     if (e === "CHECK_EMAIL") return setCheckEmail(true);
-    if (e) setErr(e);
+    if (e) return setErr(e);
+    if (mode === "in") setEntering(true);
   };
 
   return (

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, UserRound, Users } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Avatar, Button, Sheet, cx } from "./ui";
 import { WhatsAppIcon } from "./care";
 import { NewRoleCard } from "./role-cards";
 import { MetSomeoneButton } from "./outreach";
+import { ListenToMessages, NeedHelp } from "./messages-help";
+import { meetingWhen, upcomingMeetings } from "./department-extras";
 import { TodayService } from "./rollcall";
 import { COVERS } from "./brand";
 import { eventWhen } from "./event-page";
@@ -63,7 +65,6 @@ export function MemberHome() {
   const links = [
     showCommunity && { href: profile!.whatsapp!, label: "Church WhatsApp", icon: "wa" as const },
     ...deptLinks.map((g) => ({ href: g.whatsapp!, label: `${g.name} group`, icon: "wa" as const })),
-    profile?.pinnedMessage?.url && { href: profile.pinnedMessage.url, label: profile.pinnedMessage.title || "Latest message", icon: Film },
     ...(profile?.resources ?? []).map((r) => ({ href: r.url, label: r.title, icon: RES_ICON[r.kind] ?? ExternalLink })),
   ].filter(Boolean) as { href: string; label: string; icon: "wa" | typeof Film }[];
   const stageName = stageInfo(me.stage).label;
@@ -97,10 +98,34 @@ export function MemberHome() {
         </div>
       )}
 
+      {/* The two things anyone can do any day */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <MetSomeoneButton className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand px-3 text-[15px] font-semibold text-white shadow-lg shadow-brand/25 active:scale-[.98]" />
+        <NeedHelp className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-surface px-3 text-[15px] font-semibold text-ink ring-1 ring-line active:scale-[.98]" />
+      </div>
+
       <div className="mt-4 space-y-3">
         <NewRoleCard />
         <TodayService />
         {/* For you: each card only when it applies */}
+        {state.counsel.filter((r) => r.personId === me.id && (r.status === "scheduled" ? (r.appt?.date ?? "") >= new Date().toISOString().slice(0, 10) : r.status === "new" || r.status === "forwarded" || r.status === "referred")).slice(0, 1).map((r) => (
+          <Link key={r.id} href="/counselling" className="card card-hover flex items-center gap-4 p-4">
+            <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${r.status === "scheduled" ? "bg-good-soft text-good" : "bg-brand-soft text-brand"}`}><MessageCircleHeart size={20} /></span>
+            <span className="min-w-0 flex-1"><b className="block font-medium">{r.status === "scheduled" ? "Your counselling session is booked" : "Your counselling request"}</b>
+              <span className="block text-[13.5px] text-ink-soft">{r.status === "scheduled" && r.appt ? `${shortDate(r.appt.date)} at ${r.appt.time}${r.appt.mode === "virtual" ? " · online" : r.appt.venue ? ` · ${r.appt.venue}` : ""}` : r.status === "referred" ? "Directed to the appropriate quarters. You will be contacted soon." : "Kindly keep checking here for a response from the pastorate."}</span></span>
+            <ChevronRight size={18} className="text-muted" />
+          </Link>
+        ))}
+        {state.challenges.filter((c) => c.participantIds.includes(me.id) && c.start <= new Date().toISOString().slice(0, 10) && c.end >= new Date().toISOString().slice(0, 10)).map((c) => {
+          const n = state.outreachContacts.filter((k) => k.challengeId === c.id && k.byId === me.id).length;
+          return (
+            <Link key={c.id} href={`/challenges?c=${c.id}`} className="card card-hover flex items-center gap-4 p-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-glow-soft text-glow-ink"><Trophy size={20} /></span>
+              <span className="min-w-0 flex-1"><b className="block truncate font-medium">{c.name}</b><span className="text-[13.5px] text-ink-soft">You&apos;ve added {n}{c.targetEach ? ` of ${c.targetEach}` : ""}. See the leaderboard.</span></span>
+              <ChevronRight size={18} className="shrink-0 text-muted" />
+            </Link>
+          );
+        })}
         {live && (
           <Link href={`/events/${live.id}`} className="card card-hover flex items-center gap-4 p-5 ring-2 ring-glow">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-glow text-white"><Ticket size={21} /></span>
@@ -183,7 +208,7 @@ export function MemberHome() {
                 return (
                   <li key={g.id}>
                     <button type="button" onClick={() => setTeam(g.id)} className="flex w-full items-center gap-3 rounded-2xl bg-page px-3.5 py-2.5 text-left ring-1 ring-line hover:ring-brand/40">
-                      <span className="min-w-0 flex-1"><span className="block truncate font-medium">{g.name}</span><span className="block truncate text-[12.5px] text-muted">{assistant ? assistant.title : g.leaderIds.includes(me.id) ? "You lead this team" : `${t.length} on the team`}</span></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate font-medium">{g.name}</span><span className="block truncate text-[12.5px] text-muted">{upcomingMeetings(g)[0] ? `${upcomingMeetings(g)[0].title}: ${meetingWhen(upcomingMeetings(g)[0])}` : assistant ? assistant.title : g.leaderIds.includes(me.id) ? "You lead this team" : `${t.length} on the team`}</span></span>
                       <span className="flex -space-x-1.5">{t.slice(0, 3).map((p) => <span key={p.id} className="rounded-full ring-2 ring-page"><Avatar person={p} size={24} /></span>)}</span>
                     </button>
                   </li>
@@ -201,7 +226,8 @@ export function MemberHome() {
               {I === "wa" ? <span className="text-[#25D366]"><WhatsAppIcon size={16} /></span> : <I size={15} className="text-brand" />}<span className="max-w-[12rem] truncate">{l.label}</span>
             </a>
           ); })}
-          <MetSomeoneButton />
+          <ListenToMessages />
+          <Link href="/invitations?new=1" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><Mail size={15} className="text-brand" /> Invite the church</Link>
           <Link href="/prayer" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><HandHeart size={15} className="text-brand" /> Prayer request</Link>
           <Link href="/welfare" className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><HeartHandshake size={15} className="text-brand" /> Need support?</Link>
           <Link href={`/people/${me.id}`} className="flex min-h-11 items-center gap-2 rounded-full bg-surface px-4 text-[13.5px] font-medium ring-1 ring-line hover:ring-brand/40"><UserRound size={15} className="text-brand" /> My details</Link>

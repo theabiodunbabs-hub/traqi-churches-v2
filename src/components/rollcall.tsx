@@ -40,10 +40,11 @@ export function rollPeople(s: SeedState, key: RollKey): Person[] {
 /** The roll calls this person takes: departments they head, units with a named lead (them), and the leaders' list for the admin. */
 export function myRollCalls(s: SeedState, a: Access, meId: string): { key: RollKey; name: string }[] {
   const out: { key: RollKey; name: string }[] = [];
-  if (a.isLead || a.can("roles.manage")) out.push({ key: "leaders", name: "Leaders and pastors" });
+  // The admin's roll call of leaders and the pastorate; the admin can name someone to take it for them
+  if (a.isAdmin || a.can("rollcall.leaders") || (s.church.profile?.leadersRollcallBy ?? []).includes(meId)) out.push({ key: "leaders", name: "Leaders and pastorate" });
+  // Department heads and their assistants (with roll call) mark their own workers
   for (const g of s.groups) {
-    if (!g.leaderIds.includes(meId)) continue;
-    out.push({ key: g.id, name: g.name });
+    if (g.leaderIds.includes(meId) || g.assistants?.some((x) => x.personId === meId && x.perms.includes("rollcall"))) out.push({ key: g.id, name: g.name });
   }
   return out;
 }
@@ -137,10 +138,13 @@ export function RollCallSheet({ meeting, rollKey, name, onClose }: { meeting: Me
 export function TodayService() {
   const { state, access, me } = useStore();
   const [taking, setTaking] = useState<{ m: Meeting; key: RollKey; name: string } | null>(null);
-  if (!access || !me) return null;
+  // Pastors see insights only; the people doing the work see this card
+  if (!access || !me || access.isPastoral) return null;
   const now = Date.now();
   const meetings = rollCallMeetings(state, now);
-  const counts = access.can("attendance.record") || access.can("checkin.code");
+  const heads = access.can("headcount.record");
+  const runsCheckin = access.can("checkin.code");
+  const counts = heads || runsCheckin;
   const calls = myRollCalls(state, access, me.id);
   if (!meetings.length || (!counts && !calls.length)) return null;
   const m = meetings.find((x) => Date.parse(x.end) >= now) ?? meetings[meetings.length - 1];
@@ -154,8 +158,8 @@ export function TodayService() {
         {meetings.length > 1 && <span className="text-[12.5px] text-muted">{meetings.length} services</span>}
       </div>
       <div className="grid gap-2 p-3 sm:grid-cols-3">
-        {counts && <Link href="/attendance" className="flex min-h-14 items-center gap-3 rounded-2xl bg-page px-4 ring-1 ring-line hover:ring-brand/40"><Users size={19} className="text-brand" /><span className="font-medium">Headcount</span></Link>}
-        {counts && <Link href="/display/checkin" className="flex min-h-14 items-center gap-3 rounded-2xl bg-page px-4 ring-1 ring-line hover:ring-brand/40"><MonitorPlay size={19} className="text-brand" /><span className="font-medium">Check-in screen</span></Link>}
+        {heads && <Link href="/attendance" className="flex min-h-14 items-center gap-3 rounded-2xl bg-page px-4 ring-1 ring-line hover:ring-brand/40"><Users size={19} className="text-brand" /><span className="font-medium">Headcount</span></Link>}
+        {runsCheckin && <Link href="/display/checkin" className="flex min-h-14 items-center gap-3 rounded-2xl bg-page px-4 ring-1 ring-line hover:ring-brand/40"><MonitorPlay size={19} className="text-brand" /><span className="font-medium">Check-in screen</span></Link>}
         {calls.map((c) => {
           const done = !!m.rollcalls?.[c.key];
           return (

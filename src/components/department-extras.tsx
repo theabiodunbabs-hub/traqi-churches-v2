@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRightLeft, Pencil, Plane, Sparkles, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarDays, Pencil, Plane, Plus, Sparkles, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { followSettings, followTeam, isFollowLead, teamLoad } from "@/lib/metrics";
 import { fullName } from "@/lib/format";
 import { Avatar, Button, Field, FieldGroup, Panel, Sheet, Toggle, cx, inputCls, toast } from "./ui";
-import type { Assistant, AssistantPerm, Group } from "@/lib/types";
+import type { Assistant, AssistantPerm, DeptMeeting, Group } from "@/lib/types";
 
-export const ASSISTANT_PERMS: { key: AssistantPerm; label: string; hint: string; followupOnly?: boolean }[] = [
+export const ASSISTANT_PERMS: { key: AssistantPerm; label: string; hint: string; followupOnly?: boolean; only?: string[] }[] = [
   { key: "people.edit", label: "Update people's details", hint: "Edit details of people in this department" },
   { key: "people.manage", label: "Add and remove people", hint: "Manage who is in the department and its units" },
   { key: "rollcall", label: "Take roll call", hint: "Mark who served or attended" },
   { key: "message", label: "Send messages", hint: "Message the department" },
   { key: "followup.assign", label: "Assign first-timers", hint: "Choose who follows up whom", followupOnly: true },
   { key: "followup.reports", label: "See follow-up reports", hint: "Team numbers and who is behind", followupOnly: true },
+  { key: "headcount", label: "Take the headcount", hint: "Count men, women and children at services", only: ["ushering"] },
+  { key: "checkin", label: "Run check-in", hint: "Check-in codes and the check-in screen", only: ["media", "followup"] },
 ];
 
 const TITLE_IDEAS: Record<string, string[]> = {
@@ -227,5 +229,62 @@ export function DeptExtras({ group: g, onChange }: { group: Group; onChange: (pa
         </select>
       </Field>
     </div>
+  );
+}
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** "Every Saturday, 4:00 PM" or "Sat 23 Nov, 4:00 PM". */
+export function meetingWhen(m: DeptMeeting) {
+  const t = (() => { const [h, mi] = m.time.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(mi).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; })();
+  if (m.kind === "programme" && m.date) return `${new Date(`${m.date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${t}`;
+  return `${m.every === "fortnight" ? "Every other" : m.every === "month" ? "Monthly," : "Every"} ${DAYS[m.weekday ?? 6]}, ${t}`;
+}
+/** Upcoming one-off programmes and regular meetings, soonest first. */
+export function upcomingMeetings(g: Group) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (g.meetings ?? []).filter((m) => m.kind === "regular" || (m.date ?? "") >= today).sort((a, b) => (a.kind === "programme" ? 0 : 1) - (b.kind === "programme" ? 0 : 1) || (a.date ?? "").localeCompare(b.date ?? ""));
+}
+
+/** The head or an assistant adds the department's regular meetings and one-off programmes. */
+export function DeptMeetings({ group: g, canEdit }: { group: Group; canEdit: boolean }) {
+  const { updateGroup } = useStore();
+  const [f, setF] = useState<DeptMeeting | null>(null);
+  const list = upcomingMeetings(g);
+  if (!canEdit && !list.length) return null;
+  const save = () => {
+    if (!f || f.title.trim().length < 2) return;
+    const rest = (g.meetings ?? []).filter((m) => m.id !== f.id);
+    updateGroup(g.id, { meetings: [...rest, { ...f, title: f.title.trim() }] });
+    setF(null); toast("Saved. Everyone in the department sees it on their Home.");
+  };
+  return (
+    <Panel title="Meetings and programmes" action={canEdit && <Button onClick={() => setF({ id: `dm${Date.now().toString(36)}`, title: "", kind: "regular", weekday: 6, every: "week", time: "16:00" })}><Plus size={15} /> Add</Button>}>
+      {list.length === 0 ? <p className="text-sm text-muted">Add your regular meeting or a one-off programme. Everyone in {g.name} sees it on their Home.</p> : (
+        <ul className="divide-y divide-line">{list.map((m) => (
+          <li key={m.id} className="flex flex-wrap items-center gap-3 py-3">
+            <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-xl", m.kind === "programme" ? "bg-glow-soft text-glow-ink" : "bg-brand-soft text-brand")}><CalendarDays size={18} /></span>
+            <span className="min-w-[10rem] flex-1"><b className="block font-medium">{m.title}</b><span className="text-[13px] text-muted">{meetingWhen(m)}{m.venue ? ` · ${m.venue}` : ""}{m.link ? " · online" : ""}</span></span>
+            {canEdit && <><Button className="py-1.5 text-[13px]" onClick={() => setF(m)}>Edit</Button><button type="button" onClick={() => updateGroup(g.id, { meetings: (g.meetings ?? []).filter((x) => x.id !== m.id) })} className="rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${m.title}`}><Trash2 size={15} /></button></>}
+          </li>
+        ))}</ul>
+      )}
+      <Sheet open={!!f} onClose={() => setF(null)} title={f?.title ? "Edit" : "Add a meeting or programme"} footer={<Button variant="primary" className="w-full py-3" disabled={!f?.title.trim()} onClick={save}>Save</Button>}>
+        {f && <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-1.5">{([["regular", "Regular meeting"], ["programme", "One-off programme"]] as const).map(([k, l]) => (
+            <button type="button" key={k} onClick={() => setF({ ...f, kind: k, date: k === "programme" ? f.date ?? new Date().toISOString().slice(0, 10) : undefined })} className={cx("min-h-11 rounded-xl text-sm ring-1", f.kind === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{l}</button>
+          ))}</div>
+          <Field label="Title"><input autoFocus className={inputCls} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder={f.kind === "regular" ? "Choir rehearsal" : "Media training day"} /></Field>
+          {f.kind === "regular" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Day"><select className={inputCls} value={f.weekday} onChange={(e) => setF({ ...f, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></Field>
+              <Field label="How often"><select className={inputCls} value={f.every} onChange={(e) => setF({ ...f, every: e.target.value as DeptMeeting["every"] })}><option value="week">Every week</option><option value="fortnight">Every two weeks</option><option value="month">Once a month</option></select></Field>
+            </div>
+          ) : <Field label="Date"><input type="date" className={inputCls} value={f.date ?? ""} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>}
+          <Field label="Time"><input type="time" className={inputCls} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></Field>
+          <Field label="Venue (optional)"><input className={inputCls} value={f.venue ?? ""} onChange={(e) => setF({ ...f, venue: e.target.value || undefined })} placeholder="Choir room" /></Field>
+          <Field label="Online link (optional)"><input className={inputCls} inputMode="url" value={f.link ?? ""} onChange={(e) => setF({ ...f, link: e.target.value || undefined })} placeholder="https://meet.google.com/…" /></Field>
+        </div>}
+      </Sheet>
+    </Panel>
   );
 }

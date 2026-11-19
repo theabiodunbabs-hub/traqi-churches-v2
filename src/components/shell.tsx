@@ -5,8 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle, Bell, Building2, ChevronLeft, Check, Clock, GraduationCap, HeartHandshake, CalendarCheck, CalendarDays, HandCoins, Home, LayoutGrid, LogOut, Menu, MessageCircle,
-  Plus, Search, Settings2, Share, HandHeart, Sparkles, Sprout, Users, UserRound, X,
+  Megaphone, Plus, Banknote, Mail, MessageCircleHeart, Search, Settings2, Share, Trophy, HandHeart, Sparkles, Sprout, Users, UserRound, X,
 } from "lucide-react";
+import { actionsFor } from "@/lib/funds";
 import { useStore } from "@/lib/store";
 import { Asker, Avatar, Button, Confetti, Field, Sheet, Toasts, cx, inputCls, toast } from "./ui";
 import { ChurchMark, LogoMark } from "./brand";
@@ -17,6 +18,8 @@ import type { Access } from "@/lib/access";
 import { currentChurchId, isOwnerLive, myChurches } from "@/lib/live";
 import { notificationsFor, welfareAction, welfareVisible, type Note } from "@/lib/domain";
 import { settingsPages } from "@/lib/settings-pages";
+import { Preloader } from "./preloader";
+import { AboutYou, aboutAnswers, type About } from "./about-you";
 import { allowed, ask, searchAll, type Answer } from "@/lib/ask";
 
 type Item = { href: string; label: string; icon: typeof Home; show: (a: Access) => boolean; badge?: number };
@@ -54,24 +57,30 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pendingEvents = state.events.filter((e) => e.status === "pending").length;
   const welfareWaiting = state.welfare.filter((x) => welfareVisible(access, x) && welfareAction(state, access, x)).length;
   const enrolled = state.enrolments.some((e) => e.personId === me.id);
+  const fundsWaiting = state.funds.filter((f) => !f.parentId && actionsFor(state, access, f).length).length;
+  const counselWaiting = state.counsel.filter((r) => r.personId !== me.id && ((r.status === "new" && !r.branchId && (access.isLead || state.church.profile?.counselling?.delegates.some((d) => d.personId === me.id))) || ((r.status === "forwarded" || r.status === "referred") && r.handlerId === me.id))).length;
   const prayersWaiting = state.prayers.filter((x) => !x.answered && !x.prayed.some((y) => y.byId === me.id) && hoursSince(x.at) <= 24 * 7).length;
   // Six places, each holding a few pages. The church's logo and name take you home.
   const hubDefs: Hub[] = [
     { key: "people", label: "People", icon: Users, items: [
-      { href: "/people", label: "Everyone", icon: Users, show: (a) => a.can("people.view") },
+      { href: "/people", label: "Everyone", icon: Users, show: (a) => a.seesEveryone || a.leads.size > 0 || a.can("people.view") },
       { href: "/messages", label: "Messages", icon: MessageCircle, show: (a) => !a.isMemberOnly },
     ] },
     { key: "follow", label: "Follow-up", icon: Sprout, items: [
-      { href: "/first-timers", label: w.firstTimers, icon: Sprout, show: (a) => a.can("followup.assign") || a.can("followup.log"), badge: access.can("followup.assign") ? overdue : undefined },
-      { href: "/outreach", label: "Outreach", icon: Sprout, show: (a) => a.isPastoral || a.can("followup.assign") || a.can("followup.log") || state.groups.some((g) => g.tags?.includes("outreach") && g.leaderIds.includes(me.id)) },
+      { href: "/first-timers", label: w.firstTimers, icon: Sprout, show: (a) => a.seesAllCases || a.assignsCases || state.cases.some((c) => c.assigneeId === me.id || c.helperIds?.includes(me.id)), badge: access.assignsCases ? overdue : undefined },
+      { href: "/outreach", label: "Outreach", icon: Megaphone, show: (a) => a.seesAllCases || a.assignsCases || state.outreachContacts.some((c) => c.assigneeId === me.id) },
+      { href: "/challenges", label: "Challenges", icon: Trophy, show: (a) => a.seesAllCases || a.isAdmin || a.assignsCases || state.challenges.some((c) => c.participantIds.includes(me.id)) },
     ] },
     { key: "care", label: "Care", icon: HeartHandshake, items: [
       { href: "/welfare", label: w.welfare, icon: HeartHandshake, show: () => true, badge: welfareWaiting || undefined },
       { href: "/prayer", label: "Prayer", icon: HandHeart, show: () => true, badge: access.seesPrayers ? prayersWaiting || undefined : undefined },
+      { href: "/counselling", label: "Counselling", icon: MessageCircleHeart, show: () => true, badge: counselWaiting || undefined },
+      { href: "/invitations", label: access.isPastoral || access.isAdmin ? "Invitations" : "Invite the church", icon: Mail, show: () => true, badge: access.isPastoral || access.isAdmin ? state.churchInvites.filter((i) => i.status === "new").length || undefined : undefined },
     ] },
     { key: "services", label: "Services", icon: CalendarCheck, items: [
       { href: "/attendance", label: "Attendance", icon: CalendarCheck, show: (a) => a.can("attendance.record") || a.can("checkin.code") || a.isPastoral || a.leads.size > 0 },
       { href: "/finance", label: "Offerings", icon: HandCoins, show: (a) => a.canFinance },
+      { href: "/funds", label: "Fund requests", icon: Banknote, show: (a) => !a.isMemberOnly || state.funds.some((f) => f.byId === me.id), badge: fundsWaiting || undefined },
     ] },
     { key: "ministry", label: "Ministry", icon: LayoutGrid, items: [
       { href: "/departments", label: w.departments, icon: LayoutGrid, show: (a) => a.can("people.view") || a.can("groups.manage") },
@@ -257,16 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 function ShellSkeleton() {
-  return (
-    <div className="min-h-screen lg:pl-[264px]">
-      <aside className="side fixed inset-y-0 left-0 hidden w-[264px] lg:block" />
-      <div className="mx-auto max-w-6xl space-y-4 px-4 pt-8 md:px-8">
-        <div className="skeleton h-40 rounded-[28px]" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-28 rounded-3xl" />)}</div>
-        <div className="skeleton h-64 rounded-3xl" />
-      </div>
-    </div>
-  );
+  return <Preloader />;
 }
 
 /** The church's logo and name: tapping it takes you home. */
@@ -381,7 +381,8 @@ function FirstSignIn() {
   const close = () => { try { localStorage.setItem(`traqi-hello-${me.id}`, "1"); } catch { /* storage unavailable */ } setShow(false); };
   const tips = access.isLead ? ["Home shows the church at a glance each morning.", "Welfare requests above the limit come to you.", "Approve count corrections in Offerings."]
     : access.isPastoral ? ["Home shows the people and departments you oversee.", "Approve events and welfare requests from the bell.", "Open anyone's profile to see their journey."]
-    : access.isMemberOnly ? ["Check in on Sundays with the church link.", "See your classes and register for events.", "Ask for welfare support privately."]
+    : access.can("finance.review") ? ["Fund requests waiting on you are in Services › Fund requests.", "Record payments in part or in full.", "Check spending reports and download them for your records."]
+    : access.isMemberOnly ? ["Tap “I met someone” when you invite or meet a person.", "Tap “I need help” for counselling, welfare or prayer.", "See your classes and register for events."]
     : access.leads.size ? ["Your department's people are in People.", "Send birthday wishes from Messages.", "The bell tells you what needs you today."]
     : ["Your follow-up calls are on Home.", "Tap WhatsApp to send a ready-made message.", "Log each call so nobody is missed."];
   return (
@@ -529,6 +530,7 @@ export function AddFirstTimer({ open, onClose }: { open: boolean; onClose: () =>
   const { addFirstTimer, person, state } = useStore();
   const router = useRouter();
   const [f, setF] = useState({ firstName: "", lastName: "", gender: "" as "" | "M" | "F", phone: "", location: "", heard: "" });
+  const [about, setAbout] = useState<About>({});
   const [err, setErr] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -539,7 +541,9 @@ export function AddFirstTimer({ open, onClose }: { open: boolean; onClose: () =>
     if (!f.gender) return setErr("Choose a gender.");
     if (f.phone.replace(/\D/g, "").length < 10) return setErr("Enter a phone number with at least 10 digits.");
     if (!agreed) return setErr("Ask them if it's okay for the church to keep their details and contact them, then tick the box.");
-    const id = addFirstTimer({ firstName: f.firstName.trim(), lastName: f.lastName.trim(), gender: f.gender, phone: f.phone.trim(), location: f.location || undefined, heardFrom: f.heard || undefined, consent: { at: new Date().toISOString(), via: "staff" } });
+    const answers = aboutAnswers(about);
+    const id = addFirstTimer({ firstName: f.firstName.trim(), lastName: f.lastName.trim(), gender: f.gender, phone: f.phone.trim(), location: f.location || undefined, heardFrom: f.heard || undefined, consent: { at: new Date().toISOString(), via: "staff" }, ...(Object.keys(answers).length ? { custom: answers } : {}) });
+    setAbout({});
     setDone(id);
   };
   const added = done ? person(done) : undefined;
@@ -574,6 +578,7 @@ export function AddFirstTimer({ open, onClose }: { open: boolean; onClose: () =>
           </Field>
           <Field label="Phone number" hint="Used for WhatsApp too, unless they give another number later."><input className={inputCls} value={f.phone} onChange={set("phone")} placeholder="0803 123 4567" inputMode="tel" /></Field>
           <Field label="Area they live in"><input className={inputCls} value={f.location} onChange={set("location")} placeholder="Surulere" /></Field>
+          <AboutYou value={about} onChange={setAbout} bornAgain />
           <Field label={`How did they hear about ${state.church.name}?`}>
             <select className={inputCls} value={f.heard} onChange={set("heard")}>
               <option value="">Choose one</option><option>Invited by a member</option><option>Social media</option><option>Walked in</option><option>Outreach</option><option>Online church</option>

@@ -123,21 +123,21 @@ function Health() {
   const inClass = new Set(state.enrolments.filter((e) => e.status === "active").map((e) => e.personId)).size;
   const pc = (a: number, b: number) => (b ? Math.min(100, Math.round((a / b) * 100)) : 0);
   const rows = [
-    { label: "Attendance goal", v: att.goal ? pc(att.last, att.goal) : null },
-    { label: "First-timers back", v: back.of ? back.pct : null },
-    { label: "Serving", v: pc(serving, people.length) },
-    { label: "In a class", v: pc(inClass, people.length) },
+    { label: "Attendance goal", v: att.goal ? pc(att.last, att.goal) : null, href: "/attendance?tab=trends" },
+    { label: "First-timers back", v: back.of ? back.pct : null, href: "/first-timers" },
+    { label: "Serving", v: pc(serving, people.length), href: "/departments" },
+    { label: "In a class", v: pc(inClass, people.length), href: "/classes" },
   ];
   return (
     <section>
-      <Title>Church health</Title>
+      <Title>Church health <span className="text-[13px] font-normal text-muted">· tap for details</span></Title>
       <div className="card grid grid-cols-2 gap-x-5 gap-y-5 p-5">
         {rows.map((r) => (
-          <div key={r.label}>
+          <Link key={r.label} href={r.href} className="-m-2 rounded-2xl p-2 transition hover:bg-page" aria-label={`${r.label}: open the details`}>
             <p className="num text-[26px] font-semibold leading-none">{r.v === null ? "–" : `${r.v}%`}</p>
             <p className="mt-1 text-[13px] text-ink-soft">{r.label}</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-page">{r.v !== null && <div className={cx("h-full rounded-full", r.v >= 70 ? "bg-good" : r.v >= 40 ? "bg-brand" : "bg-glow")} style={{ width: `${r.v}%` }} />}</div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

@@ -5,6 +5,7 @@ import { ArrowRight, Check, Globe, HeartHandshake, MapPin, PartyPopper, UserPlus
 import { useStore } from "@/lib/store";
 import { checkinLive, churchPage, welcomeCustom, welcomeV2, type PublicChurch } from "@/lib/live";
 import { CustomFieldInput } from "./custom-fields";
+import { AboutYou, aboutAnswers, type About } from "./about-you";
 import { usePublicTheme } from "./theme";
 import { openMeeting, record } from "@/lib/domain";
 import { digits, timeOf } from "@/lib/format";
@@ -50,6 +51,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
   const [f, setF] = useState({ firstName: "", lastName: "", gender: "" as "" | "M" | "F" });
   const [agree, setAgree] = useState(false);
   const [fb, setFb] = useState({ location: "", heard: "", enjoyed: [] as string[], comment: "", wantsVisit: false, prayer: "" });
+  const [about, setAbout] = useState<About>({});
   const [extra, setExtra] = useState<Record<string, string>>({});
 
   useEffect(() => { if (saved[0] && !who && !startNew) setWho(saved[0]); }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,7 +126,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
     const feedback: Feedback = { enjoyed: fb.enjoyed, comment: fb.comment.trim() || undefined, wantsVisit: fb.wantsVisit, prayer: fb.prayer.trim() || undefined, meetingId: meeting?.id, at: new Date().toISOString() };
     setBusy(true);
     try {
-      const answers = Object.fromEntries(Object.entries(extra).filter(([, v]) => v.trim()));
+      const answers: Record<string, string> = { ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v.trim())), ...aboutAnswers(about) };
       if (mode === "live") {
         await welcomeV2(slug, { phone: activePhone, location: fb.location, heardFrom: fb.heard, feedback });
         if (Object.keys(answers).length) await welcomeCustom(slug, activePhone, answers);
@@ -241,6 +243,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
             <Field label="How did you hear about us?">
               <div className="flex flex-wrap gap-1.5">{HEARD.map((h) => <button type="button" key={h} onClick={() => setFb({ ...fb, heard: h })} className={cx("rounded-full px-3 py-2 text-sm ring-1", fb.heard === h ? "bg-brand text-white ring-brand" : "bg-surface text-ink-soft ring-line")}>{h}</button>)}</div>
             </Field>
+            <AboutYou value={about} onChange={setAbout} bornAgain />
             {(church.profile?.customFields ?? []).filter((x) => x.onWelcome && !x.hidden).map((x) => (
               <Field key={x.id} label={x.label}><CustomFieldInput f={x} value={extra[x.id]} onChange={(v) => setExtra({ ...extra, [x.id]: v })} /></Field>
             ))}
