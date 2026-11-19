@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, EyeOff, HandHeart, Lock, Plus, Settings2, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Avatar, Badge, Button, Empty, PageHeader, Panel, Sheet, Tabs, Toggle, cx, toast } from "@/components/ui";
@@ -9,7 +9,9 @@ import type { PrayerRequest } from "@/lib/types";
 
 export default function Prayer() {
   const { me, access, state } = useStore();
+  // "I need help" on Home opens the form straight away
   const [asking, setAsking] = useState(false);
+  useEffect(() => { if (new URLSearchParams(location.search).has("new")) setAsking(true); }, []);
   const [who, setWho] = useState(false);
   const [tab, setTab] = useState<"open" | "answered">("open");
   if (!me || !access) return null;

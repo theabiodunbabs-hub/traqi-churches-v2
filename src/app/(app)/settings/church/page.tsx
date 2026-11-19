@@ -1,5 +1,6 @@
 "use client";
 
+import { SERMON_PLATFORMS } from "@/components/messages-help";
 import Link from "next/link";
 import { useState } from "react";
 import { Check, Copy, ExternalLink, Plus, X } from "lucide-react";
@@ -42,7 +43,21 @@ function CommunityEditor({ p, set }: { p: ChurchProfile; set: <K extends keyof C
         <span className="flex-1"><span className="block text-[14.5px]">Show it to people not yet confirmed</span><span className="block text-[12.5px] text-muted">People who joined through Traqi search, before you confirm them</span></span>
         <Toggle label="Show WhatsApp link to unconfirmed joiners" on={!!p.whatsappForUnconfirmed} onChange={(v) => set("whatsappForUnconfirmed", v)} />
       </label>
-      <Field label="Latest sermon or message" hint="Opens on YouTube or wherever it lives. Traqi doesn't play it.">
+      <div>
+        <p className="mb-1 text-sm font-medium">Where your sermons are</p>
+        <p className="mb-2 text-[12.5px] text-muted">Members see one “Listen to messages” button that opens these.</p>
+        <ul className="space-y-2">
+          {(p.sermonLinks ?? []).map((l, i) => (
+            <li key={i} className="grid grid-cols-[9rem_1fr_auto] gap-2">
+              <select className={inputCls} value={l.platform} onChange={(e) => set("sermonLinks", (p.sermonLinks ?? []).map((x, j) => (j === i ? { ...x, platform: e.target.value } : x)))} aria-label="Platform">{SERMON_PLATFORMS.map((x) => <option key={x}>{x}</option>)}</select>
+              <input className={inputCls} inputMode="url" value={l.url} placeholder="https://…" onChange={(e) => set("sermonLinks", (p.sermonLinks ?? []).map((x, j) => (j === i ? { ...x, url: e.target.value.trim() } : x)))} aria-label={`${l.platform} link`} />
+              <button type="button" onClick={() => set("sermonLinks", (p.sermonLinks ?? []).filter((_, j) => j !== i))} className="rounded-lg px-2 text-muted hover:text-alert" aria-label="Remove">✕</button>
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={() => set("sermonLinks", [...(p.sermonLinks ?? []), { platform: "YouTube", url: "" }])} className="mt-2 min-h-10 text-sm font-medium text-brand">+ Add where your sermons are</button>
+      </div>
+      <Field label="Last Sunday's message" hint="The media head, their assistants and the admin can also update this from their Home.">
         <div className="grid gap-2 sm:grid-cols-2">
           <input className={inputCls} placeholder="Title" value={p.pinnedMessage?.title ?? ""} onChange={(e) => set("pinnedMessage", { title: e.target.value, url: p.pinnedMessage?.url ?? "" })} />
           <input className={inputCls} inputMode="url" placeholder="https://youtube.com/…" value={p.pinnedMessage?.url ?? ""} onChange={(e) => set("pinnedMessage", { title: p.pinnedMessage?.title ?? "", url: e.target.value.trim() })} />

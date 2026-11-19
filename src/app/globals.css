@@ -117,3 +117,12 @@ body {
 
 /* iPhones zoom into any field under 16px; keep every field at 16px on phones */
 @media (max-width: 767px) { input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px !important; } }
+
+/* Pre-loader: three circles orbit and gather towards the centre, the rings breathe */
+@keyframes pl-orbit { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.62); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes pl-ring { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.08); opacity: .4; } }
+@keyframes pl-heart { 0%, 100% { transform: scale(.8); opacity: .85; } 50% { transform: scale(1.15); opacity: 1; } }
+.pl-orbit { animation: pl-orbit 1.65s cubic-bezier(.6,.05,.4,.95) infinite; }
+.pl-ring { animation: pl-ring 2.4s ease-in-out infinite; }
+.pl-heart { animation: pl-heart 1.65s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pl-orbit, .pl-ring, .pl-heart { animation-duration: 6s; } }

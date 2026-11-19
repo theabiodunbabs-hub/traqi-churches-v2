@@ -10,6 +10,8 @@ import { MeetingLink, PastorBoard } from "@/components/pastor-board";
 import { MemberHome } from "@/components/member-home";
 import { NewRoleCard, YourRolesCard } from "@/components/role-cards";
 import { TodayService } from "@/components/rollcall";
+import { FamilyLifeCard } from "@/components/family-life";
+import { LastMessageCard } from "@/components/messages-help";
 import { daysToBirthday, fullName, greeting, hoursSince, shortDate, todayLong } from "@/lib/format";
 import type { Person } from "@/lib/types";
 import { attendance, cameBack, escalation, goneQuiet } from "@/lib/metrics";
@@ -134,7 +136,7 @@ export default function Today() {
         </div>
       </section>
 
-      <div className="mt-6 space-y-4 empty:hidden"><NewRoleCard /><TodayService /><YourRolesCard /></div>
+      <div className="mt-6 space-y-4 empty:hidden"><NewRoleCard /><TodayService /><YourRolesCard />{access.leadsFamilyLife && <FamilyLifeCard />}<LastMessageCard /></div>
 
       {/* At most three things to do */}
       <section className="mt-8">

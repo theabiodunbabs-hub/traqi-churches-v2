@@ -10,7 +10,7 @@ import { ChevronLeft, Pencil, Plus, Search, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Avatar, Button, Empty, Field, Panel, PersonLink, Sheet, StageChip, cx, inputCls } from "@/components/ui";
 import { holdersOf } from "@/lib/metrics";
-import { AssistantsPanel, DeptExtras, FollowupPanel } from "@/components/department-extras";
+import { AssistantsPanel, DeptExtras, DeptMeetings, FollowupPanel } from "@/components/department-extras";
 import { DownloadButton } from "@/components/download";
 import { canDownloadGroup, departmentDownload } from "@/lib/exports";
 import type { Group } from "@/lib/types";
@@ -19,7 +19,7 @@ import { daysToBirthday, fullName, shortDate } from "@/lib/format";
 
 export default function Department() {
   const { id } = useParams<{ id: string }>();
-  const { state, access, person, addToGroup } = useStore();
+  const { state, access, person, addToGroup, me } = useStore();
   const [filter, setFilter] = useState<"all" | "leaders" | "quiet">("all");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -37,6 +37,13 @@ export default function Department() {
   }, [g, state.groups, person]);
 
   if (!access) return null;
+  // Department heads only open their own department (and its units); pastors, the admin and special leads can open any
+  if (g && me && !access.seesAllDepartments && !(access.branchPerms.get("people.view")?.size)) {
+    const ids = new Set([g.id, g.parentId].filter(Boolean) as string[]);
+    const mineHere = state.groups.some((x) => ids.has(x.id) && (x.leaderIds.includes(me.id) || x.memberIds.includes(me.id) || x.assistants?.some((a) => a.personId === me.id)))
+      || state.groups.some((u) => u.parentId === g.id && (u.leaderIds.includes(me.id) || u.memberIds.includes(me.id)));
+    if (!mineHere) return <Empty title="Not your department" body="You can see the departments you serve in." />;
+  }
   if (!g || !data) return <Empty title="Department not found" body="It may have been renamed or removed." action={<Link href="/departments" className="text-brand">Back to departments</Link>} />;
 
   const parent = state.groups.find((x) => x.id === g.parentId);
@@ -138,6 +145,7 @@ export default function Department() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {g.tags?.includes("followup") && <div id="followup" className="lg:col-span-2"><FollowupPanel group={g} /></div>}
+        <DeptMeetings group={g} canEdit={canManage || (!!me && !!g.assistants?.some((a) => a.personId === me.id))} />
         {usesAssistants(state) && <AssistantsPanel group={g} />}
         {g.whatsapp && (
           <a href={g.whatsapp} target="_blank" rel="noreferrer" className="flex items-center gap-3 self-start rounded-2xl bg-[#25D366]/12 p-4 ring-1 ring-[#25D366]/40">

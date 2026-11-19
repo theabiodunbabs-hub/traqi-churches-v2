@@ -14,7 +14,8 @@ export default function Classes() {
   const { state, access, me, put, newId, updateChurch } = useStore();
   const [creating, setCreating] = useState<Programme | null>(null);
   if (!access || !me) return null;
-  const manage = access.can("classes.manage") || access.leadsTraining;
+  const faculty = access.can("classes.manage") || access.leadsTraining;
+  const manage = faculty || access.leadsFamilyLife;
   const myEnrolments = state.enrolments.filter((e) => e.personId === me.id);
   const upcoming = state.sessions
     .filter((s) => !s.cancelled && Date.parse(s.start) + 3 * 36e5 > Date.now() && myEnrolments.some((e) => e.programmeId === s.programmeId && e.status === "active"))
@@ -24,7 +25,7 @@ export default function Classes() {
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader title="Classes" sub={manage ? "Every programme your church runs, and how each student is doing." : "Grow at your own pace, with your church family."}
-        actions={manage && <Button variant="primary" onClick={() => setCreating({ id: newId("pr"), name: "", description: "", modules: [], run: "batch", mode: "physical", weekday: 0, time: "12:00", minutes: 60, completeAfter: 1, recordingsCount: true, signatories: ["Lead pastor"], startDate: todayLagos(), color: state.programmes.length % 4 })}><Plus size={16} /> New programme</Button>} />
+        actions={manage && <Button variant="primary" onClick={() => setCreating({ owner: !faculty && access.leadsFamilyLife ? "family" : "training", couples: !faculty && access.leadsFamilyLife ? true : undefined, id: newId("pr"), name: "", description: "", modules: [], run: "batch", mode: "physical", weekday: 0, time: "12:00", minutes: 60, completeAfter: 1, recordingsCount: true, signatories: ["Lead pastor"], startDate: todayLagos(), color: state.programmes.length % 4 })}><Plus size={16} /> New programme</Button>} />
 
       {upcoming && upProg && (
         <section className="hero mb-6 flex flex-wrap items-center justify-between gap-5 px-6 py-6 md:px-8">
@@ -38,7 +39,7 @@ export default function Classes() {
       )}
 
       {state.programmes.length === 0 ? (
-        <Empty title="No classes yet" body="Set up your first programme: the classes, the schedule, and where it meets." icon={<GraduationCap size={26} />} action={manage && <Button variant="primary" onClick={() => setCreating({ id: newId("pr"), name: "", description: "", modules: [], run: "batch", mode: "physical", weekday: 0, time: "12:00", minutes: 60, completeAfter: 1, recordingsCount: true, signatories: ["Lead pastor"], startDate: todayLagos(), color: 0 })}>New programme</Button>} />
+        <Empty title="No classes yet" body="Set up your first programme: the classes, the schedule, and where it meets." icon={<GraduationCap size={26} />} action={manage && <Button variant="primary" onClick={() => setCreating({ owner: !faculty && access.leadsFamilyLife ? "family" : "training", couples: !faculty && access.leadsFamilyLife ? true : undefined, id: newId("pr"), name: "", description: "", modules: [], run: "batch", mode: "physical", weekday: 0, time: "12:00", minutes: 60, completeAfter: 1, recordingsCount: true, signatories: ["Lead pastor"], startDate: todayLagos(), color: 0 })}>New programme</Button>} />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {state.programmes.map((p) => {

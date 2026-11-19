@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, HandHeart, HeartHandshake, Lock, MessageSquareText, Plus, Send, ShieldCheck, Undo2, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useWords } from "@/components/theme";
@@ -18,7 +18,9 @@ export default function WelfarePage() {
   const { state, access, me } = useStore();
   const [tab, setTab] = useState<"mine" | "needs" | "open" | "done">("needs");
   const [openId, setOpenId] = useState<string | null>(null);
+  // "I need help" on Home opens the form straight away
   const [asking, setAsking] = useState(false);
+  useEffect(() => { if (new URLSearchParams(location.search).has("new")) setAsking(true); }, []);
 
   const visible = useMemo(() => (access ? state.welfare.filter((w) => welfareVisible(access, w)) : []), [state.welfare, access]);
   if (!access || !me) return null;

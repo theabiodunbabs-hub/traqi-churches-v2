@@ -12,8 +12,8 @@ import { ReachOut, ReasonTag, messages } from "@/components/care";
 import { AddFirstTimer } from "@/components/shell";
 import { ago, fullName, hoursSince } from "@/lib/format";
 import type { FollowCase, FollowStage } from "@/lib/types";
-import { AssignPicker } from "@/components/assign";
-import { cameBack as cohort, escalation, isFollowLead, pastorMayAssign } from "@/lib/metrics";
+import { AssignPicker, LogFeedback } from "@/components/assign";
+import { cameBack as cohort, escalation, pastorMayAssign } from "@/lib/metrics";
 
 export default function FirstTimers() {
   const w = useWords();
@@ -26,11 +26,12 @@ export default function FirstTimers() {
   const [tab, setTab] = useState<ColKey>("call");
   if (!me || !access) return null;
 
-  const canAssign = access.can("followup.assign");
+  // The follow-up team sees every first-timer, so anyone can take initiative; "Mine" narrows to their own
+  const canAssign = access.seesAllCases || access.assignsCases;
   // The follow-up head (and assistants allowed to) assign; pastors step in only when a case has waited too long
-  const lead = isFollowLead(state, access);
+  const lead = access.assignsCases;
   const mayAssign = (c: FollowCase) => lead || (access.isPastoral && pastorMayAssign(c));
-  const cases = state.cases.filter((c) => (canAssign && !mine && access.seesCase(c)) || c.assigneeId === me.id);
+  const cases = state.cases.filter((c) => (canAssign && !mine && access.seesCase(c)) || c.assigneeId === me.id || c.helperIds?.includes(me.id));
   const unassigned = cases.filter((c) => !c.assigneeId);
   const overdue = cases.filter((c) => c.stage === "new" && c.assigneeId && hoursSince(c.createdAt) > 48);
   const back = cohort(state);
@@ -71,7 +72,7 @@ export default function FirstTimers() {
       {canAssign && unassigned.length > 0 && (
         <section className="rise mb-6 rounded-2xl bg-glow-soft p-4 ring-1 ring-glow/30 md:p-5">
           <p className="font-display text-[17px] font-semibold text-glow-ink">{unassigned.length} first-timer{unassigned.length > 1 ? "s" : ""} waiting for someone</p>
-          <p className="mb-3 text-[13px] text-ink-soft">{lead ? "Choose someone from your follow-up team for each." : "The follow-up head assigns these. You can step in after 24 hours."}</p>
+          <p className="mb-3 text-[13px] text-ink-soft">{lead ? "Choose someone from your follow-up team for each." : "The follow-up lead assigns these. Pastors can step in after 48 hours."}</p>
           <ul className="space-y-2">
             {unassigned.map((c) => {
               const p = person(c.personId)!;
@@ -79,7 +80,7 @@ export default function FirstTimers() {
                 <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-surface p-3">
                   <Avatar person={p} size={36} />
                   <div className="min-w-[11rem] flex-1"><Link href={`/people/${p.id}`} className="font-medium hover:text-brand">{fullName(p)}</Link><p className="text-[13px] text-muted">{p.location ?? "Area not given"}, first visit {ago(c.createdAt)}</p></div>
-                  {mayAssign(c) ? <Button onClick={() => setPicking(c.id)}>Assign</Button> : <span className="text-[12.5px] text-muted">Waiting for the follow-up head</span>}
+                  {mayAssign(c) ? <Button onClick={() => setPicking(c.id)}>Assign</Button> : <span className="text-[12.5px] text-muted">Waiting for the follow-up lead</span>}
                 </li>
               );
             })}
@@ -125,9 +126,10 @@ export default function FirstTimers() {
                       {c.contacts.at(-1) && <p className="mt-2.5 line-clamp-2 rounded-lg bg-page px-2.5 py-1.5 text-[13px] text-ink-soft">{c.contacts.at(-1)!.outcome}</p>}
                       <div className="mt-3 flex items-center gap-2">
                         <button type="button" disabled={!mayAssign(c)} onClick={() => setPicking(c.id)} className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg text-left text-[12.5px] text-muted enabled:hover:text-brand" title={`Assigned to ${fullName(a)}`}>
-                          <Avatar person={a} size={20} /><span className="truncate">{a?.id === me.id ? "You" : a?.firstName}</span>
+                          <Avatar person={a} size={20} /><span className="truncate">{a?.id === me.id ? "You" : a?.firstName}{c.helperIds?.length ? ` +${c.helperIds.length}` : ""}</span>
                         </button>
                         {c.stage === "new" && <ReachOut person={p} message={messages.welcome(p, state.church.name)} compact canContact={access.canSeeContacts(p)} />}
+                        <LogFeedback caseId={c.id} name={p.firstName} />
                         {col.next && (
                           <button type="button" onClick={() => moveCase(c.id, col.next!.to)} className="inline-flex min-h-9 items-center gap-0.5 rounded-lg px-2 text-[12.5px] font-medium text-brand hover:bg-brand-soft">
                             {col.next.label}<ChevronRight size={13} />

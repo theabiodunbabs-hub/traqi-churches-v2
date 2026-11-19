@@ -8,11 +8,11 @@ import { Avatar, Badge, Button, Empty, Field, PageHeader, Sheet, Tabs, cx, input
 import { WhatsAppIcon } from "@/components/care";
 import { QR } from "@/components/public";
 import { DownloadButton } from "@/components/download";
-import { MetSomeoneButton, cameToChurch, knownAs } from "@/components/outreach";
-import { followTeam, isFollowLead } from "@/lib/metrics";
+import { ExtraFollowersPicker, Leaderboard, MetSomeoneButton, cameToChurch, contactPool, knownAs } from "@/components/outreach";
+import { isFollowLead } from "@/lib/metrics";
 import { outreachSheet } from "@/lib/exports";
 import { ago, fullName, shortDate, todayLagos } from "@/lib/format";
-import type { Outreach, OutreachContact } from "@/lib/types";
+import type { ExtraFollowers, Outreach, OutreachContact } from "@/lib/types";
 
 type Col = "call" | "touch" | "came";
 
@@ -25,8 +25,8 @@ export default function OutreachPage() {
   const [sharing, setSharing] = useState<Outreach | null>(null);
   const [assigning, setAssigning] = useState<OutreachContact | null>(null);
   if (!access || !me) return null;
-  const lead = isFollowLead(state, access);
-  const staff = access.isPastoral || lead || access.can("followup.assign") || state.groups.some((g) => (g.tags?.includes("followup") || g.tags?.includes("outreach")) && g.leaderIds.includes(me.id));
+  const lead = access.assignsCases || isFollowLead(state, access);
+  const staff = access.seesAllCases || lead || access.isAdmin;
   const mine = (c: OutreachContact) => c.assigneeId === me.id || c.byId === me.id;
   const all = state.outreachContacts.filter((c) => staff || mine(c));
   const list = all.filter((c) => !only || (only === "own" ? !c.outreachId : c.outreachId === only));
@@ -61,6 +61,13 @@ export default function OutreachPage() {
             );
           })}
         </div>
+      )}
+
+      {staff && list.length > 0 && (
+        <details className="mb-6 rounded-3xl bg-surface p-5 ring-1 ring-line">
+          <summary className="cursor-pointer font-display text-[17px] font-semibold">Who met the most people {only ? "here" : ""}</summary>
+          <div className="mt-3"><Leaderboard contacts={list} /></div>
+        </details>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -125,7 +132,7 @@ export default function OutreachPage() {
       {/* Assign to someone on the follow-up team */}
       <Sheet open={!!assigning} onClose={() => setAssigning(null)} title={`Who will follow up ${assigning?.name.split(" ")[0] ?? ""}?`}>
         <ul className="divide-y divide-line">
-          {followTeam(state).map((id) => state.people.find((p) => p.id === id)).filter(Boolean).map((p) => (
+          {contactPool(state, assigning?.outreachId ? state.outreaches.find((o) => o.id === assigning.outreachId)?.extraFollowers : assigning?.challengeId ? state.challenges.find((c) => c.id === assigning.challengeId)?.extraFollowers : undefined).map((id) => state.people.find((p) => p.id === id)).filter(Boolean).map((p) => (
             <li key={p!.id}><button type="button" onClick={() => { put("outreachContacts", { ...assigning!, assigneeId: p!.id }, `asked ${p!.firstName} to follow up ${assigning!.name}`); setAssigning(null); toast(`${p!.firstName} will follow up`); }} className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-page">
               <Avatar person={p} size={34} /><span className="flex-1 font-medium">{fullName(p)}</span><span className="text-[12.5px] text-muted">{state.outreachContacts.filter((c) => c.assigneeId === p!.id && c.status === "new").length} to call</span>
             </button></li>
@@ -136,18 +143,20 @@ export default function OutreachPage() {
   );
 }
 
-function NewOutreach({ open, onClose, onMake }: { open: boolean; onClose: () => void; onMake: (o: Pick<Outreach, "name" | "date" | "area">) => void }) {
+function NewOutreach({ open, onClose, onMake }: { open: boolean; onClose: () => void; onMake: (o: Pick<Outreach, "name" | "date" | "area" | "extraFollowers">) => void }) {
   const [f, setF] = useState({ name: "", date: todayLagos(), area: "" });
+  const [extra, setExtra] = useState<ExtraFollowers>({});
   const [err, setErr] = useState("");
   return (
-    <Sheet open={open} onClose={onClose} title="New outreach" footer={<div className="space-y-2">{err && <p className="text-sm text-alert" role="alert">{err}</p>}<Button variant="primary" className="w-full py-3" onClick={() => { if (f.name.trim().length < 3) return setErr("Give it a name."); onMake({ name: f.name.trim(), date: f.date, area: f.area.trim() || undefined }); setF({ name: "", date: todayLagos(), area: "" }); }}>Create</Button></div>}>
+    <Sheet open={open} onClose={onClose} title="New outreach" footer={<div className="space-y-2">{err && <p className="text-sm text-alert" role="alert">{err}</p>}<Button variant="primary" className="w-full py-3" onClick={() => { if (f.name.trim().length < 3) return setErr("Give it a name."); onMake({ name: f.name.trim(), date: f.date, area: f.area.trim() || undefined, extraFollowers: extra }); setF({ name: "", date: todayLagos(), area: "" }); setExtra({}); }}>Create</Button></div>}>
       <div className="space-y-4">
         <Field label="Name"><input autoFocus className={inputCls} value={f.name} onChange={(e) => { setF({ ...f, name: e.target.value }); setErr(""); }} placeholder="Ojota Market Evangelism" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date"><input type="date" className={inputCls} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
           <Field label="Area (optional)"><input className={inputCls} value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })} placeholder="Ojota" /></Field>
         </div>
-        <p className="rounded-xl bg-page px-3.5 py-3 text-[13.5px] text-ink-soft">You&apos;ll get a link and QR code for the team. Everyone they meet is added to it.</p>
+        <ExtraFollowersPicker value={extra} onChange={setExtra} />
+        <p className="rounded-xl bg-page px-3.5 py-3 text-[13.5px] text-ink-soft">You&apos;ll get a link and QR code for the team. Everyone they meet is added to it and given someone to follow them up straight away.</p>
       </div>
     </Sheet>
   );

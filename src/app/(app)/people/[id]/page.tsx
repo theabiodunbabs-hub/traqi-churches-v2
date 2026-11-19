@@ -1,5 +1,7 @@
 "use client";
 
+import { AboutYou, BORN_AGAIN, MARITAL, aboutAnswers, aboutOf } from "@/components/about-you";
+import { kindOf } from "@/lib/journey";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -93,6 +95,8 @@ export default function Profile() {
               <Row k="Address" v={contacts ? hh?.address : <Hidden />} />
               <Row k="Birthday" v={p.birthday ? longDate(p.birthday) : undefined} />
               <Row k="Occupation" v={p.occupation} />
+              <Row k="Marital status" v={MARITAL.find(([k]) => k === p.custom?.marital)?.[1]?.concat(p.custom?.maritalOther ? `: ${p.custom.maritalOther}` : "")} />
+              {p.custom?.bornAgain && <Row k="Born again" v={BORN_AGAIN.find(([k]) => k === p.custom?.bornAgain)?.[1]} />}
               <Row k="Gender" v={p.gender === "F" ? "Female" : "Male"} />
               <Row k="First visit" v={longDate(p.firstVisit)} />
               {(state.church.profile?.branches ?? []).length > 0 && <Row k="Branch" v={canEdit ? <BranchMove personId={p.id} /> : branchName(state, p.branchId)} />}
@@ -340,6 +344,7 @@ function EditPerson({ open, onClose, person: p }: { open: boolean; onClose: () =
           <Field label="Area"><input className={inputCls} value={f.location ?? ""} onChange={set("location")} /></Field>
           <Field label="Occupation"><input className={inputCls} value={f.occupation ?? ""} onChange={set("occupation")} /></Field>
         </div>
+        <AboutYou value={aboutOf(f.custom)} onChange={(a) => { const rest = { ...(f.custom ?? {}) }; delete rest.marital; delete rest.maritalOther; delete rest.bornAgain; setF({ ...f, custom: { ...rest, ...aboutAnswers(a) } }); }} bornAgain={kindOf(f.stage) === "visitor"} />
         {fields.map((cf) => (
           <Field key={cf.id} label={cf.label}><CustomFieldInput f={cf} value={f.custom?.[cf.id]} onChange={(v) => setF({ ...f, custom: { ...f.custom, [cf.id]: v } })} /></Field>
         ))}

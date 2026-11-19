@@ -18,13 +18,19 @@ const TAG_LABEL: Record<string, string> = {
 
 export default function Departments() {
   const w = useWords();
-  const { state, access, person } = useStore();
+  const { state, access, person, me } = useStore();
   const [q, setQ] = useState("");
   const [branch, setBranch] = useState("all");
+  const [others, setOthers] = useState(false);
   const branches = state.church.profile?.branches ?? [];
+  // Department heads see their own department. Special leads open on theirs, with "See other departments".
+  const own = (g: Group) => !!me && (g.leaderIds.includes(me.id) || !!g.assistants?.some((a) => a.personId === me.id) || g.memberIds.includes(me.id)
+    || state.groups.some((u) => u.parentId === g.id && (u.leaderIds.includes(me.id) || u.memberIds.includes(me.id))));
+  const everyAtOnce = !!access && (access.isPastoral || access.isAdmin || (access.branchPerms.get("people.view")?.size ?? 0) > 0);
+  const canSeeOthers = !!access?.seesAllDepartments;
 
   const rows = useMemo(() => {
-    const depts = state.groups.filter((g) => g.kind === "department");
+    const depts = state.groups.filter((g) => g.kind === "department" && (everyAtOnce || (others && canSeeOthers) || own(g)));
     return depts
       .filter((d) => branch === "all" || (branch === "hq" ? !d.branchId : d.branchId === branch))
       .filter((d) => !q || `${d.name} ${d.purpose}`.toLowerCase().includes(q.toLowerCase()))
@@ -34,7 +40,7 @@ export default function Departments() {
         const quiet = goneQuiet([...people].map((id) => person(id)!).filter(Boolean)).length;
         return { d, units, size: people.size, quiet, supervisor: state.groups.find((g) => g.id === d.supervisorId) };
       });
-  }, [state.groups, q, person, branch]);
+  }, [state.groups, q, person, branch, others, everyAtOnce, canSeeOthers, me]);
 
   if (!access) return null;
   const mine = (g: Group) => access.scopedGroups.has(g.id);
@@ -51,6 +57,9 @@ export default function Departments() {
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
           <input className={cx(inputCls, "pl-10")} placeholder="Find a department" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {!everyAtOnce && canSeeOthers && (
+          <button type="button" onClick={() => setOthers(!others)} className={cx("min-h-11 rounded-xl px-4 text-sm font-medium ring-1", others ? "bg-deep text-white ring-deep" : "bg-surface text-brand ring-line")}>{others ? "Show only mine" : "See other departments"}</button>
+        )}
         {branches.length > 0 && (
           <select className={cx(inputCls, "sm:w-56")} value={branch} onChange={(e) => setBranch(e.target.value)} aria-label="Branch">
             <option value="all">All branches</option><option value="hq">Headquarters</option>

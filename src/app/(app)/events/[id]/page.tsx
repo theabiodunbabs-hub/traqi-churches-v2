@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BellRing, Check, CheckCircle2, Copy, CopyPlus, Eye, Handshake, Image as ImageIcon, MessageSquareText, ScanLine, Send, UserPlus, Users, X } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { CommitteePanel, committeeRights } from "@/components/committee";
 import { Badge, Button, CountUp, Empty, Panel, ProgressRing, Sheet, Tabs, cx, inputCls, toast } from "@/components/ui";
 import { COVERS } from "@/components/brand";
 import { QR } from "@/components/public";
@@ -21,7 +22,7 @@ import { saveBlob } from "@/lib/download";
 import { dayName, digits, todayLagos, waLink } from "@/lib/format";
 import type { ChurchEvent, Registration } from "@/lib/types";
 
-type Tab = "overview" | "people" | "door" | "share" | "feedback" | "edit";
+type Tab = "overview" | "people" | "door" | "share" | "feedback" | "committee" | "edit";
 
 export default function EventPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +43,10 @@ export default function EventPage() {
 
   if (!manage || preview) {
     const shown = preview ?? e;
+    const onCommittee = !preview && (committeeRights(e, access).sees || (!!e.committee?.members.length && state.groups.some((g) => access.leads.has(g.id) && g.kind === "department")));
     return (
       <div className="-mx-4 -mt-5 md:-mx-8 md:-mt-8">
+        {onCommittee && <div className="mx-auto max-w-5xl px-4 pb-2 pt-5 md:px-8"><CommitteePanel e={e} /></div>}
         {preview && <div className="sticky top-14 z-50 flex justify-center md:top-3"><Button className="shadow-lg" onClick={() => setPreview(null)}><X size={15} /> Close preview</Button></div>}
         <EventLanding e={shown} church={church} registered={c.people} recent={c.confirmed.slice(-4).map((r) => r.name)} onRegister={(r) => demoRegister(e, r)} preview={!!preview} />
       </div>
@@ -100,6 +103,7 @@ export default function EventPage() {
         { key: "overview", label: "Overview" }, { key: "people", label: "Registrations", count: c.regs.length },
         { key: "door", label: "At the door" }, { key: "share", label: "Share" },
         ...(e.feedback?.on ? [{ key: "feedback" as Tab, label: "Feedback", count: c.regs.filter((r) => r.feedback).length }] : []),
+        { key: "committee", label: "Committee", count: e.committee?.members.length || undefined },
         { key: "edit", label: "Edit" },
       ]} />
 
@@ -109,6 +113,7 @@ export default function EventPage() {
         {tab === "door" && <Door e={e} put={put} newId={newId} findByPhone={findByPhone} />}
         {tab === "share" && <Share e={e} />}
         {tab === "feedback" && <FeedbackResults e={e} />}
+        {tab === "committee" && <CommitteePanel e={e} />}
         {tab === "edit" && <EventEditor e={e} onPreview={setPreview} onSave={(x) => {
           const moved = e.status === "published" && (x.start !== e.start || x.venue !== e.venue || x.link !== e.link || x.days.join() !== e.days.join());
           put("events", moved && !access.isPastoral ? { ...x, status: "pending" } : x, `updated the event ${x.title}`);

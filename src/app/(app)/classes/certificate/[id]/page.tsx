@@ -23,12 +23,15 @@ export default function Certificate() {
   const p = e && state.programmes.find((x) => x.id === e.programmeId);
   const person = e && state.people.find((x) => x.id === e.personId);
   const ready = !!(e && p && person && e.status === "completed");
+  // A couples' course: one certificate carrying both names ("Tunde & Bisi Adeyemi")
+  const partner = p?.couples && e?.partnerId ? state.people.find((x) => x.id === e.partnerId) : undefined;
+  const coupleName = () => !partner || !person ? fullName(person) : partner.lastName === person.lastName ? `${person.firstName} & ${partner.firstName} ${person.lastName}` : `${fullName(person)} & ${fullName(partner)}`;
 
   useEffect(() => {
     if (!ready) return;
     let live = true;
     certificateCanvas({
-      name: fullName(person), course: p!.name, date: longDate(e!.completedAt?.slice(0, 10)), certNo: e!.certNo,
+      name: coupleName(), course: p!.name, date: longDate(e!.completedAt?.slice(0, 10)), certNo: e!.certNo,
       signers: signersOf(p!), church: { name: state.church.name, logo: state.church.profile?.logo, color: state.church.profile?.color ?? "#4f46e5" },
       verifyUrl: typeof window !== "undefined" && e!.certNo ? `${location.origin}/c/${state.church.slug}?cert=${encodeURIComponent(e!.certNo)}` : undefined,
     }).then((c) => { if (live) setCanvas(c); });

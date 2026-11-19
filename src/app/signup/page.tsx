@@ -325,10 +325,12 @@ function DeptList({ value, onChange }: { value: DeptDraft[]; onChange: (v: DeptD
   const [newName, setNewName] = useState("");
   return (
     <div>
+      <p className="mb-2 flex items-center gap-1.5 text-[13.5px] text-ink-soft"><Pencil size={13} /> These are ready-made. Rename any of them to what your church calls it, remove any you don&apos;t have, and add your own.</p>
       <ul className="space-y-1.5">
         {value.map((d, i) => (
           <li key={`${d.key}-${i}`} className="flex items-center gap-2 rounded-xl bg-page p-2 ring-1 ring-line">
-            <input className="min-w-0 flex-1 rounded-lg bg-transparent px-2 py-1.5 text-[14.5px] font-medium outline-none focus:bg-surface focus:ring-1 focus:ring-brand" value={d.name}
+            <Pencil size={14} className="ml-1 shrink-0 text-muted" aria-hidden />
+            <input className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2 text-[16px] font-medium ring-1 ring-line outline-none focus:ring-2 focus:ring-brand" value={d.name}
               onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`Department ${i + 1}`} />
             {d.units?.length ? <span className="hidden text-[12px] text-muted sm:inline">{d.units.length} units</span> : null}
             <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} className="rounded-lg p-1.5 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${d.name}`}><Trash2 size={15} /></button>

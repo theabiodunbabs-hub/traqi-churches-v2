@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AboutYou, aboutAnswers, aboutOf, type About } from "@/components/about-you";
 import { CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Button, Field, inputCls } from "@/components/ui";
@@ -19,6 +20,7 @@ export default function UpdateDetails() {
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [who, setWho] = useState<Person | null>(null);
+  const [about, setAbout] = useState<About>({});
   const [f, setF] = useState<Partial<Person>>({});
   const [agree, setAgree] = useState(false);
   const demoCode = useMemo(() => String(1000 + Math.floor(Math.random() * 9000)), []);
@@ -46,7 +48,7 @@ export default function UpdateDetails() {
             e.preventDefault();
             const p = findByPhone(phone);
             if (!p) return setErr(`We couldn't find that number at ${church}. Check it, or speak to the admin desk on Sunday.`);
-            setWho(p); setF({ ...p }); setStep("code"); setErr("");
+            setWho(p); setF({ ...p }); setAbout(aboutOf(p.custom)); setStep("code"); setErr("");
           }}>
             <h1 className="font-display text-[28px] font-semibold leading-tight tracking-tight">Keep your details up to date</h1>
             <p className="mt-1.5 text-ink-soft">Enter the phone number {church} has for you. We&apos;ll send a short code to confirm it&apos;s you.</p>
@@ -72,7 +74,7 @@ export default function UpdateDetails() {
             e.preventDefault();
             if (!agree) return setErr("Please tick the box so we can keep your details.");
             const patch = Object.fromEntries(Object.entries(f).filter(([k, v]) => ["whatsapp", "email", "birthday", "location", "occupation"].includes(k) && v !== (who as Record<string, unknown>)[k])) as Partial<Person>;
-            updatePerson(who.id, { ...patch, consent: { at: new Date().toISOString(), via: "update-link" } }, "self");
+            updatePerson(who.id, { ...patch, custom: { ...(who.custom ?? {}), ...aboutAnswers(about) }, consent: { at: new Date().toISOString(), via: "update-link" } }, "self");
             setStep("done");
           }}>
             <h1 className="font-display text-[26px] font-semibold tracking-tight">Hi {who.firstName}</h1>
@@ -84,6 +86,7 @@ export default function UpdateDetails() {
               {field("location", "Area you live in")}
               {field("occupation", "Occupation")}
             </div>
+            <AboutYou value={about} onChange={setAbout} />
             <Consent church={church} checked={agree} onChange={(v) => { setAgree(v); setErr(""); }} />
             {err && <p className="text-sm text-alert" role="alert">{err}</p>}
             <Button variant="primary" type="submit" className="h-12 w-full text-[16px]">Save my details</Button>

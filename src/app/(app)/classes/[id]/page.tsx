@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import { DownloadButton } from "@/components/download";
 import { Avatar, Badge, Button, Confetti, Empty, Panel, Sheet, Tabs, cx, inputCls, toast, textAsk } from "@/components/ui";
 import { JoinButton, MODE_LABEL, ModeIcon, ProgrammeForm, RecordingButton, linkJourney, scheduleText, tint } from "@/components/classes";
-import { courseWords, plural, progress, record } from "@/lib/domain";
+import { approvesCourseEdit, courseEditRights, courseWords, plural, progress, record } from "@/lib/domain";
 import { addDays, at } from "@/lib/seed-more";
 import { dayName, fullName, timeOf } from "@/lib/format";
 import type { ClassSession, Enrolment } from "@/lib/types";
@@ -26,7 +26,9 @@ export default function ProgrammePage() {
   const p = state.programmes.find((x) => x.id === id);
   if (!access || !me) return null;
   if (!p) return <Empty title="Programme not found" body="It may have been removed." icon={<Award size={26} />} action={<Link href="/classes" className="text-brand">Back to classes</Link>} />;
-  const manage = access.can("classes.manage") || access.leadsTraining;
+  const rights = p ? courseEditRights(p, access) : "none";
+  const manage = access.can("classes.manage") || access.leadsTraining || (p?.owner === "family" && access.leadsFamilyLife);
+  const approver = p ? approvesCourseEdit(p, access) : false;
   const cw = courseWords(p); const parts = plural(cw.part);
   const t = tint(p);
   const sessions = state.sessions.filter((s) => s.programmeId === p.id).sort((a, b) => a.start.localeCompare(b.start));
@@ -67,10 +69,19 @@ export default function ProgrammePage() {
             <p className="mt-1 text-ink-soft">{p.description}</p>
             <p className="mt-2 text-[13.5px] text-muted">{scheduleText(p)}{p.venue && p.mode !== "virtual" ? ` · ${p.venue}` : ""} · finish after {p.completeAfter} of {p.modules.length}</p>
           </div>
-          {manage && <div className="flex gap-2"><Button onClick={() => setEdit(true)}><Settings2 size={15} /> Settings</Button><Button variant="primary" onClick={() => setEnrolOpen(true)}><UserPlus size={15} /> Enrol people</Button></div>}
+          {manage && <div className="flex gap-2">{rights !== "none" && <Button onClick={() => setEdit(true)}><Settings2 size={15} /> Settings</Button>}<Button variant="primary" onClick={() => setEnrolOpen(true)}><UserPlus size={15} /> Enrol people</Button></div>}
         </div>
       </section>
 
+      {p.pendingEdit && (rights !== "none" || approver) && (
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-glow-soft p-4 ring-1 ring-glow/30">
+          <span className="min-w-[12rem] flex-1 text-[14.5px]"><b>{person(p.pendingEdit.byId)?.firstName ?? "Someone"} changed this course.</b> {approver ? "It changes once you approve." : `Waiting for ${p.owner === "family" ? "family life" : "the faculty of training"} to approve.`}{p.pendingEdit.next.name !== p.name ? ` New name: “${p.pendingEdit.next.name}”.` : ""}</span>
+          {approver && <>
+            <Button onClick={() => { put("programmes", { ...p, pendingEdit: undefined }, `declined the change to ${p.name}`); toast("Change declined"); }}>Decline</Button>
+            <Button variant="primary" onClick={() => { const pe = p.pendingEdit!; put("programmes", { ...pe.next, pendingEdit: undefined }, `approved the change to ${p.name}`); if (pe.finish && state.church.profile?.journey) updateChurch({}, { journey: linkJourney(state.church.profile.journey, p.id, pe.finish) }); toast("Change approved"); }}>Approve</Button>
+          </>}
+        </div>
+      )}
       {mine && <MyProgress e={mine} />}
 
       {manage && <Tabs className="mb-4" value={tab} onChange={setTab} items={[{ key: "sessions", label: parts, count: sessions.length }, { key: "students", label: "Students", count: enrolments.length }, { key: "dropoff", label: "Where people drop off" }]} />}
@@ -127,7 +138,21 @@ export default function ProgrammePage() {
                 return (
                   <li key={e.id} className="flex flex-wrap items-center gap-3 py-3">
                     <Avatar person={person} size={38} />
-                    <Link href={`/people/${e.personId}`} className="min-w-[11rem] flex-1 font-medium hover:text-brand">{fullName(person)}</Link>
+                    <span className="min-w-[11rem] flex-1">
+                      <Link href={`/people/${e.personId}`} className="block font-medium hover:text-brand">{fullName(person)}</Link>
+                      {p.couples && (
+                        <select className="mt-1 rounded-lg bg-page px-2 py-1 text-[13px] ring-1 ring-line" value={e.partnerId ?? ""} aria-label={`${person?.firstName}'s partner`}
+                          onChange={(ev) => {
+                            const pid = ev.target.value || undefined;
+                            const other = enrolments.find((x) => x.personId === pid);
+                            const old = enrolments.find((x) => x.personId === e.partnerId);
+                            putMany("enrolments", [{ ...e, partnerId: pid }, ...(other ? [{ ...other, partnerId: e.personId }] : []), ...(old && old.id !== other?.id ? [{ ...old, partnerId: undefined }] : [])]);
+                          }}>
+                          <option value="">Taking it with…</option>
+                          {enrolments.filter((x) => x.id !== e.id).map((x) => <option key={x.id} value={x.personId}>{fullName(state.people.find((y) => y.id === x.personId))}</option>)}
+                        </select>
+                      )}
+                    </span>
                     <span className="flex gap-1" aria-label={`${pr.done.length} of ${p.modules.length} ${parts.toLowerCase()}`}>
                       {p.modules.map((m) => { const how = pr.attended.get(m.id); return <span key={m.id} title={`${m.title}${how === "recording" ? " (recording)" : ""}`} className={cx("size-3.5 rounded-[5px]", how === "recording" ? cx(t.bar, "opacity-45") : how ? t.bar : "bg-line")} />; })}
                     </span>
@@ -144,7 +169,13 @@ export default function ProgrammePage() {
 
       {manage && tab === "dropoff" && <DropOff />}
 
-      <Sheet open={edit} onClose={() => setEdit(false)} title="Settings">{edit && <ProgrammeForm initial={p} onSave={(x, finish) => { put("programmes", x, `updated ${x.name}`); if (state.church.profile?.journey) updateChurch({}, { journey: linkJourney(state.church.profile.journey, x.id, finish) }); setEdit(false); toast("Saved"); }} />}</Sheet>
+      <Sheet open={edit} onClose={() => setEdit(false)} title="Settings">{edit && <ProgrammeForm initial={p} onSave={(x, finish) => {
+          if (rights === "approval") {
+            put("programmes", { ...p, pendingEdit: { byId: me!.id, at: new Date().toISOString(), next: { ...x, pendingEdit: undefined } as never, finish } }, `suggested changes to ${p.name}`);
+            setEdit(false); toast(`Sent to ${p.owner === "family" ? "family life" : "the faculty of training"} to approve`); return;
+          }
+          put("programmes", { ...x, pendingEdit: undefined }, `updated ${x.name}`); if (state.church.profile?.journey) updateChurch({}, { journey: linkJourney(state.church.profile.journey, x.id, finish) }); setEdit(false); toast("Saved");
+        }} />}</Sheet>
       <Sheet open={!!taking} onClose={() => setTaking(null)} title="Class attendance">{taking && <TakeAttendance s={taking} />}</Sheet>
       <Sheet open={enrolOpen} onClose={() => setEnrolOpen(false)} title={`Enrol in ${p.name}`}><Enrol /></Sheet>
     </div>

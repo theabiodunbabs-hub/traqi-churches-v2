@@ -2,7 +2,8 @@
 
 import { RollCallSheet, myRollCalls, rollCallMeetings } from "@/components/rollcall";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Baby, Check, Copy, Globe, Minus, MonitorPlay, Plus, QrCode, RefreshCw, Search, Sparkles, UserCheck, Users, WifiOff } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { DownloadButton } from "@/components/download";
@@ -16,9 +17,12 @@ import type { Attendance, Headcount, Meeting, ServiceSlot } from "@/lib/types";
 
 type Tab = "now" | "checkin" | "rollcall" | "history" | "schedule";
 
-export default function AttendancePage() {
-  const { state, access, putMany, mode } = useStore();
-  const [tab, setTab] = useState<Tab>("now");
+export default function AttendancePage() { return <Suspense><Attendance /></Suspense>; }
+
+function Attendance() {
+  const { state, access, putMany, mode, me } = useStore();
+  const q = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => (q.get("tab") === "trends" ? "history" : "now"));
 
   // Create the coming week's gatherings from the service schedule, once.
   useEffect(() => {
@@ -29,30 +33,34 @@ export default function AttendancePage() {
   }, [access]);
 
   const current = useMemo(() => openMeeting(state.meetings) ?? nextMeeting(state.meetings, Date.now(), "sunday") ?? nextMeeting(state.meetings), [state.meetings]);
-  if (!access) return null;
-  const canRecord = access.can("attendance.record");
-  const canSchedule = access.can("checkin.code") || access.can("groups.manage");
-
+  if (!access || !me) return null;
+  // Pastors see trends; the people doing the work see their tools
+  const doesService = access.can("headcount.record") || access.can("checkin.code");
+  const runsCheckin = access.can("checkin.code");
+  const takesRollcall = myRollCalls(state, access, me.id).length > 0;
+  const canSchedule = access.can("checkin.code") || access.isAdmin || access.isPastoral;
   const items: { key: Tab; label: string }[] = [
-    { key: "now", label: "This service" },
-    ...(canRecord ? [{ key: "checkin" as Tab, label: "Check people in" }] : []), ...(canRecord || access.leads.size > 0 ? [{ key: "rollcall" as Tab, label: "Roll call" }] : []),
+    ...(doesService && !access.isPastoral ? [{ key: "now" as Tab, label: "This service" }] : []),
+    ...(runsCheckin && !access.isPastoral ? [{ key: "checkin" as Tab, label: "Check people in" }] : []),
+    ...(takesRollcall ? [{ key: "rollcall" as Tab, label: "Roll call" }] : []),
     { key: "history", label: "Trends" },
     ...(canSchedule ? [{ key: "schedule" as Tab, label: "Services" }] : []),
   ];
+  const shown = items.some((i) => i.key === tab) ? tab : items[0].key;
 
   return (
     <div className="mx-auto max-w-5xl">
       <ServiceHero meeting={current} />
       <div className="my-5 flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onChange={setTab} items={items} />
+        <Tabs value={shown} onChange={setTab} items={items} />
         {mode === "demo" && <span className="flex items-center gap-1.5 text-[12.5px] text-muted"><WifiOff size={14} /> Counts save on this phone and sync when you're back online</span>}
       </div>
-      <div key={tab} className="rise">
-        {tab === "now" && <SundayMode meeting={current} />}
-        {tab === "checkin" && current && <UsherCheckin meeting={current} />}
-        {tab === "rollcall" && <RollCall />}
-        {tab === "history" && <History />}
-        {tab === "schedule" && <Schedule />}
+      <div key={shown} className="rise">
+        {shown === "now" && <SundayMode meeting={current} />}
+        {shown === "checkin" && current && <UsherCheckin meeting={current} />}
+        {shown === "rollcall" && <RollCall />}
+        {shown === "history" && <History />}
+        {shown === "schedule" && <Schedule />}
       </div>
     </div>
   );
@@ -98,14 +106,14 @@ function ServiceHero({ meeting }: { meeting?: Meeting }) {
           </div>
         </div>
       </div>
-      <div className="mt-6 flex flex-wrap gap-2">
+      {access?.can("checkin.code") && <div className="mt-6 flex flex-wrap gap-2">
         <Link href={`/display/checkin?m=${meeting.id}`} target="_blank" className="inline-flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-sm font-semibold text-ink hover:bg-white/90"><MonitorPlay size={16} /> Show on the screen</Link>
         <button type="button" onClick={() => setQr(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><QrCode size={16} /> QR code</button>
         <button type="button" onClick={() => { navigator.clipboard?.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15">
           {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Copied" : "Copy church link"}
         </button>
         <button type="button" onClick={() => { put("meetings", { ...meeting, code: newCode() }, `changed the code for ${meeting.name}`); toast("New code ready"); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><RefreshCw size={15} /> New code</button>
-      </div>
+      </div>}
       <Sheet open={qr} onClose={() => setQr(false)} title="Check-in QR code">
         <div className="text-center">
           <div className="mx-auto w-fit rounded-3xl bg-surface p-4 shadow-lg ring-1 ring-line"><QR value={link} size={240} /></div>
@@ -138,7 +146,8 @@ function SundayMode({ meeting }: { meeting?: Meeting }) {
   const [h, setH] = useState<Headcount | null>(null);
   useEffect(() => { setH(saved ? { ...saved } : m ? { meetingId: m.id, men: 0, women: 0, children: 0, firstTimers: 0, online: 0, byId: me!.id, at: "" } : null); }, [m?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!m || !h) return <Empty title="No service to count" body="Once a service is scheduled, its headcount goes here." icon={<Users size={26} />} />;
-  const canEdit = access!.can("attendance.record");
+  // Headcount: the head usher and their assistants (and anyone the admin gives it to)
+  const canEdit = access!.can("headcount.record");
   const total = h.men + h.women + h.children;
   const checked = checkinsFor(state, m.id).length;
   const set = (k: (typeof CATS)[number]["key"], v: number) => setH({ ...h, [k]: Math.max(0, v) });
@@ -266,16 +275,29 @@ function UsherCheckin({ meeting }: { meeting: Meeting }) {
 
 /** Roll call for each service: pick the service and the list, then mark each person. */
 function RollCall() {
-  const { state, access, me } = useStore();
+  const { state, access, me, updateChurch } = useStore();
   const [taking, setTaking] = useState<{ m: Meeting; key: string; name: string } | null>(null);
+  const [delegating, setDelegating] = useState(false);
   const meetings = rollCallMeetings(state);
-  const lists = me && access ? (access.isLead || access.isPastoral
-    ? [{ key: "leaders", name: "Leaders and pastors" }, ...state.groups.filter((g) => g.kind === "department").map((g) => ({ key: g.id, name: g.name }))]
-    : myRollCalls(state, access, me.id)) : [];
-  if (!meetings.length) return <Empty title="No roll call open right now" body="Roll call opens 30 minutes before each service and stays open until 12 hours after it ends." icon={<Users size={26} />} />;
+  const lists = me && access ? myRollCalls(state, access, me.id) : [];
+  const by = state.church.profile?.leadersRollcallBy ?? [];
+  const delegate = access?.isAdmin && (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-page p-3 text-[13.5px] ring-1 ring-line">
+      <span className="flex-1 text-ink-soft">{by.length ? <>Leaders&apos; roll call can also be taken by <b className="text-ink">{by.map((id) => state.people.find((p) => p.id === id)?.firstName).filter(Boolean).join(", ")}</b>.</> : "You take the roll call of leaders and the pastorate. You can name someone to take it for you."}</span>
+      <Button className="py-1.5 text-[13px]" onClick={() => setDelegating(true)}>{by.length ? "Change" : "Name an assistant"}</Button>
+      <Sheet open={delegating} onClose={() => setDelegating(false)} title="Who can take the leaders' roll call for you?">
+        <ul className="divide-y divide-line">{state.people.filter((p) => !p.isChild && !p.inactive && ["worker", "leader"].includes(p.stage)).slice(0, 80).map((p) => { const on = by.includes(p.id); return (
+          <li key={p.id} className="flex items-center gap-3 py-2"><Avatar person={p} size={30} /><span className="flex-1">{fullName(p)}</span>
+            <Button className="py-1.5 text-[13px]" onClick={() => updateChurch({}, { leadersRollcallBy: on ? by.filter((x) => x !== p.id) : [...by, p.id] }, on ? `stopped ${p.firstName} taking the leaders' roll call` : `asked ${p.firstName} to take the leaders' roll call`)}>{on ? "Remove" : "Choose"}</Button></li>
+        ); })}</ul>
+      </Sheet>
+    </div>
+  );
+  if (!meetings.length) return <>{delegate}<Empty title="No roll call open right now" body="Roll call opens 30 minutes before each service and stays open until 12 hours after it ends." icon={<Users size={26} />} /></>;
   if (!lists.length) return <Empty title="No lists for you" body="Department heads take roll call for their team. The admin takes it for leaders and pastors." icon={<Users size={26} />} />;
   return (
     <div className="space-y-4">
+      {delegate}
       {meetings.map((m) => (
         <Panel key={m.id} title={`${m.name}, ${timeOf(m.start)}`}>
           <ul className="grid gap-2 sm:grid-cols-2">
