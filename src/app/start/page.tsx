@@ -14,7 +14,7 @@ export default function Start() {
   useEffect(() => {
     if (mode !== "live") return;
     if (authStatus === "signed-out") router.replace("/login");
-    if (authStatus === "ready") router.replace("/today");
+    if (authStatus === "ready" || authStatus === "error") router.replace("/today");
   }, [mode, authStatus, router]);
 
   return (

@@ -54,7 +54,8 @@ export function LiveSignIn({ returnTo = "/login", startMode = "in" }: { returnTo
   const [checkEmail, setCheckEmail] = useState(false);
   const [entering, setEntering] = useState(false);
 
-  useEffect(() => { if (authStatus === "ready") router.replace("/today"); }, [authStatus, router]);
+  // Signed in: on to the app. If the church couldn't load, the app shows a "try again" screen; it never sends people back here.
+  useEffect(() => { if (authStatus === "ready" || authStatus === "error") router.replace("/today"); }, [authStatus, router]);
 
   if (authStatus === "loading") return <Preloader label="Checking your account" />;
   if (entering && authStatus !== "no-church") return <Preloader />;

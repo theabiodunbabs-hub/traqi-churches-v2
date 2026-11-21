@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle, Bell, Building2, ChevronLeft, Check, Clock, GraduationCap, HeartHandshake, CalendarCheck, CalendarDays, HandCoins, Home, LayoutGrid, LogOut, Menu, MessageCircle,
   Megaphone, Plus, Banknote, Mail, MessageCircleHeart, Search, Settings2, Share, Trophy, HandHeart, Sparkles, Sprout, Users, UserRound, X,
@@ -38,7 +38,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [ownerLive, setOwnerLive] = useState(false);
   useEffect(() => { if (mode === "live" && me) isOwnerLive().then(setOwnerLive).catch(() => setOwnerLive(false)); }, [mode, me]);
 
-  useEffect(() => { if (ready && !me) router.replace("/login"); }, [ready, me, router]);
+  // Where to send someone who can't see the app. Only a definite answer moves them, never a moment
+  // mid-load, so the app and the sign-in page can't bounce someone back and forth.
+  const { authStatus } = useStore();
+  useEffect(() => {
+    if (!ready) return;
+    if (mode !== "live") { if (!me) router.replace("/login"); return; }
+    if (authStatus === "signed-out") router.replace("/login");
+    else if (authStatus === "no-church") router.replace("/start");
+  }, [ready, me, mode, authStatus, router]);
+  // Signed in and loaded, but this person isn't in the data: load once more rather than bounce to sign-in
+  const retried = useRef(false);
+  useEffect(() => { if (mode === "live" && ready && authStatus === "ready" && !me && !retried.current) { retried.current = true; reload(); } }, [mode, ready, authStatus, me, reload]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } };
     window.addEventListener("keydown", k);
@@ -51,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = notes.filter((n) => !seen.has(n.key)).length;
   const overdue = useMemo(() => state.cases.filter((c) => c.stage === "new" && hoursSince(c.createdAt) > 48).length, [state.cases]);
 
+  if (mode === "live" && ready && authStatus === "error") return <LoadError onRetry={reload} />;
   if (!ready || !me || !access) return <ShellSkeleton />;
 
   const staff = !access.isMemberOnly;
@@ -624,6 +636,21 @@ function ChurchSwitcher() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Signed in, but the church couldn't load and nothing is saved on this device yet. */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  const { syncError, signOut } = useStore();
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-page p-6">
+      <div className="card max-w-sm p-7 text-center">
+        <h1 className="font-display text-xl font-semibold">We couldn&apos;t load your church</h1>
+        <p className="mt-2 text-[14.5px] text-ink-soft">This is usually the connection. Check your network and try again.</p>
+        {syncError && <p className="mt-3 rounded-xl bg-page px-3 py-2 text-[12.5px] text-muted">{syncError}</p>}
+        <div className="mt-5 flex justify-center gap-2"><Button variant="primary" onClick={onRetry}>Try again</Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></div>
+      </div>
     </div>
   );
 }

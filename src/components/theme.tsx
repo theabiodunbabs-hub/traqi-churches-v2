@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { applyTheme, storedMode, type ThemeMode } from "@/lib/theme";
+import { applyTheme, storedMode, type HeadingStyle, type ThemeMode } from "@/lib/theme";
 import { wordsFor, type Words } from "@/lib/words";
 import { setJourney } from "@/lib/journey";
 import { cx } from "./ui";
@@ -22,20 +22,32 @@ export function ChurchTheme({ children }: { children: ReactNode }) {
   useEffect(() => { setModeState(storedMode()); }, []);
 
   const p = state.church.profile;
+  const churchLoaded = !!state.church.name;
   // The church's own journey stages, in place before any page draws a stage
   useMemo(() => setJourney(p?.journey), [p?.journey]);
   useEffect(() => {
     const run = () => {
-      applyTheme({ color: p?.color, accent: p?.accent, heading: p?.heading, mode });
+      // Until the church has loaded, keep painting in its last known colours rather than the defaults,
+      // so the screen doesn't flash from one colour scheme to another on every visit.
+      let look: { color?: string; accent?: string; heading?: HeadingStyle } = { color: p?.color, accent: p?.accent, heading: p?.heading };
+      if (!churchLoaded) { try { look = JSON.parse(localStorage.getItem("traqi-look") ?? "{}"); } catch { look = {}; } }
+      applyTheme({ ...look, mode });
       setResolved((document.documentElement.dataset.theme as "light" | "dark") ?? "light");
       // Remember the look, so the next visit paints in the church's colours straight away
-      try { localStorage.setItem("traqi-look", JSON.stringify({ color: p?.color, accent: p?.accent, heading: p?.heading })); } catch { /* storage unavailable */ }
+      if (churchLoaded) {
+        try {
+          localStorage.setItem("traqi-look", JSON.stringify(look));
+          // The finished colours too, so the very first paint of the next visit is already right
+          const el = document.documentElement;
+          localStorage.setItem(`traqi-look-style-${el.dataset.theme}`, el.getAttribute("style") ?? "");
+        } catch { /* storage unavailable */ }
+      }
     };
     run();
     const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
     mq?.addEventListener?.("change", run);
     return () => mq?.removeEventListener?.("change", run);
-  }, [p?.color, p?.accent, p?.heading, mode]);
+  }, [p?.color, p?.accent, p?.heading, mode, churchLoaded]);
 
   const value = useMemo(() => ({
     mode, resolved,
@@ -70,7 +82,7 @@ export function ThemeSwitch({ dark = false, className }: { dark?: boolean; class
 }
 
 /** Before the app loads, paint with the last look this device saw, so there's no flash of the wrong colour. */
-export const EARLY_THEME_SCRIPT = `(function(){try{var m=localStorage.getItem("traqi-theme")||"auto";var d=m==="dark"||(m==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
+export const EARLY_THEME_SCRIPT = `(function(){try{var m=localStorage.getItem("traqi-theme")||"auto";var d=m==="dark"||(m==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);var t=d?"dark":"light";var e=document.documentElement;var st=localStorage.getItem("traqi-look-style-"+t);if(st)e.setAttribute("style",st);e.dataset.theme=t;e.style.colorScheme=t;}catch(e){}})();`;
 
 /** Public pages (check-in, events, church page) wear the church's look even when nobody is signed in. */
 export function usePublicTheme(profile?: { color?: string; accent?: string; heading?: "modern" | "classic" | "bold" }) {

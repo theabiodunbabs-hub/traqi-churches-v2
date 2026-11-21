@@ -25,7 +25,8 @@ const USER_KEY = "traqi-demo-user";
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
 export type ImportRow = NewPerson & { groupName?: string };
 
-export type AuthStatus = "loading" | "signed-out" | "no-church" | "ready";
+/** "error": signed in, but the church couldn't be loaded and there is no saved copy (usually no network). */
+export type AuthStatus = "loading" | "signed-out" | "no-church" | "ready" | "error";
 
 type Store = {
   ready: boolean;
@@ -138,7 +139,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const queue = useRef<Promise<void>>(Promise.resolve());
   latest.current = state;
 
-  const refresh = useCallback(async () => {
+  // One load at a time: sign-in, the sign-in event and "reload" can all ask at once, and two loads
+  // racing each other redraw the screen twice.
+  const inflight = useRef<Promise<void> | null>(null);
+  const showingCopy = useRef(false);
+  const refresh = useCallback(() => {
+    if (!inflight.current) inflight.current = loadOnce().finally(() => { inflight.current = null; });
+    return inflight.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const loadOnce = async () => {
     if (!LIVE) return;
     // Show the copy kept on this device straight away (read-only until fresh data arrives)
     let userId: string | undefined;
@@ -146,7 +156,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       userId = (await supabase!.auth.getSession()).data.session?.user.id;
       if (userId && !churchId.current) {
         const c = await readCache<SeedState>(userId);
-        if (c) { loaded.current = c.state; setState(c.state); setMeId(c.meId); setAuthStatus("ready"); setReady(true); }
+        // Only use the copy if it really contains this person, so the app never thinks "signed in, but who?"
+        if (c && c.state.people?.some((p) => p.id === c.meId)) {
+          loaded.current = c.state; showingCopy.current = true;
+          setState(c.state); setMeId(c.meId); setAuthStatus("ready"); setReady(true);
+        }
       }
     } catch { /* no copy on this device */ }
     try {
@@ -157,8 +171,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         loaded.current = r.state;
         let pending = null;
         try { pending = JSON.parse(localStorage.getItem("traqi-pending-contact") ?? "null"); } catch {}
-        setState({ ...r.state, pendingContact: pending, templates: r.needsTemplates ? DEFAULT_TEMPLATES.map((t) => ({ ...t })) : r.state.templates });
+        const next = { ...r.state, pendingContact: pending, templates: r.needsTemplates ? DEFAULT_TEMPLATES.map((t) => ({ ...t })) : r.state.templates };
+        // Nothing has changed yet, so nothing needs saving (unless the default messages were just added)
+        if (!r.needsTemplates) loaded.current = next;
+        showingCopy.current = false;
+        setState(next);
         setMeId(r.meId);
+        setSyncError(null);
         setAuthStatus("ready");
         if (userId) void writeCache({ userId, churchId: r.churchId, meId: r.meId, at: Date.now(), state: r.state });
       } else {
@@ -167,11 +186,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setAuthStatus(data.session ? "no-church" : "signed-out");
       }
     } catch (e) {
-      setSyncError(e instanceof Error ? e.message : "Couldn't load your church.");
-      setAuthStatus("signed-out");
+      // A network blip shouldn't throw someone out: keep the copy on screen and say what happened
+      const msg = e instanceof Error ? e.message : "Couldn't load your church.";
+      if (showingCopy.current || churchId.current) setSyncError(`Couldn't refresh (${msg}). You're seeing your last saved copy; check your connection.`);
+      else {
+        setSyncError(msg);
+        const { data } = await supabase!.auth.getSession().catch(() => ({ data: { session: null } }));
+        setAuthStatus(data.session ? "error" : "signed-out");
+      }
     }
     setReady(true);
-  }, []);
+  };
 
   useEffect(() => {
     if (LIVE) {
@@ -181,6 +206,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (event === "SIGNED_IN" && !churchId.current) setTimeout(refresh, 0);
         if (event === "SIGNED_OUT") {
           void clearCache();
+          try { ["traqi-look", "traqi-look-style-light", "traqi-look-style-dark"].forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
           snap.current = null; churchId.current = null; loaded.current = null;
           setState(EMPTY); setMeId(null); setAuthStatus("signed-out");
         }
