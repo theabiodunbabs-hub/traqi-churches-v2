@@ -9,7 +9,8 @@ import { useStore } from "@/lib/store";
 import { Button, Field, Toggle, cx, inputCls, toast } from "./ui";
 import { COVERS } from "./brand";
 import { uploadImage } from "@/lib/upload";
-import { PERSON_LABELS, cleanOptions, daysOf, peopleOf, slugify, suggestQuestions, themeOf, withDayPlan } from "@/lib/events";
+import { ticketPrefix } from "@/lib/event-mgmt";
+import { PERSON_LABELS, cleanOptions, daysOf, isRequired, isShirtSize, optionalByDefault, showsDropdown, peopleOf, slugify, suggestQuestions, themeOf, withDayPlan } from "@/lib/events";
 import type { ChurchEvent, EventDay, EventPerson, EventQuestion, EventVenue, QuestionType, RegType } from "@/lib/types";
 
 const TYPES: { k: QuestionType; label: string }[] = [
@@ -48,7 +49,8 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
     if (bad) return toast(`On ${bad.date}, the end time is before the start time`);
     const q = e.questions.find((x) => (x.type === "choice" || x.type === "multi") && cleanOptions(x.options ?? []).length < 2);
     if (q) return toast(`“${q.label || "A question"}” needs at least two choices`);
-    onSave({ ...withDayPlan(e, plan), tagline: e.theme ?? e.tagline, speakers: (e.people ?? []).map((p) => ({ name: p.name, role: p.label })),
+    const objectives = (e.objectives ?? []).map((o) => o.trim()).filter(Boolean);
+    onSave({ ...withDayPlan(e, plan), objectives: objectives.length ? objectives : undefined, tagline: e.theme ?? e.tagline, speakers: (e.people ?? []).map((p) => ({ name: p.name, role: p.label })),
       questions: e.questions.filter((x) => x.label.trim()).map((x) => ({ ...x, label: x.label.trim(), options: x.options ? cleanOptions(x.options) : undefined })) });
   };
 
@@ -72,6 +74,17 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
             <Field label="Reference"><input className={inputCls} value={e.verse?.ref ?? ""} onChange={(x) => set("verse", { text: e.verse?.text ?? "", ref: x.target.value })} placeholder="Isaiah 60:1" /></Field>
           </div>
           <Field label="About the event"><textarea className={cx(inputCls, "min-h-32")} value={e.description} onChange={(x) => set("description", x.target.value)} placeholder="What will happen, who it's for, and why they should come." /></Field>
+          <div className="rounded-2xl bg-page p-4 ring-1 ring-line">
+            <p className="mb-3 text-[13px] font-semibold text-ink-soft">For the committee (not shown on the public page)</p>
+            <div className="space-y-3">
+              <Field label="Goals"><textarea rows={2} className={inputCls} value={e.goals ?? ""} onChange={(x) => set("goals", x.target.value || undefined)} placeholder="What success looks like for this event" /></Field>
+              <Field label="Objectives" hint="One per line."><textarea rows={3} className={inputCls} value={(e.objectives ?? []).join("\n")} onChange={(x) => set("objectives", x.target.value.split("\n").some((l) => l.trim()) ? x.target.value.split("\n") : undefined)} placeholder={"500 registrations\nEvery first-timer called within 48 hours"} /></Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Target budget" hint="If known."><input inputMode="numeric" className={inputCls} value={e.targetBudget ?? ""} onChange={(x) => set("targetBudget", Number(x.target.value.replace(/\D/g, "")) || undefined)} /></Field>
+                <Field label="Registration target" hint="A goal, not a limit."><input inputMode="numeric" className={inputCls} value={e.regTarget ?? ""} onChange={(x) => set("regTarget", Number(x.target.value.replace(/\D/g, "")) || undefined)} /></Field>
+              </div>
+            </div>
+          </div>
         </Section>
 
         <Section k="days" open={open} setOpen={setOpen}>
@@ -139,6 +152,7 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
           {e.registration !== false && <p className="text-[12.5px] text-muted">After registering, people can tap “Register someone else” for family and friends. Each person gets their own ticket.</p>}
           <div className="grid grid-cols-2 gap-2">
             <Field label="Places" hint="Empty for no limit."><input inputMode="numeric" className={inputCls} value={e.capacity ?? ""} onChange={(x) => set("capacity", Number(x.target.value.replace(/\D/g, "")) || undefined)} /></Field>
+            <Field label="Ticket IDs start with" hint={`Tickets look like ${ticketPrefix(e)}-00125.`}><input className={cx(inputCls, "num uppercase")} maxLength={6} value={e.ticketPrefix ?? ""} placeholder={ticketPrefix({ ...e, ticketPrefix: undefined })} onChange={(x) => set("ticketPrefix", x.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") || undefined)} /></Field>
             <Field label="Registration closes"><input type="date" className={inputCls} value={e.closesAt?.slice(0, 10) ?? ""} onChange={(x) => set("closesAt", x.target.value ? new Date(`${x.target.value}T23:59:00+01:00`).toISOString() : undefined)} /></Field>
           </div>
           <Field label="Link" hint={slugOk ? "Letters, numbers and dashes. Changing it after sharing breaks the old link." : "Another event already uses this link."}>
@@ -356,12 +370,12 @@ function FormBuilder({ e, questions, onChange, compact }: { e: ChurchEvent; ques
   const move = (i: number, d: -1 | 1) => { const n = [...questions]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); onChange(n); };
   return (
     <div className="space-y-3">
-      {!compact && <p className="text-[13.5px] text-muted">Name and phone number are always asked. Add anything else here.</p>}
+      {!compact && <p className="text-[13.5px] text-muted">First name, last name, phone number and email are always asked. Every question is compulsory, except T-shirt size, school or workplace, and where someone is coming from. Change any of them with the Required switch.</p>}
       {ideas.length > 0 && (
         <div className="rounded-2xl bg-brand-soft/50 p-3 ring-1 ring-brand/20">
           <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-brand"><Sparkles size={14} /> Suggested for {e.title || "this event"}</p>
           <div className="flex flex-wrap gap-1.5">{ideas.map((s) => (
-            <button key={s.id} type="button" onClick={() => onChange([...questions, { id: uid("q"), label: s.label, type: s.type, options: s.options, perPerson: s.perPerson }])} className="rounded-full bg-surface px-3 py-1.5 text-[13px] ring-1 ring-line hover:ring-brand/50" title={s.why}>
+            <button key={s.id} type="button" onClick={() => onChange([...questions, { id: uid("q"), label: s.label, type: s.type, options: s.options, perPerson: s.perPerson, display: s.display }])} className="rounded-full bg-surface px-3 py-1.5 text-[13px] ring-1 ring-line hover:ring-brand/50" title={s.why}>
               <Plus size={12} className="mr-1 inline text-brand" />{s.label}
             </button>
           ))}</div>
@@ -389,10 +403,28 @@ function FormBuilder({ e, questions, onChange, compact }: { e: ChurchEvent; ques
               ))}
               <button type="button" onClick={() => upd(i, { options: [...(q.options ?? []), ""] })} className="ml-6 text-[13px] font-medium text-brand">+ Add a choice</button>
               <p className="ml-6 text-[12px] text-muted">Each choice on its own line, so commas inside a choice are fine. Pasting a list fills several at once.</p>
+              {q.type === "choice" && (
+                <div className="ml-6 flex flex-wrap items-center gap-2 pt-1 text-[13px]">
+                  <span className="text-muted">Show as</span>
+                  <span className="inline-flex rounded-lg bg-surface p-0.5 ring-1 ring-line" role="radiogroup" aria-label="Show choices as">
+                    {([["buttons", "Buttons"], ["dropdown", "Dropdown list"]] as const).map(([k, label]) => {
+                      const on = (showsDropdown(q) ? "dropdown" : "buttons") === k;
+                      return (
+                        <button key={k} type="button" role="radio" aria-checked={on} onClick={() => upd(i, { display: k })}
+                          className={cx("rounded-md px-2.5 py-1 font-medium", on ? "bg-brand text-white" : "text-muted hover:text-ink")}>
+                          {k === "dropdown" && <ChevronDown size={12} className="mr-1 inline" />}{label}
+                        </button>
+                      );
+                    })}
+                  </span>
+                  {isShirtSize(q.label) && !q.display && <span className="text-[12px] text-muted">T-shirt sizes show as a dropdown</span>}
+                </div>
+              )}
             </div>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-[13px]">
-            <label className="flex items-center gap-2">Required<Toggle label="Required" on={!!q.required} onChange={(v) => upd(i, { required: v })} /></label>
+            <label className="flex items-center gap-2">Required<Toggle label="Required" on={isRequired(q)} onChange={(v) => upd(i, { required: v })} /></label>
+            {q.required === undefined && optionalByDefault(q) && <span className="text-[12px] text-muted">Optional by default</span>}
             <input className="min-w-40 flex-1 rounded-lg bg-surface px-2.5 py-1.5 text-[13px] ring-1 ring-line outline-none" value={q.help ?? ""} onChange={(x) => upd(i, { help: x.target.value || undefined })} placeholder="Help text (optional)" />
             <span className="ml-auto flex gap-0.5">
               <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="rounded-lg p-1.5 text-muted hover:bg-surface disabled:opacity-30" aria-label="Move up"><ArrowUp size={14} /></button>

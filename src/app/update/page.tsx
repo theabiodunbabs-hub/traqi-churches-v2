@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { AboutYou, aboutAnswers, aboutOf, type About } from "@/components/about-you";
 import { CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Button, Field, inputCls } from "@/components/ui";
+import { Button, Field, FieldGroup, inputCls } from "@/components/ui";
+import { BirthdayPicker } from "@/components/birthday-picker";
+import { birthdayParts } from "@/lib/format";
 import { Consent, PublicFrame } from "@/components/public";
 import type { Person } from "@/lib/types";
 
@@ -72,6 +74,7 @@ export default function UpdateDetails() {
         {step === "form" && who && (
           <form className="space-y-4" onSubmit={(e) => {
             e.preventDefault();
+            if (!birthdayParts(f.birthday)) return setErr("Please choose your birthday (day and month).");
             if (!agree) return setErr("Please tick the box so we can keep your details.");
             const patch = Object.fromEntries(Object.entries(f).filter(([k, v]) => ["whatsapp", "email", "birthday", "location", "occupation"].includes(k) && v !== (who as Record<string, unknown>)[k])) as Partial<Person>;
             updatePerson(who.id, { ...patch, custom: { ...(who.custom ?? {}), ...aboutAnswers(about) }, consent: { at: new Date().toISOString(), via: "update-link" } }, "self");
@@ -81,7 +84,9 @@ export default function UpdateDetails() {
             <p className="-mt-2 text-ink-soft">Check what we have and fill in anything missing.</p>
             {field("whatsapp", "WhatsApp number", { inputMode: "tel" })}
             {field("email", "Email", { type: "email", autoComplete: "email" })}
-            {field("birthday", "Birthday (day, month and year)", { type: "date" })}
+            <FieldGroup label="Birthday (day-month only)" hint="So the church can celebrate you. No year needed.">
+              <BirthdayPicker value={f.birthday} onChange={(v) => { setF({ ...f, birthday: v || undefined }); setErr(""); }} invalid={err.startsWith("Please choose your birthday")} />
+            </FieldGroup>
             <div className="grid grid-cols-2 gap-3">
               {field("location", "Area you live in")}
               {field("occupation", "Occupation")}

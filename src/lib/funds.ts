@@ -41,34 +41,44 @@ export const firstStage = (s: SeedState): FundStage => (setupOf(s).route === 1 ?
 export function seesFund(s: SeedState, a: Access, f: FundRequest) {
   if (f.byId === a.personId || a.isPastoral || a.isAdmin || isFinance(a)) return true;
   if (f.groupId && a.leads.has(f.groupId)) return true;
-  const ev = f.eventId ? s.events.find((e) => e.id === f.eventId) : undefined;
-  return !!ev?.committee && (ev.committee.headId === a.personId || ev.committee.assistantId === a.personId);
+  return reviewsForEvent(s, a, f);
 }
 
-export type FundAction = "forward" | "approve" | "return" | "decline" | "pay" | "acceptReport" | "returnReport";
+/** The committee-level reviewers of an event's budgets: the head, the assistant, the committee's Finance Lead, and anyone given the budget right. */
+export function reviewsForEvent(s: SeedState, a: Pick<Access, "personId">, f: FundRequest) {
+  const c = f.eventId ? s.events.find((e) => e.id === f.eventId)?.committee : undefined;
+  return !!c && (c.headId === a.personId || c.assistantId === a.personId || c.financeLeadId === a.personId
+    || !!c.members.find((m) => m.personId === a.personId)?.perms?.includes("budget"));
+}
+
+export type FundAction = "forward" | "approve" | "return" | "decline" | "pay" | "acceptReport" | "returnReport" | "committeeApprove" | "committeeReturn";
 /** What this person can do to a request right now. */
 export function actionsFor(s: SeedState, a: Access, f: FundRequest): FundAction[] {
   const set = setupOf(s); const out: FundAction[] = [];
   const total = totalOf(s, f);
   if (f.parentId) return out;
+  // Event budgets: the committee leadership reviews first, and again when finance or the Lead Pastor sends one back
+  if (f.stage === "committee" && reviewsForEvent(s, a, f)) out.push("committeeApprove", "committeeReturn");
   if (f.stage === "finance" && reviews(s, a)) {
     out.push("forward");
     if (set.route === 3 && total <= (set.limit ?? 0)) out.push("approve");
     if (f.refund && set.route === 3 && total <= (set.limit ?? 0)) out.push("pay");
     out.push("return");
   }
-  if (f.stage === "pastor" && a.isPastoral) out.push("approve", "return", "decline");
+  // The Lead Pastor gives the final approval on event budgets; the pastorate on everything else
+  if (f.stage === "pastor" && (f.eventId ? a.isLead : a.isPastoral)) out.push("approve", "return", "decline");
   if ((f.stage === "approved" || (f.stage === "paid" && paidOf(f) < total)) && pays(a)) out.push("pay");
   if (f.stage === "paid" && f.report && !f.report.reviewedAt && isFinance(a)) out.push("acceptReport", "returnReport");
   return out;
 }
 
 export const STAGE_LABEL: Record<FundStage, string> = {
-  committee: "With the committee", finance: "With finance", pastor: "With the pastor", approved: "Approved, to be paid",
+  committee: "With the event committee", finance: "With finance", pastor: "With the pastor", approved: "Approved, to be paid",
   returned: "Sent back", declined: "Declined", paid: "Paid", closed: "Closed",
 };
 export function stageLabel(s: SeedState, f: FundRequest) {
   if (f.stage === "paid") return paidOf(f) < totalOf(s, f) ? "Part paid" : f.report ? (f.report.reviewedAt ? "Closed" : "Report sent") : "Paid, report due";
+  if (f.stage === "committee" && f.returnedTo === "committee") return f.returnedFrom === "pastor" ? "Sent back by the Lead Pastor" : "Sent back by finance";
   return STAGE_LABEL[f.stage];
 }
 export const stageTone = (f: FundRequest): "good" | "glow" | "brand" | "neutral" | "alert" =>

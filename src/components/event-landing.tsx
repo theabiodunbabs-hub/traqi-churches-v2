@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
-  ArrowLeft, ArrowRight, BedDouble, CalendarPlus, Check, ChevronDown, Clock, Copy, Download, Gift, Globe, Image as ImageIcon, Mail, MapPin, Navigation,
+  ArrowLeft, ArrowRight, BadgeCheck, BedDouble, CalendarPlus, Check, ChevronDown, Clock, Copy, Download, Gift, Globe, Image as ImageIcon, Lock, Mail, MapPin, Navigation,
   Phone, Plus, Quote, Radio, Share2, Ticket, UserRound, Users, UsersRound, Wifi, X,
 } from "lucide-react";
 import { Confetti, cx } from "./ui";
@@ -10,14 +10,22 @@ import { COVERS, ChurchMark } from "./brand";
 import { QR } from "./public";
 import { WhatsAppIcon } from "./care";
 import { usePublicTheme } from "./theme";
+import { ChoiceMenu } from "./choice-menu";
+import { BirthdayPicker } from "./birthday-picker";
+import { birthdayParts } from "@/lib/format";
+import { MEMBER_PARAM, REGISTER_PARAM, genderAnswer, isGenderQuestion, type MemberStatus } from "@/lib/event-join";
 import { digits } from "@/lib/format";
 import { ticketCanvas, saveCanvas, shareCanvas, type Format } from "@/lib/keepsake";
-import { daysOf, eventPath, happeningNow, lagosISO, peopleOf, regTypesOf, themeOf } from "@/lib/events";
+import { daysOf, eventPath, happeningNow, isRequired, isShirtSize, joinName, lagosISO, peopleOf, regTypesOf, showsDropdown, themeOf } from "@/lib/events";
 import { shareImage } from "@/lib/share-image";
 import { saveBlob } from "@/lib/download";
 import type { ChurchEvent, ChurchProfile, EventPerson, EventQuestion, RegType } from "@/lib/types";
 
-export type Attendee = { name: string; phone: string; email?: string; answers: Record<string, string> };
+/** One person registering. First and last name are asked separately; `name` is both together. */
+export type Attendee = { firstName?: string; lastName?: string; name: string;
+  /** Their WhatsApp number. */ phone: string;
+  /** Their hotline or call number. */ altPhone?: string;
+  email?: string; answers: Record<string, string> };
 export type RegInput = Attendee & { type: RegType; days: string[]; guests: number; others: Attendee[] };
 export type RegTicket = { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already" };
 export type RegResult = { status: RegTicket["status"]; ticket: string; tickets?: RegTicket[] };
@@ -47,9 +55,11 @@ const TEMPLATES = {
 } as const;
 
 /** The public event landing page: one of three templates, all sections optional except the essentials. */
-export function EventLanding({ e, church, registered, recent = [], onRegister, onFeedback, preview }: {
+export function EventLanding({ e, church, registered, recent = [], onRegister, onFeedback, member, preview }: {
   e: ChurchEvent; church: ChurchInfo; registered: number; recent?: string[];
-  onRegister: (r: RegInput) => Promise<RegResult>; onFeedback?: (ticket: string, answers: Record<string, string>) => Promise<void>; preview?: boolean;
+  onRegister: (r: RegInput) => Promise<RegResult>; onFeedback?: (ticket: string, answers: Record<string, string>) => Promise<void>;
+  /** Members register with Google, which also joins them to the church. Off in the in-app preview. */
+  member?: MemberFlow; preview?: boolean;
 }) {
   usePublicTheme(church.profile);
   const tpl = TEMPLATES[e.template ?? "flyer"];
@@ -116,7 +126,7 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
           </div>
 
           <aside id="register" className="scroll-mt-20 pt-12 lg:sticky lg:top-16 lg:h-fit lg:self-start">
-            {regOn ? <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} H={H} />
+            {regOn ? <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} member={preview ? undefined : member} H={H} />
               : <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>No registration needed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Just come. Everyone is welcome.</p></div>}
             {url && !closed && (
               <div className="mt-4 flex items-center gap-4 rounded-3xl bg-[var(--ev-card)] p-4 ring-1 ring-[var(--ev-line)]">
@@ -566,7 +576,7 @@ const TYPE_INFO: Record<RegType, { icon: typeof UserRound; title: string; body: 
   online: { icon: Wifi, title: "Online", body: "Join from anywhere. We'll send the link." },
 };
 
-function QuestionInput({ q, value, onChange }: { q: EventQuestion; value: string; onChange: (v: string) => void }) {
+function QuestionInput({ q, value, onChange, required }: { q: EventQuestion; value: string; onChange: (v: string) => void; required: boolean }) {
   const opts = q.options ?? [];
   const pick = (o: string) => {
     if (q.type !== "multi") return onChange(o);
@@ -576,9 +586,11 @@ function QuestionInput({ q, value, onChange }: { q: EventQuestion; value: string
   const on = (o: string) => (q.type === "multi" ? (value ? value.split(" | ") : []).includes(o) : value === o);
   return (
     <div>
-      <span className="mb-1.5 block text-[14px] font-medium">{q.label}{!q.required && <span className="font-normal text-[var(--ev-muted)]"> (optional)</span>}</span>
+      <span className="mb-1.5 block text-[14px] font-medium">{q.label}{!required && <span className="font-normal text-[var(--ev-muted)]"> (optional)</span>}</span>
       {q.help && <span className="-mt-1 mb-1.5 block text-[12.5px] text-[var(--ev-muted)]">{q.help}</span>}
-      {q.type === "choice" || q.type === "multi" || q.type === "yesno" ? (
+      {showsDropdown(q) ? (
+        <ChoiceMenu label={q.label} options={opts} value={opts.includes(value) ? value : ""} onChange={onChange} placeholder={isShirtSize(q.label) ? "Choose a size" : "Choose one"} />
+      ) : q.type === "choice" || q.type === "multi" || q.type === "yesno" ? (
         <div className={cx("grid gap-1.5", (q.type === "yesno" || opts.length <= 4) && "grid-cols-2")}>
           {(q.type === "yesno" ? ["Yes", "No"] : opts).map((o) => (
             <button type="button" key={o} onClick={() => pick(o)} className={cx("flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[14px] ring-1", on(o) ? "font-semibold ring-2 ring-[var(--ev-accent)]" : "ring-[var(--ev-line)]")} style={on(o) ? { background: "color-mix(in oklab, var(--ev-accent) 12%, transparent)" } : undefined}>
@@ -592,47 +604,123 @@ function QuestionInput({ q, value, onChange }: { q: EventQuestion; value: string
   );
 }
 
-const blank = (): Attendee => ({ name: "", phone: "", email: "", answers: {} });
+const blank = (): Attendee => ({ firstName: "", lastName: "", name: "", phone: "", altPhone: "", email: "", answers: {} });
 
-function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; H: string }) {
+/**
+ * How a member registers: the page asks Google who they are, then either sends them Home (already in the church)
+ * or shows the form filled in from Google, which registers them and joins them to the church.
+ * Live mode signs in with Google; the demo offers pretend Google accounts.
+ */
+export type MemberFlow = {
+  status: () => Promise<MemberStatus>;
+  /** Signs out whoever was signed in on this phone, then asks Google which account (live: leaves the page). */
+  google: () => Promise<void>;
+  /** Demo only: pretend Google accounts to choose from. */
+  accounts?: { key: string; name: string; email: string; note: string }[];
+  pick?: (key: string) => void;
+  register: (r: MemberReg) => Promise<RegResult>;
+  /** Home, where their ticket waits. */
+  dashboard: () => void;
+  /** Already signed in as a member (inside the app): no question, no Google, the form comes filled in. */
+  known?: boolean;
+};
+export type MemberReg = RegInput & { gender: "M" | "F"; birthday: string };
+
+type Step = "who" | "google" | "checking" | "type" | "you" | "done" | "home";
+
+function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; member?: MemberFlow; H: string }) {
   // One path: your details, then register. "Register someone else" comes after, for families and friends.
   const types = (() => { const t = regTypesOf(e).filter((x) => x !== "group"); return t.length ? t : (["individual"] as RegType[]); })();
   const days = daysOf(e);
-  const first = types.length > 1 ? "type" : "you";
-  const [step, setStep] = useState<"type" | "you" | "done">(first);
+  const afterWho = types.length > 1 ? "type" : "you";
+  const start: Step = member && !member.known ? "who" : afterWho;
+  const [step, setStep] = useState<Step>(member?.known ? "checking" : start);
+  const [asMember, setAsMember] = useState(false);
   const [type, setType] = useState<RegType>(types[0]);
   const [me, setMe] = useState<Attendee>(blank());
+  const [gender, setGender] = useState<"" | "M" | "F">("");
+  const [birthday, setBirthday] = useState("");
+  const [lockedEmail, setLockedEmail] = useState("");
   const [pickDays, setPickDays] = useState(days.map((d) => d.date));
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const [mine, setMine] = useState<RegTicket[]>([]);
   const [last, setLast] = useState<RegResult["status"] | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
-  const go = (s: typeof step) => { setErr(""); setStep(s); topRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); };
+  const go = (s: Step) => { setErr(""); setStep(s); topRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); };
+  const churchShort = church.name.split(/[,(]/)[0].trim();
+  const genderQ = asMember ? e.questions.find(isGenderQuestion) : undefined;
+  const questions = genderQ ? e.questions.filter((q) => q.id !== genderQ.id) : e.questions;
+
+  // Who signed in with Google: already in the church → Home; new → the form, filled in from Google
+  const resolve = async (wantsForm: boolean) => {
+    if (!member) return;
+    setAsMember(true); go("checking");
+    try {
+      const s = await member.status();
+      if (!s.signedIn) return go("google");
+      if (s.member && (!wantsForm || s.tickets.length)) { if (member.known && s.tickets.length) { setMine(s.tickets); setLast("already"); setAsMember(false); return go("done"); } go("home"); member.dashboard(); return; }
+      const p = s.person;
+      const firstName = p?.firstName || s.firstName || "", lastName = p?.lastName || s.lastName || "";
+      setMe({ ...blank(), firstName, lastName, name: joinName(firstName, lastName), phone: p?.phone ?? "", email: s.email || p?.email || "" });
+      setLockedEmail(s.email || p?.email || "");
+      setGender(p?.gender ?? ""); setBirthday(p?.birthday ?? "");
+      go(afterWho);
+    } catch (x) { setErr(x instanceof Error ? x.message : "Couldn't check your account. Try again."); setStep("google"); }
+  };
+  useEffect(() => {
+    if (!member || typeof window === "undefined") return;
+    const q = new URLSearchParams(location.search);
+    if (member.known) void resolve(true);
+    else if (q.get(MEMBER_PARAM)) void resolve(!!q.get(REGISTER_PARAM));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const check = (a: Attendee) => {
-    if (a.name.trim().length < 2) return "Enter the full name.";
-    if (digits(a.phone).length < 10) return "Enter a phone number with at least 10 digits.";
-    if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) return "Check the email address.";
-    const miss = e.questions.find((q) => q.required && !a.answers[q.id]?.trim());
+    if (!a.firstName?.trim()) return "Enter the first name.";
+    if (!a.lastName?.trim()) return "Enter the last name.";
+    if (digits(a.phone).length < 10) return "Enter your WhatsApp number, with at least 10 digits.";
+    if (!a.email?.trim()) return "Enter the email address.";
+    if (!/^\S+@\S+\.\S+$/.test(a.email.trim())) return "Check the email address.";
+    if (asMember && !birthdayParts(birthday)) return "Choose your birthday (day and month).";
+    if (asMember && !gender) return "Choose male or female.";
+    const miss = questions.find((q) => isRequired(q) && !a.answers[q.id]?.trim());
     return miss ? `Please answer “${miss.label}”.` : "";
   };
   const submit = async () => {
     const m = check(me); if (m) return setErr(m);
     if (days.length > 1 && !pickDays.length) return setErr("Tick at least one day you'll attend.");
     setBusy(true); setErr("");
+    const firstName = me.firstName!.trim(), lastName = me.lastName!.trim(), name = joinName(firstName, lastName);
+    const answers = genderQ && gender ? { ...me.answers, [genderQ.id]: genderAnswer(genderQ, gender) } : me.answers;
+    const input: RegInput = { ...me, answers, firstName, lastName, name, altPhone: me.altPhone?.trim() || undefined, email: (lockedEmail || me.email!).trim(), type, days: pickDays, guests: 0, others: [] };
     try {
-      const r = await onRegister({ ...me, name: me.name.trim(), email: me.email?.trim() || undefined, type, days: pickDays, guests: 0, others: [] });
-      const got = r.tickets?.length ? r.tickets : [{ name: me.name.trim(), ticket: r.ticket, status: r.status }];
-      setMine((x) => [...x.filter((t) => !got.some((g) => g.ticket === t.ticket)), ...got.map((t) => ({ ...t, name: t.name || me.name.trim() }))]);
-      setLast(r.status); go("done");
+      if (asMember && member) {
+        await member.register({ ...input, gender: gender as "M" | "F", birthday });
+        go("home"); member.dashboard();
+      } else {
+        const r = await onRegister(input);
+        const got = r.tickets?.length ? r.tickets : [{ name, ticket: r.ticket, status: r.status }];
+        setMine((x) => [...x.filter((t) => !got.some((g) => g.ticket === t.ticket)), ...got.map((t) => ({ ...t, name: t.name || name }))]);
+        setLast(r.status); go("done");
+      }
     } catch (x) { setErr(x instanceof Error ? x.message : "Something went wrong. Please try again."); }
     setBusy(false);
   };
-  const another = () => { setMe(blank()); setPickDays(days.map((d) => d.date)); go(first); };
+  const another = () => { setMe(blank()); setAsMember(false); setGender(""); setBirthday(""); setLockedEmail(""); setPickDays(days.map((d) => d.date)); go(start); };
+  const back = () => go(step === "google" ? "who" : step === "type" ? (member && !member.known ? "who" : "done") : afterWho === "type" ? "type" : member && !member.known ? "who" : "done");
 
   if (closed && !mine.length) return <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>Registration has closed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Thank you for your interest. See you next time!</p></div>;
   if (step === "done" && last) return <Tickets e={e} church={church} url={url} tickets={mine} status={last} H={H} onAnother={closed ? undefined : another} />;
+
+  const choice = (key: string, icon: ReactNode, title: string, body: string, onClick: () => void) => (
+    <button key={key} type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-2xl p-4 text-left ring-1 ring-[var(--ev-line)] transition hover:ring-2 hover:ring-[var(--ev-accent)]">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: "var(--ev-accent)" }}>{icon}</span>
+      <span className="flex-1"><b className="block text-[15px]">{title}</b><span className="text-[13px] text-[var(--ev-muted)]">{body}</span></span>
+      <ArrowRight size={16} className="text-[var(--ev-muted)]" />
+    </button>
+  );
 
   return (
     <div ref={topRef} className={cx(card, "scroll-mt-24 overflow-hidden")}>
@@ -645,22 +733,64 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: Chu
         {full && <p className="rounded-xl px-3 py-2 text-[13.5px]" style={{ background: "color-mix(in oklab, #f59e0b 18%, transparent)" }}>It&apos;s full. Register to join the waiting list.</p>}
         {mine.length > 0 && <p className="rounded-xl px-3 py-2 text-[13.5px]" style={{ background: "color-mix(in oklab, var(--ev-accent) 10%, transparent)" }}>{mine.length} {mine.length === 1 ? "ticket" : "tickets"} so far. Each person gets their own.</p>}
 
+        {step === "who" && (
+          <div className="space-y-2">
+            {choice("member", <BadgeCheck size={18} />, `A member of ${churchShort}?`, "Continue here", () => { setAsMember(true); go("google"); })}
+            {choice("guest", <UserRound size={18} />, "Invited", "Continue with the form", () => { setAsMember(false); go(afterWho); })}
+          </div>
+        )}
+
+        {step === "google" && member && (
+          <div className="space-y-3">
+            <p className="text-[14.5px]">Continue registration with your Google account. This also creates an account for you if you don&apos;t have one.</p>
+            {!choosing || !member.accounts ? (
+              <button type="button" disabled={busy} onClick={async () => { setErr(""); if (member.accounts) return setChoosing(true); setBusy(true); try { await member.google(); } catch (x) { setErr(x instanceof Error ? x.message : "Couldn't open Google."); setBusy(false); } }}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white py-3.5 text-[15.5px] font-semibold text-[#1f1f1f] shadow-sm ring-1 ring-black/15 transition hover:shadow-md disabled:opacity-60">
+                <GoogleMark /> {busy ? "Opening Google…" : "Continue with Google"}
+              </button>
+            ) : (
+              <div className="overflow-hidden rounded-2xl bg-white text-[#1f1f1f] ring-1 ring-black/15">
+                <p className="flex items-center gap-2 border-b border-black/10 px-4 py-3 text-[13.5px]"><GoogleMark /> Choose an account <span className="ml-auto rounded-full bg-[#fff4d6] px-2 py-0.5 text-[11px] font-semibold text-[#8a5a00]">Demo</span></p>
+                {member.accounts.map((a) => (
+                  <button key={a.key} type="button" onClick={() => { member.pick?.(a.key); setChoosing(false); void resolve(false); }} className="flex w-full items-center gap-3 border-b border-black/5 px-4 py-3 text-left last:border-0 hover:bg-[#f4f6fb]">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e8eefc] text-[13px] font-semibold text-[#2b4ea2]">{initials(a.name)}</span>
+                    <span className="min-w-0 flex-1"><b className="block truncate text-[14px] font-medium">{a.name}</b><span className="block truncate text-[12.5px] text-[#5f6368]">{a.email} · {a.note}</span></span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(step === "checking" || step === "home") && (
+          <p className="flex items-center gap-2 py-6 text-[15px]"><span className="size-4 animate-spin rounded-full border-2 border-[var(--ev-accent)] border-t-transparent" /> {step === "home" ? "Taking you to your Home…" : "Checking your account…"}</p>
+        )}
+
         {step === "type" && (
           <div className="space-y-2">
             <p className="text-[14px] text-[var(--ev-muted)]">How are you joining?</p>
-            {types.map((t) => { const I = TYPE_INFO[t]; return (
-              <button key={t} type="button" onClick={() => { setType(t); go("you"); }} className={cx("flex w-full items-center gap-3 rounded-2xl p-4 text-left ring-1", type === t ? "ring-2 ring-[var(--ev-accent)]" : "ring-[var(--ev-line)]")}>
-                <span className="flex size-10 items-center justify-center rounded-xl text-white" style={{ background: "var(--ev-accent)" }}><I.icon size={18} /></span>
-                <span className="flex-1"><b className="block text-[15px]">{I.title}</b><span className="text-[13px] text-[var(--ev-muted)]">{I.body}</span></span>
-                <ArrowRight size={16} className="text-[var(--ev-muted)]" />
-              </button>
-            ); })}
+            {types.map((t) => { const I = TYPE_INFO[t]; return choice(t, <I.icon size={18} />, I.title, I.body, () => { setType(t); go("you"); }); })}
           </div>
         )}
 
         {step === "you" && (
           <>
-            <AttendeeFields a={me} set={setMe} questions={e.questions} requirePhone />
+            {asMember && <p className="rounded-xl px-3 py-2 text-[13.5px]" style={{ background: "color-mix(in oklab, var(--ev-accent) 10%, transparent)" }}>Registering as a member of {churchShort}. Check your details below.</p>}
+            <AttendeeFields a={me} set={setMe} questions={questions} requirePhone emailLocked={asMember ? lockedEmail : undefined}
+              afterEmail={asMember ? (
+                <>
+                  <div role="group" aria-label="Birthday (day-month only)">
+                    <span className="mb-1.5 block text-[14px] font-medium">Birthday <span className="font-normal text-[var(--ev-muted)]">(day-month only)</span></span>
+                    <BirthdayPicker value={birthday} onChange={(v) => { setBirthday(v); setErr(""); }} event />
+                  </div>
+                  <div role="group" aria-label="I am">
+                    <span className="mb-1.5 block text-[14px] font-medium">I am</span>
+                    <div className="grid grid-cols-2 gap-1.5">{(["F", "M"] as const).map((g) => (
+                      <button key={g} type="button" onClick={() => { setGender(g); setErr(""); }} className={cx("rounded-xl px-3 py-2.5 text-[14px] ring-1", gender === g ? "font-semibold ring-2 ring-[var(--ev-accent)]" : "ring-[var(--ev-line)]")} style={gender === g ? { background: "color-mix(in oklab, var(--ev-accent) 12%, transparent)" } : undefined}>{g === "F" ? "Female" : "Male"}</button>
+                    ))}</div>
+                  </div>
+                </>
+              ) : undefined} />
             {days.length > 1 && (
               <div>
                 <span className="mb-1.5 block text-[14px] font-medium">Which days will you come?</span>
@@ -672,46 +802,65 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, H }: { e: Chu
                 ); })}</div>
               </div>
             )}
-            {err && <p className="rounded-xl px-3 py-2 text-[14px] text-[#be123c]" style={{ background: "#ffe4e6" }} role="alert">{err}</p>}
-            <div className="flex gap-2">
-              {(first === "type" || mine.length > 0) && <button type="button" onClick={() => (mine.length && first !== "type" ? go("done") : go(first === "type" ? "type" : "done"))} className="flex items-center gap-1.5 rounded-2xl px-4 py-3.5 text-[15px] font-semibold ring-1 ring-[var(--ev-line)]"><ArrowLeft size={16} /> Back</button>}
-              <button type="button" disabled={busy} onClick={() => void submit()} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 text-[16px] font-semibold text-white shadow-lg disabled:opacity-60">
-                {busy ? "Registering…" : e.needsApproval ? "Request a place" : "Register"}
-              </button>
-            </div>
           </>
         )}
-        <p className="text-center text-[12px] text-[var(--ev-muted)]">{church.name} will use these details for this event{e.followup ? " and to stay in touch" : ""}.</p>
+
+        {err && <p className="rounded-xl px-3 py-2 text-[14px] text-[#be123c]" style={{ background: "#ffe4e6" }} role="alert">{err}</p>}
+
+        {(step === "google" || step === "type" || step === "you") && (
+          <div className="flex gap-2">
+            {(step !== start || mine.length > 0) && (
+              <button type="button" onClick={() => (step === start ? go("done") : back())} className="flex items-center gap-1.5 rounded-2xl px-4 py-3.5 text-[15px] font-semibold ring-1 ring-[var(--ev-line)]"><ArrowLeft size={16} /> Back</button>
+            )}
+            {step === "you" && (
+              <button type="button" disabled={busy} onClick={() => void submit()} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 text-[16px] font-semibold text-white shadow-lg disabled:opacity-60">
+                {busy ? "Registering…" : asMember && !member?.known ? `Register and join ${churchShort}` : e.needsApproval ? "Request a place" : "Register"}
+              </button>
+            )}
+          </div>
+        )}
+        <p className="text-center text-[12px] text-[var(--ev-muted)]">{church.name} will use these details for this event{e.followup || asMember ? " and to stay in touch" : ""}.</p>
       </div>
     </div>
   );
 }
 
-function AttendeeFields({ a, set, questions, requirePhone }: { a: Attendee; set: (a: Attendee) => void; questions: EventQuestion[]; requirePhone?: boolean }) {
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  );
+}
+
+function AttendeeFields({ a, set, questions, requirePhone, emailLocked, afterEmail }: { a: Attendee; set: (a: Attendee) => void; questions: EventQuestion[]; requirePhone?: boolean;
+  /** A member's Google email: shown, not editable. */ emailLocked?: string; afterEmail?: ReactNode }) {
   return (
     <div className="space-y-3">
-      <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Full name</span><input className={field} value={a.name} onChange={(x) => set({ ...a, name: x.target.value })} autoComplete={requirePhone ? "name" : "off"} /></label>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Phone number{!requirePhone && <span className="font-normal text-[var(--ev-muted)]"> (optional)</span>}</span><input className={field} inputMode="tel" value={a.phone} onChange={(x) => set({ ...a, phone: x.target.value })} autoComplete={requirePhone ? "tel" : "off"} /></label>
-        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Email <span className="font-normal text-[var(--ev-muted)]">(optional)</span></span><input className={field} type="email" value={a.email} onChange={(x) => set({ ...a, email: x.target.value })} autoComplete={requirePhone ? "email" : "off"} /></label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">First name</span><input className={field} value={a.firstName ?? ""} onChange={(x) => set({ ...a, firstName: x.target.value, name: joinName(x.target.value, a.lastName) })} autoComplete={requirePhone ? "given-name" : "off"} /></label>
+        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Last name</span><input className={field} value={a.lastName ?? ""} onChange={(x) => set({ ...a, lastName: x.target.value, name: joinName(a.firstName, x.target.value) })} autoComplete={requirePhone ? "family-name" : "off"} /></label>
       </div>
-      {questions.map((q) => <QuestionInput key={q.id} q={q} value={a.answers[q.id] ?? ""} onChange={(v) => set({ ...a, answers: { ...a.answers, [q.id]: v } })} />)}
+      <div className="grid gap-3">
+        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Phone number <span className="font-normal text-[var(--ev-muted)]">(your WhatsApp number)</span>{!requirePhone && <span className="font-normal text-[var(--ev-muted)]"> (optional)</span>}</span><input className={field} inputMode="tel" value={a.phone} onChange={(x) => set({ ...a, phone: x.target.value })} autoComplete={requirePhone ? "tel" : "off"} /></label>
+        <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Alternative number <span className="font-normal text-[var(--ev-muted)]">(optional - your hotline or call number)</span></span><input className={field} inputMode="tel" value={a.altPhone ?? ""} onChange={(x) => set({ ...a, altPhone: x.target.value })} autoComplete="off" /></label>
+        {emailLocked !== undefined ? (
+          <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Email <span className="font-normal text-[var(--ev-muted)]">(from your Google account)</span></span>
+            <span className="relative block"><input className={cx(field, "cursor-not-allowed pr-10 opacity-80")} type="email" value={emailLocked} readOnly aria-readonly="true" tabIndex={-1} /><Lock size={15} className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-[var(--ev-muted)]" /></span>
+          </label>
+        ) : <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Email</span><input className={field} type="email" value={a.email} onChange={(x) => set({ ...a, email: x.target.value })} autoComplete={requirePhone ? "email" : "off"} /></label>}
+        {afterEmail}
+      </div>
+      {questions.map((q) => <QuestionInput key={q.id} q={q} required={isRequired(q)} value={a.answers[q.id] ?? ""} onChange={(v) => set({ ...a, answers: { ...a.answers, [q.id]: v } })} />)}
     </div>
   );
 }
 
 /** One ticket per person: a clean card with their name and a QR code for the door, downloadable on its own. */
 function Tickets({ e, church, url, tickets, status, H, onAnother }: { e: ChurchEvent; church: ChurchInfo; url: string; tickets: RegTicket[]; status: RegResult["status"]; H: string; onAnother?: () => void }) {
-  const [busy, setBusy] = useState("");
-  const color = church.profile?.color ?? "#4f46e5";
-  const label = (st: RegTicket["status"]) => (st === "confirmed" ? "Confirmed" : st === "waitlist" ? "Waiting list" : st === "pending" ? "Waiting for approval" : "Registered");
-  const info = (t: RegTicket) => ({ event: e.title, when: whenLine(e), venue: e.mode === "virtual" ? "Online" : e.venue, name: t.name, code: t.ticket, status: label(t.status), church: { name: church.name, logo: church.profile?.logo, color } });
-  const save = async (t: RegTicket, f: Format) => { setBusy(t.ticket + f); try { await saveCanvas(await ticketCanvas(info(t)), `${e.title} ticket ${t.name}`, f); } finally { setBusy(""); } };
-  const share = async (t: RegTicket) => {
-    setBusy(t.ticket + "share");
-    const text = `Ticket for ${e.title}: ${t.ticket}\n${whenLine(e)}\n${url}`;
-    try { if (!(await shareCanvas(await ticketCanvas(info(t)), `${e.title} ticket`, text))) window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); } finally { setBusy(""); }
-  };
   return (
     <div className="space-y-3">
       <Confetti show={status === "confirmed"} />
@@ -719,33 +868,50 @@ function Tickets({ e, church, url, tickets, status, H, onAnother }: { e: ChurchE
         <p className={cx(H, "text-[24px] font-semibold")}>{status === "confirmed" ? "You're in!" : status === "already" ? "Already registered" : status === "waitlist" ? "You're on the waiting list" : "Thank you! We'll confirm soon"}</p>
         <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{status === "waitlist" ? "We'll let you know if a place opens up." : tickets.length > 1 ? `${tickets.length} tickets below. Send each person theirs.` : "Show this ticket at the door."}</p>
       </div>
-      {tickets.map((t) => (
-        <div key={t.ticket} className="overflow-hidden rounded-3xl bg-white text-[#151226] shadow-xl ring-1 ring-black/5">
-          <div className="flex">
-            <div className="min-w-0 flex-1 p-5 text-white" style={{ background: `linear-gradient(135deg, ${color}, #151226)` }}>
-              <p className="truncate text-[11.5px] font-semibold uppercase tracking-[.18em] text-white/80">{church.name}</p>
-              <p className="mt-1.5 font-display text-[19px] font-bold leading-tight">{e.title}</p>
-              <p className="mt-1 text-[13px] text-white/85">{whenLine(e)}</p>
-              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[.18em] text-white/70">Admit one</p>
-              <p className="truncate text-[17px] font-semibold">{t.name || "Guest"}</p>
-            </div>
-            <div className="relative flex w-[132px] shrink-0 flex-col items-center justify-center gap-1.5 border-l-2 border-dashed border-[#d6d3e4] p-3">
-              <span aria-hidden className="absolute -left-3 -top-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} /><span aria-hidden className="absolute -bottom-3 -left-3 size-6 rounded-full" style={{ background: "var(--ev-page)" }} />
-              <QR value={t.ticket} size={100} />
-              <p className="num text-[14px] font-bold tracking-[.06em]">{t.ticket}</p>
-              <p className="text-[11.5px] text-[#6b6885]">{label(t.status)}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-1.5 border-t border-[#eceaf3] p-2.5">
-            <button type="button" disabled={!!busy} onClick={() => void save(t, "png")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === t.ticket + "png" ? "Saving…" : "Image"}</button>
-            <button type="button" disabled={!!busy} onClick={() => void save(t, "pdf")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === t.ticket + "pdf" ? "Saving…" : "PDF"}</button>
-            <button type="button" disabled={!!busy} onClick={() => void share(t)} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold text-[#128c4a] hover:bg-[#f4f3f8]"><WhatsAppIcon size={15} /> Send</button>
-          </div>
-        </div>
-      ))}
+      {tickets.map((t) => <TicketCard key={t.ticket} e={e} church={church} url={url} t={t} />)}
       <div className="flex flex-wrap gap-2">
         {onAnother && <button type="button" onClick={onAnother} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] px-4 text-[14.5px] font-semibold text-white shadow-lg"><Plus size={16} /> Register someone else</button>}
         <button type="button" onClick={() => icsFile(e, church.name, url)} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-card)] px-4 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]"><CalendarPlus size={15} /> Add to calendar</button>
+      </div>
+    </div>
+  );
+}
+
+const ticketLabel = (st: RegTicket["status"]) => (st === "confirmed" ? "Confirmed" : st === "waitlist" ? "Waiting list" : st === "pending" ? "Waiting for approval" : "Registered");
+
+/** One ticket: name, QR code for the door, and Image / PDF / Send. Used on the event page and on Home. */
+export function TicketCard({ e, church, url, t }: { e: ChurchEvent; church: ChurchInfo; url: string; t: RegTicket }) {
+  const [busy, setBusy] = useState("");
+  const color = church.profile?.color ?? "#4f46e5";
+  const info = () => ({ event: e.title, when: whenLine(e), venue: e.mode === "virtual" ? "Online" : e.venue, name: t.name, code: t.ticket, status: ticketLabel(t.status), church: { name: church.name, logo: church.profile?.logo, color } });
+  const save = async (f: Format) => { setBusy(f); try { await saveCanvas(await ticketCanvas(info()), `${e.title} ticket ${t.name}`, f); } finally { setBusy(""); } };
+  const share = async () => {
+    setBusy("share");
+    const text = `Ticket for ${e.title}: ${t.ticket}\n${whenLine(e)}\n${url}`;
+    try { if (!(await shareCanvas(await ticketCanvas(info()), `${e.title} ticket`, text))) window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank"); } finally { setBusy(""); }
+  };
+  const notch = { background: "var(--ev-page, var(--color-page, #f4f3f8))" };
+  return (
+    <div className="overflow-hidden rounded-3xl bg-white text-[#151226] shadow-xl ring-1 ring-black/5">
+      <div className="flex">
+        <div className="min-w-0 flex-1 p-5 text-white" style={{ background: `linear-gradient(135deg, ${color}, #151226)` }}>
+          <p className="truncate text-[11.5px] font-semibold uppercase tracking-[.18em] text-white/80">{church.name}</p>
+          <p className="mt-1.5 font-display text-[19px] font-bold leading-tight">{e.title}</p>
+          <p className="mt-1 text-[13px] text-white/85">{whenLine(e)}</p>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[.18em] text-white/70">Admit one</p>
+          <p className="truncate text-[17px] font-semibold">{t.name || "Guest"}</p>
+        </div>
+        <div className="relative flex w-[132px] shrink-0 flex-col items-center justify-center gap-1.5 border-l-2 border-dashed border-[#d6d3e4] p-3">
+          <span aria-hidden className="absolute -left-3 -top-3 size-6 rounded-full" style={notch} /><span aria-hidden className="absolute -bottom-3 -left-3 size-6 rounded-full" style={notch} />
+          <QR value={t.ticket} size={100} />
+          <p className="num text-[14px] font-bold tracking-[.06em]">{t.ticket}</p>
+          <p className="text-[11.5px] text-[#6b6885]">{ticketLabel(t.status)}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 border-t border-[#eceaf3] p-2.5">
+        <button type="button" disabled={!!busy} onClick={() => void save("png")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === "png" ? "Saving…" : "Image"}</button>
+        <button type="button" disabled={!!busy} onClick={() => void save("pdf")} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold hover:bg-[#f4f3f8]"><Download size={15} /> {busy === "pdf" ? "Saving…" : "PDF"}</button>
+        <button type="button" disabled={!!busy} onClick={() => void share()} className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13.5px] font-semibold text-[#128c4a] hover:bg-[#f4f3f8]"><WhatsAppIcon size={15} /> Send</button>
       </div>
     </div>
   );
@@ -764,8 +930,8 @@ function FeedbackForm({ e, H, onSend }: { e: ChurchEvent; H: string; onSend: (ti
       <div className={cx(card, "space-y-4 p-5 md:p-6")}>
         {done ? <p className="flex items-center gap-2 text-[16px] font-semibold"><Check className="text-[#10b981]" /> Thank you! Your feedback helps us plan the next one.</p> : (
           <>
-            <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Your ticket code</span><input className={cx(field, "uppercase")} value={ticket} onChange={(x) => setTicket(x.target.value)} placeholder="RISE-XXXXXX" /></label>
-            {qs.map((q) => <QuestionInput key={q.id} q={q} value={a[q.id] ?? ""} onChange={(v) => setA({ ...a, [q.id]: v })} />)}
+            <label className="block"><span className="mb-1.5 block text-[14px] font-medium">Your ticket code</span><input className={cx(field, "uppercase")} value={ticket} onChange={(x) => setTicket(x.target.value)} placeholder="e.g. CH26-00125" /></label>
+            {qs.map((q) => <QuestionInput key={q.id} q={q} required={!!q.required} value={a[q.id] ?? ""} onChange={(v) => setA({ ...a, [q.id]: v })} />)}
             {err && <p className="text-[14px] text-[#be123c]" role="alert">{err}</p>}
             <button type="button" onClick={async () => { setErr(""); if (ticket.trim().length < 4) return setErr("Enter the code on your ticket."); try { await onSend(ticket.trim().toUpperCase(), a); setDone(true); } catch (x) { setErr(x instanceof Error ? x.message : "That didn't work."); } }}
               className="rounded-2xl bg-[var(--ev-accent)] px-5 py-3 text-[15px] font-semibold text-white">Send feedback</button>

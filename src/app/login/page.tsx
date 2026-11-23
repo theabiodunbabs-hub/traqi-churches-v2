@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { PERSONAS } from "@/lib/seed";
@@ -53,6 +53,7 @@ export default function Login() {
           <h2 className="font-display text-3xl font-semibold tracking-tight">{mode === "live" ? "Welcome to Traqi" : `Sign in to ${state.church.name}`}</h2>
           <p className="mt-1.5 text-ink-soft">{mode === "live" ? "Sign in with Google or your email." : "Use your phone number or email."}</p>
 
+          <LocalNotice live={mode === "live"} />
           {mode === "live" ? <div className="mt-8"><LiveSignIn /></div> : (
           <>
           <form className="mt-8 space-y-4" onSubmit={(e) => { e.preventDefault(); setErr("This is the demo. Choose a person below to sign in."); }}>
@@ -99,6 +100,27 @@ export default function Login() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Only on your laptop (localhost): says which data you are signing in to.
+ * Live: real accounts on Supabase, so type a test login or your own. Demo: the .env.local settings are missing.
+ */
+function LocalNotice({ live }: { live: boolean }) {
+  const [local, setLocal] = useState(false);
+  useEffect(() => { setLocal(["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)); }, []);
+  if (!local) return null;
+  return live ? (
+    <div className="mt-5 rounded-2xl bg-good-soft px-4 py-3 text-[13.5px] text-good ring-1 ring-good/20">
+      <p className="font-semibold">Localhost, real data</p>
+      <p className="mt-0.5 text-ink-soft">You are signing in to your Supabase database. Type your own email and password, or a test login from <code className="rounded bg-surface px-1">traqi-demo-church-logins.json</code> (password <code className="rounded bg-surface px-1">Graceville@2026</code>), or use Google.</p>
+    </div>
+  ) : (
+    <div className="mt-5 rounded-2xl bg-glow-soft px-4 py-3 text-[13.5px] text-glow-ink ring-1 ring-glow/30" role="status">
+      <p className="font-semibold">Localhost is on demo data</p>
+      <p className="mt-0.5">To sign in with real accounts, put your Supabase publishable key in <code className="rounded bg-surface px-1">.env.local</code> (<code className="rounded bg-surface px-1">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>), then stop and start <code className="rounded bg-surface px-1">npm run dev</code>.</p>
     </div>
   );
 }

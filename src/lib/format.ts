@@ -45,6 +45,36 @@ export function longDate(d?: string) {
   return `${day} ${MONTHS[m - 1]} ${y}`;
 }
 
+// ---------- Birthdays: day and month, the year only when staff record it ----------
+/**
+ * People give only the day and month of their birthday. The database keeps a full date, so a birthday
+ * without a year is saved in 1904 (a leap year, so 29 February works). Only the day and month are ever shown.
+ */
+export const NO_BIRTH_YEAR = 1904;
+export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** Days in a month, allowing 29 February. */
+export const daysInMonth = (m: number) => [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1] ?? 31;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** Day and month (and the year, if known) as the YYYY-MM-DD the database keeps. */
+export const birthdayISO = (day: number, month: number, year?: number) => `${year && year > NO_BIRTH_YEAR ? year : NO_BIRTH_YEAR}-${pad2(month)}-${pad2(Math.min(day, daysInMonth(month)))}`;
+/** The day and month of a birthday, or null when it isn't set. */
+export function birthdayParts(b?: string): { day: number; month: number; year?: number } | null {
+  const m = b?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  return { day: Number(m[3]), month: Number(m[2]), year: y === NO_BIRTH_YEAR ? undefined : y };
+}
+/** Whether the birthday's year is known (staff recorded it), not just the day and month. */
+export const hasBirthYear = (b?: string) => !!birthdayParts(b)?.year;
+/** "14-03": the day-month form people pick. */
+export const dayMonth = (b?: string) => { const p = birthdayParts(b); return p ? `${pad2(p.day)}-${pad2(p.month)}` : ""; };
+/** "14 March", with the year only when it's known. */
+export function birthdayLabel(b?: string, withYear = true) {
+  const p = birthdayParts(b);
+  if (!p) return "";
+  return `${p.day} ${MONTH_NAMES[p.month - 1]}${withYear && p.year ? ` ${p.year}` : ""}`;
+}
+
 /** Days until the next birthday (0 = today), or null. */
 export function daysToBirthday(b?: string) {
   if (!b) return null;

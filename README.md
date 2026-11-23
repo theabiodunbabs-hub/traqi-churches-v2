@@ -30,7 +30,8 @@ This is round 2: everything in v1 (people and follow-up, attendance and check-in
 | Check-in screen | `/display/checkin` | Projector: QR, link, code and a live count |
 | Welfare | `/welfare` | Routes by who is asking, minutes, decisions with the approval limit, private requests, delivery, monthly summary |
 | Classes | `/classes`, `/classes/[id]` | Programmes each church sets up: batch or rolling, in person / online / both, Join class button that records attendance, recordings, progress, drop-off, certificate (`/classes/certificate/[id]`) |
-| Events | `/events`, `/events/[id]` | Create, pastor approval, registrations, door check-in and walk-ins, share, co-organisers |
+| Events | `/events`, `/events/[id]` | Create with brief, goals and targets; committee workspace (meetings, budgets with committee → finance → Lead Pastor approval, suggestions, roles and rights); briefing view for the Pastorate; follow-up, registration and check-in teams; numbered tickets (CH26-00125); check-in by QR scan, ticket ID, phone or email |
+| Event check-in (shared) | `/door/[token]` | The check-in team's link: sign in, scan or search, many phones at once, nobody let in twice |
 | Event page (public) | `/[church]/[event]` (old `/e/...` links still work) | Three templates (Flyer, Bold, Elegant), theme and verse, countdown, speakers with bios, programme by day with "Happening now", venues with directions, optional FAQ, gallery, where to stay, give and partners, guest services, step-by-step registration (just me, me and others, online) with a ticket per person, feedback after the event, link previews on WhatsApp |
 | Church page (public) | `/c/[church]` | Pastor's welcome, service times, map, contacts, socials, live stream, events |
 | Offerings | `/finance` | Counts with optional witness, other currencies, corrections approved by the lead pastor, lodging (transfer, deposit, POS) with shortfall flags, transfers, reports |
@@ -67,6 +68,8 @@ npm run dev
 
 Then open http://localhost:3000.
 
+**Real accounts on localhost:** put your Supabase **publishable** key in `.env.local` (the project address is already there; `.env.example` lists every setting), then stop and start `npm run dev`. The sign-in page then asks for an email and password (or Google) and uses your real database: type your own login, or a Graceville test login from `traqi-demo-church-logins.json` (password `Graceville@2026`) if you loaded the demo church. With the key left empty, localhost runs on demo data and the sign-in page says so. For Google on localhost, add `http://localhost:3000/**` to Supabase › Authentication › URL Configuration › Redirect URLs.
+
 ## Put it online (Vercel or Netlify)
 
 **Vercel:** create a new project, import this folder (or the GitHub repo later), keep the defaults (framework: Next.js) and deploy.
@@ -77,7 +80,7 @@ No environment variables are needed while it runs on demo data. For live mode an
 
 ## Tests
 
-`npm test` runs 82 tests: permissions (care notes, welfare, branch pastors, assistants, approvals and end dates), the journey and probation, auto-assignment, Ask Traqi's spelling tolerance, downloads (never care, welfare or prayer; hidden phone numbers; no spreadsheet formulas), events, emails and Lagos-time scheduling, theme contrast, and saving (every saved field is a real database column).
+`npm test` runs 119 tests: permissions (care notes, welfare, branch pastors, assistants, approvals and end dates), the journey and probation, auto-assignment, Ask Traqi's spelling tolerance, downloads (never care, welfare or prayer; hidden phone numbers; no spreadsheet formulas), events, emails and Lagos-time scheduling, theme contrast, and saving (every saved field is a real database column).
 
 Not done yet, on purpose: branch pastors are limited to their branch inside the app; the database itself still lets any church staff member read across branches. Tighten that before a church with branches goes live.
 

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { EventDuties } from "./event-duties";
+import { MyEvents } from "./my-events";
 import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Avatar, Button, Sheet, cx } from "./ui";
@@ -59,8 +61,6 @@ export function MemberHome() {
     return [...new Set([...g.leaderIds, ...g.memberIds])].filter((id) => id !== me.id).map((id) => state.people.find((p) => p.id === id)!).filter((p) => p && !p.inactive);
   };
   // Events only show when they need you: open for registration, or you're registered and it's coming
-  const toRegister = events.filter((e) => !myRegs.some((r) => r.eventId === e.id) && (!e.closesAt || Date.parse(e.closesAt) > now)).slice(0, 2);
-  const registered = events.filter((e) => myRegs.some((r) => r.eventId === e.id) && e.id !== live?.id);
   const days = (iso: string) => Math.max(0, Math.ceil((Date.parse(iso) - now) / 864e5));
   const links = [
     showCommunity && { href: profile!.whatsapp!, label: "Church WhatsApp", icon: "wa" as const },
@@ -90,6 +90,8 @@ export function MemberHome() {
           </div>
         )}
       </section>
+
+      <EventDuties className="mt-4" />
 
       {unconfirmed && (
         <div className={cx("mt-4 flex items-start gap-3 rounded-2xl p-4 text-[14px] ring-1", isLimited(me) ? "bg-alert-soft text-alert ring-alert/20" : "bg-brand-soft text-brand ring-brand/20")}>
@@ -133,24 +135,7 @@ export function MemberHome() {
             <ChevronRight size={18} className="shrink-0 text-muted" />
           </Link>
         )}
-        {registered.map((e) => (
-          <Link key={e.id} href={`/events/${e.id}`} className="card card-hover flex items-center gap-4 overflow-hidden p-0">
-            <span className="flex w-[92px] shrink-0 flex-col items-center justify-center self-stretch py-4 text-white" style={{ background: COVERS[e.cover % COVERS.length] }}>
-              <span className="num text-[30px] font-semibold leading-none">{days(e.start)}</span><span className="mt-1 text-[12px] text-white/85">{days(e.start) === 1 ? "day to go" : "days to go"}</span>
-            </span>
-            <span className="min-w-0 flex-1 py-4"><span className="block text-[12px] font-semibold uppercase tracking-wider text-good">You&apos;re registered</span><b className="block truncate font-display text-[17px] font-semibold">{e.title}</b><span className="text-[13.5px] text-ink-soft">{eventWhen(e)}</span></span>
-            <span className="pr-4 text-[13.5px] font-medium text-brand">Ticket</span>
-          </Link>
-        ))}
-        {toRegister.map((e) => (
-          <Link key={e.id} href={`/events/${e.id}`} className="card card-hover block overflow-hidden">
-            <div className="px-5 pb-4 pt-5 text-white" style={{ background: COVERS[e.cover % COVERS.length] }}>
-              <p className="text-[12px] uppercase tracking-wider text-white/85">{eventWhen(e)}</p>
-              <p className="mt-2 font-display text-[20px] font-semibold leading-tight">{e.title}</p>
-            </div>
-            <p className="flex items-center justify-between px-5 py-3 text-[14px]"><span className="text-ink-soft">Registration is open</span><span className="inline-flex items-center gap-1 font-semibold text-brand">Register <ArrowRight size={15} /></span></p>
-          </Link>
-        ))}
+        <MyEvents />
         {enrolments.length > 0 && (
           <Link href="/classes" className="card card-hover block p-5">
             <p className="font-display text-[16px] font-semibold">Your classes</p>

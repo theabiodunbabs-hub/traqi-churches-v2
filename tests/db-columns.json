@@ -388,5 +388,22 @@
   "data",
   "person_id",
   "updated_at"
+ ],
+ "event_notes": [
+  "id",
+  "church_id",
+  "data",
+  "event_id",
+  "by_id",
+  "updated_at"
+ ],
+ "meeting_rsvps": [
+  "id",
+  "church_id",
+  "data",
+  "person_id",
+  "kind",
+  "ref_id",
+  "updated_at"
  ]
 }

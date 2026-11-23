@@ -9,6 +9,9 @@ import type { Attendance, ChurchEvent, ClassSession, Enrolment, Meeting, Person,
 import { addDays, at, lastSunday } from "./seed-more";
 import { daysToBirthday, fullName, hoursSince, todayLagos } from "./format";
 import { actionsFor } from "./funds";
+import { DUTY_LABEL, myEventDuties, nextDate, rsvpId } from "./event-mgmt";
+
+const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const today0 = () => todayLagos();
 import { escalation, goneQuiet } from "./metrics";
 
@@ -318,6 +321,25 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
     if (b.length) out.push({ key: `bd-${todayLagos()}`, title: `${b.length} birthday${b.length > 1 ? "s" : ""} today`, body: b.slice(0, 3).map((p) => p.firstName).join(", "), href: "/messages", tone: "good", at: new Date().toISOString() });
     // "Gone quiet" is shown on Home and People, not in the bell: the bell is only for things to act on
   }
+  // Events: committee appointments, committee meetings (new or changed), and check-in / follow-up duties
+  for (const d of myEventDuties(state, me.id)) {
+    const e = d.e;
+    if (d.seat) {
+      const added = e.committee?.members.find((m) => m.personId === me.id)?.addedAt ?? e.createdAt;
+      out.push({ key: `cmt-${e.id}`, title: `You're on the ${e.title} committee`, body: `${d.seat}. Open the committee page for the brief, meetings and budget.`, href: `/events/${e.id}?tab=committee`, tone: "brand", at: added });
+      if (d.next) out.push({ key: `cmm-${d.next.id}-${d.next.updatedAt ?? d.next.at}`, title: d.next.updatedAt ? `${e.title} committee meeting changed` : `${e.title} committee meeting`,
+        body: `${dayLabel(d.next.date)} at ${d.next.time} · ${d.next.mode === "virtual" ? "Online" : d.next.venue || "Venue to be confirmed"}`, href: `/events/${e.id}?tab=committee`, tone: "glow", at: d.next.updatedAt ?? d.next.at });
+    }
+    if (d.duties.length) out.push({ key: `duty-${e.id}-${d.duties.join("")}`, title: `${e.title}: you're on the ${d.duties.map((x) => DUTY_LABEL[x].title.toLowerCase()).join(" and ")} team`,
+      body: d.duties.includes("checkin") ? "Open it on the day to check people in from your phone." : "See who registered and reach out.", href: `/events/${e.id}?tab=door`, tone: "brand", at: e.createdAt });
+  }
+  // Department meetings set up or changed in the last two weeks that I haven't answered
+  state.groups.filter((g) => g.memberIds.includes(me.id) || g.leaderIds.includes(me.id)).forEach((g) => (g.meetings ?? []).forEach((m) => {
+    const date = nextDate(m); const when = m.updatedAt;
+    if (!date || !when || m.byId === me.id || Date.now() - Date.parse(when) > 14 * 864e5) return;
+    if (state.rsvps.some((r) => r.id === rsvpId("dept", m.id, date, me.id))) return;
+    out.push({ key: `dm-${m.id}-${when}`, title: `${g.name}: ${m.title}`, body: `${dayLabel(date)} at ${m.time}. Will you be there?`, href: `/departments/${g.id}#meetings`, tone: "glow", at: when });
+  }));
   // Course changes waiting for the owner's approval
   state.programmes.filter((x) => x.pendingEdit && approvesCourseEdit(x, a)).forEach((x) => out.push({ key: `pe-${x.id}`, title: `Approve a change to ${x.name}`, body: `${state.people.find((p) => p.id === x.pendingEdit!.byId)?.firstName ?? "Someone"} suggested changes.`, href: `/classes/${x.id}`, at: x.pendingEdit!.at, tone: "brand" } as Note));
   return out.sort((x, y) => y.at.localeCompare(x.at));

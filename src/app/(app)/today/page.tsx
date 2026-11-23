@@ -8,6 +8,8 @@ import { Avatar, Button, Sheet, cx, textAsk } from "@/components/ui";
 import { ReachOut, messages } from "@/components/care";
 import { MeetingLink, PastorBoard } from "@/components/pastor-board";
 import { MemberHome } from "@/components/member-home";
+import { EventDuties } from "@/components/event-duties";
+import { MyEvents } from "@/components/my-events";
 import { NewRoleCard, YourRolesCard } from "@/components/role-cards";
 import { TodayService } from "@/components/rollcall";
 import { FamilyLifeCard } from "@/components/family-life";
@@ -135,6 +137,9 @@ export default function Today() {
           {pastoral && d.att.series.length > 2 && <Spark values={d.att.series} />}
         </div>
       </section>
+
+      <EventDuties className="mt-5" />
+      <MyEvents className="mt-5" registeredOnly />
 
       <div className="mt-6 space-y-4 empty:hidden"><NewRoleCard /><TodayService /><YourRolesCard />{access.leadsFamilyLife && <FamilyLifeCard />}<LastMessageCard /></div>
 

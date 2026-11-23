@@ -12,6 +12,7 @@ import {
   DEFAULT_CATEGORIES, ROUTES, actionsFor, balance, budgetUse, firstStage, fundLinesSheet, fundsSheet, insights, isFinance, isFinanceLead, linesTotal,
   paidOf, seesBalance, seesFund, setupOf, stageLabel, stageTone, totalOf, type FundAction,
 } from "@/lib/funds";
+import { committeeRights } from "@/lib/event-mgmt";
 import type { FinanceSetup, FundLine, FundRequest } from "@/lib/types";
 
 type Tab = "mine" | "act" | "all" | "insights" | "setup";
@@ -125,7 +126,11 @@ function FundForm({ initial, onClose, edit }: { initial: { refund?: boolean; eve
   const set = setupOf(state);
   const cats = set.categories?.length ? set.categories : DEFAULT_CATEGORIES;
   const myGroups = state.groups.filter((g) => access?.leads.has(g.id) || g.assistants?.some((a) => a.personId === me?.id));
-  const ev = initial.eventId ? state.events.find((e) => e.id === initial.eventId) : undefined;
+  // Events this person can raise a budget for: any event whose committee they sit on, or any open event if they head a department
+  const eventChoices = state.events.filter((e) => Date.parse(e.end) > Date.now() && (committeeRights(e, access ?? { personId: "", isPastoral: false, isAdmin: false }).member || myGroups.length > 0) && !!e.committee?.members.length);
+  const [forEvent, setForEvent] = useState<"" | "yes" | "no">(initial.eventId || edit?.eventId ? "yes" : edit ? "no" : "");
+  const [eventId, setEventId] = useState(initial.eventId ?? edit?.eventId ?? "");
+  const ev = forEvent === "yes" && eventId ? state.events.find((e) => e.id === eventId) : undefined;
   const [f, setF] = useState(() => ({
     title: edit?.title ?? "", purpose: edit?.purpose ?? "", category: edit?.category ?? (ev ? "Events" : cats[0]), groupId: edit?.groupId ?? myGroups[0]?.id ?? "",
     lines: edit?.lines ?? [blankLine()], when: edit?.timeline ? "words" : "date", neededBy: edit?.neededBy ?? "", timeline: edit?.timeline ?? "", refund: edit?.refund ?? !!initial.refund,
@@ -133,15 +138,17 @@ function FundForm({ initial, onClose, edit }: { initial: { refund?: boolean; eve
   const [err, setErr] = useState("");
   if (!me || !access) return null;
   const send = () => {
+    if (!edit && eventChoices.length && !forEvent) return setErr("Say whether this is for an event.");
+    if (forEvent === "yes" && !ev) return setErr("Choose the event.");
     if (!f.title.trim()) return setErr("Give the request a short title.");
     const lines = f.lines.filter((l) => l.item.trim() && l.qty > 0 && l.unit > 0);
     if (!lines.length) return setErr("Add at least one line with an amount.");
     const stage = ev ? "committee" : firstStage(state);
     const base: FundRequest = edit ?? { id: newId("fr"), byId: me.id, at: new Date().toISOString(), title: "", purpose: "", category: "", lines: [], stage, history: [], payments: [] };
     put("funds", {
-      ...base, title: f.title.trim(), purpose: f.purpose.trim(), category: f.category, groupId: f.groupId || undefined, eventId: ev?.id ?? base.eventId, lines,
+      ...base, title: f.title.trim(), purpose: f.purpose.trim(), category: f.category, groupId: f.groupId || undefined, eventId: ev?.id, lines,
       neededBy: f.when === "date" ? f.neededBy || undefined : undefined, timeline: f.when === "words" ? f.timeline.trim() || undefined : undefined, refund: f.refund,
-      stage: edit ? (edit.eventId ? "committee" : firstStage(state)) : stage, returnedFrom: undefined,
+      stage, returnedFrom: undefined, returnedTo: undefined,
       history: [...base.history, { at: new Date().toISOString(), byId: me.id, action: edit ? "Sent again" : f.refund ? "Asked for a refund" : ev ? `Sent to the ${ev.title} committee` : "Sent" }],
     }, `${edit ? "re-sent" : "sent"} a fund request: ${f.title.trim()}`);
     toast(ev ? "Sent to the committee" : set.route === 1 ? "Sent to the pastor" : "Sent to finance");
@@ -152,6 +159,12 @@ function FundForm({ initial, onClose, edit }: { initial: { refund?: boolean; eve
       footer={<div className="space-y-2">{err && <p className="text-sm text-alert" role="alert">{err}</p>}<Button variant="primary" className="w-full py-3" onClick={send}><Send size={16} /> {f.refund ? "Ask for refund" : "Send request"}</Button></div>}>
       <div className="space-y-5">
         {f.refund && <p className="rounded-2xl bg-glow-soft px-4 py-3 text-[13.5px] text-glow-ink">For urgent spending you&apos;ve already made from your own pocket. List what you spent; you can add receipts after.</p>}
+        {(eventChoices.length > 0 || ev) && (
+          <Field label="Is this request for an event?" hint={forEvent === "yes" ? "It goes to the event committee first, then church finance, then the Lead Pastor." : undefined}>
+            <div className="flex gap-1.5">{([["yes", "Yes, an event"], ["no", "No"]] as const).map(([k, l]) => <button type="button" key={k} onClick={() => { setForEvent(k); setErr(""); if (k === "yes" && !eventId && eventChoices.length === 1) setEventId(eventChoices[0].id); }} className={cx("min-h-10 flex-1 rounded-xl px-3 text-[14px] ring-1", forEvent === k ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{l}</button>)}</div>
+            {forEvent === "yes" && <select className={cx(inputCls, "mt-2")} value={eventId} onChange={(e) => { setEventId(e.target.value); setF((x) => ({ ...x, category: "Events" })); }}><option value="">Choose the event</option>{eventChoices.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}</select>}
+          </Field>
+        )}
         <Field label="Title"><input autoFocus className={inputCls} value={f.title} onChange={(e) => { setF({ ...f, title: e.target.value }); setErr(""); }} placeholder={f.refund ? "Fuel for the guest minister" : "Two wireless microphones"} /></Field>
         <Field label="What it's for"><textarea className={cx(inputCls, "min-h-20")} value={f.purpose} onChange={(e) => setF({ ...f, purpose: e.target.value })} placeholder="The pulpit mics keep cutting out during the sermon." /></Field>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -192,7 +205,11 @@ function FundDetail({ id, onClose }: { id: string; onClose: () => void }) {
     if ((a === "return" || a === "returnReport" || a === "decline") && !note.trim()) return toast("Add a note saying why");
     if (a === "forward") return step({ stage: "pastor" }, "Sent to the pastor", `sent ${f.title} to the pastor`);
     if (a === "approve") return step({ stage: "approved" }, "Approved", `approved ${f.title}`);
+    // Event budgets sent back by finance or the Lead Pastor go to the committee leadership first
+    if (a === "return" && f.eventId && !f.refund) return step({ stage: "committee", returnedFrom: f.stage, returnedTo: "committee" }, f.stage === "pastor" ? "Sent back to the committee by the Lead Pastor" : "Sent back to the committee by finance", `sent ${f.title} back to the event committee`);
     if (a === "return") return step({ stage: "returned", returnedFrom: f.stage }, "Sent back", `sent back ${f.title}`);
+    if (a === "committeeReturn") { if (!note.trim()) return toast("Add a note saying what needs fixing"); return step({ stage: "returned", returnedFrom: "committee", returnedTo: "initiator" }, "Sent back by the committee", `sent ${f.title} back to ${by ? fullName(by) : "the person who raised it"}`); }
+    if (a === "committeeApprove") { const to = firstStage(state); return step({ stage: to, returnedFrom: undefined, returnedTo: undefined }, f.returnedTo === "committee" ? (to === "pastor" ? "Clarified by the committee and sent to the pastor" : "Clarified by the committee and sent again to finance") : to === "pastor" ? "Approved by the committee and sent to the pastor" : "Approved by the committee and sent to church finance", `approved ${f.title} at committee level`); }
     if (a === "decline") return step({ stage: "declined" }, "Declined", `declined ${f.title}`);
     if (a === "acceptReport") return step({ stage: "closed", report: { ...f.report!, reviewedById: me.id, reviewedAt: now() } }, "Report accepted", `accepted the report for ${f.title}`);
     if (a === "returnReport") return step({ report: undefined }, "Report sent back", `sent back the report for ${f.title}`);
@@ -209,7 +226,9 @@ function FundDetail({ id, onClose }: { id: string; onClose: () => void }) {
   };
   const actLabel: Record<FundAction, [string, React.ReactNode]> = {
     forward: ["Send to the pastor", <ArrowRight key="a" size={15} />], approve: ["Approve", <Check key="b" size={15} />], return: ["Send back", <CornerUpLeft key="c" size={15} />],
-    decline: ["Decline", <X key="d" size={15} />], pay: ["Record payment", <Banknote key="e" size={15} />], acceptReport: ["Accept report", <Check key="f" size={15} />], returnReport: ["Send report back", <CornerUpLeft key="g" size={15} />],
+    decline: ["Decline", <X key="d" size={15} />],
+    committeeApprove: [f.returnedTo === "committee" ? "Send to finance again" : "Approve and send to finance", <ArrowRight key="h" size={15} />],
+    committeeReturn: [f.returnedTo === "committee" ? "Pass back to the person who raised it" : "Send back to the person who raised it", <CornerUpLeft key="i" size={15} />], pay: ["Record payment", <Banknote key="e" size={15} />], acceptReport: ["Accept report", <Check key="f" size={15} />], returnReport: ["Send report back", <CornerUpLeft key="g" size={15} />],
   };
   return (
     <Sheet open onClose={onClose} wide title={f.title}>

@@ -144,8 +144,8 @@ export function Landing() {
             <Link href="/login" className="lp-btn lp-btn--ghost">Log in</Link>
             <Link href="/signup" className="lp-btn lp-btn--pri">Get started</Link>
           </div>
+          <div className="lp-progress" aria-hidden><span data-progress /></div>
         </div>
-        <div className="lp-progress" aria-hidden><span data-progress /></div>
       </header>
 
       <main id="main">

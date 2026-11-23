@@ -4,6 +4,7 @@
  * change state through the store, and syncState writes the difference.
  */
 import { supabase } from "./supabase";
+import { namesFromGoogle, type MemberStatus } from "./event-join";
 import { DEFAULT_PROFILE, emptyCollections } from "./seed-more";
 import type { SeedState } from "./seed";
 import type { Activity, CareNote, Church, Contact, FollowCase, Group, Household, Person, Placement, Role, RoleAssignment, WelfareRequest, CounselRequest } from "./types";
@@ -42,9 +43,26 @@ const JSON_TABLES: { key: ListKey; table: string; cols: (x: Record<string, unkno
   { key: "churchInvites", table: "church_invites", cols: (x) => ({ by_id: x.byId, audience: x.audience }) },
   { key: "challenges", table: "challenges", cols: (x) => ({ by_id: x.createdById, participant_ids: x.participantIds }) },
   { key: "outreachContacts", table: "outreach_contacts", cols: (x) => ({ by_id: x.byId, assignee_id: x.assigneeId ?? null, phone: x.phone }) },
+  { key: "eventNotes", table: "event_notes", cols: (x) => ({ event_id: x.eventId, by_id: x.byId }) },
+  { key: "rsvps", table: "meeting_rsvps", cols: (x) => ({ person_id: x.personId, kind: x.kind, ref_id: x.refId }) },
 ];
 
 type Row = Record<string, unknown>;
+
+/** One stored item as its database row. */
+function jsonRow(key: ListKey, x: Record<string, unknown>, c: string): Row {
+  const t = JSON_TABLES.find((j) => j.key === key)!;
+  // Welfare minutes live in their own table so the person who asked can't read them.
+  // What someone shares in counselling lives in its own table, readable only by them, the handler and the pastor.
+  const data = key === "welfare" ? { ...x, minutes: [] } : key === "counsel" ? { ...x, description: "" } : x;
+  return { id: keyOf(key, x), church_id: c, ...t.cols(x), data };
+}
+/** [table, id, row as the snapshot keeps it], so an item the database already holds isn't written again. */
+export function rowJson(key: ListKey, x: Record<string, unknown>, c: string): [string, string, string] {
+  const t = JSON_TABLES.find((j) => j.key === key);
+  if (!t) throw new Error(`Not a stored list: ${key}`);
+  return [t.table, keyOf(key, x), JSON.stringify(jsonRow(key, x, c))];
+}
 const db = () => { if (!supabase) throw new Error("Supabase is not configured"); return supabase; };
 const nul = <T,>(v: T | undefined | "") => (v === undefined || v === "" ? null : v);
 const isUuid = (s?: string) => !!s && /^[0-9a-f-]{36}$/i.test(s);
@@ -128,13 +146,7 @@ export function tables(s: SeedState, c: string) {
     placements: new Map(s.placements.map((p) => [p.id, placementRow(p, c)])),
     activity_log: new Map(s.activity.map((a) => [a.id, { church_id: c, actor_id: isUuid(a.actorId) ? a.actorId : null, action: a.text, at: a.at } as Row])),
     churches: new Map([[c, { id: c, name: s.church.name, attendance_goal: s.church.attendanceGoal ?? null, profile: s.church.profile ?? null } as Row]]),
-    ...Object.fromEntries(JSON_TABLES.map(({ key, table, cols }) => [table, new Map((s[key] as Record<string, unknown>[]).map((x) => {
-      const id = keyOf(key, x);
-      // Welfare minutes live in their own table so the person who asked can't read them.
-      // What someone shares in counselling lives in its own table, readable only by them, the handler and the pastor.
-      const data = key === "welfare" ? { ...x, minutes: [] } : key === "counsel" ? { ...x, description: "" } : x;
-      return [id, { id, church_id: c, ...cols(x), data } as Row];
-    }))])) as Record<string, Map<string, Row>>,
+    ...Object.fromEntries(JSON_TABLES.map(({ key, table }) => [table, new Map((s[key] as Record<string, unknown>[]).map((x) => [keyOf(key, x), jsonRow(key, x, c)]))])) as Record<string, Map<string, Row>>,
     counsel_private: new Map(s.counsel.filter((r) => r.description).map((r) => [r.id, { id: r.id, church_id: c, request_id: r.id, body: r.description } as Row])),
     welfare_minutes: new Map(s.welfare.flatMap((w: WelfareRequest) => w.minutes.map((m, i) => [`${w.id}|${i}`, { id: `${w.id}|${i}`, church_id: c, request_id: w.id, data: m } as Row]))),
   };
@@ -149,7 +161,7 @@ const ORDER: string[] = ["churches", "people", "groups", "group_members", "roles
   ...JSON_TABLES.map((t) => t.table), "welfare_minutes", "counsel_private", "activity_log"];
 const APPEND_ONLY = new Set<string>(["followup_contacts", "activity_log", "welfare_minutes", "counsel_private", "app_feedback"]);
 /** Collections whose removed items are deleted in the database too. */
-const DELETABLE = new Set<string>(["group_members", "role_assignments", "absences", "registrations", "message_templates", "class_sessions", "headcounts", "attendance_records"]);
+const DELETABLE = new Set<string>(["group_members", "role_assignments", "absences", "registrations", "message_templates", "class_sessions", "headcounts", "attendance_records", "event_notes", "meeting_rsvps"]);
 
 /** Write what changed since the last snapshot. Returns the new snapshot, or the first error. */
 export async function syncState(prev: Snapshot, next: SeedState, churchId: string): Promise<{ snapshot: Snapshot; error?: string }> {
@@ -350,6 +362,30 @@ export async function registerEvent(slug: string, event: string, reg: Record<str
   const { data, error } = await db().rpc("register_event", { p_slug: slug, p_event: event, p_reg: reg });
   if (error) throw new Error(error.message);
   return data as { status: "confirmed" | "waitlist" | "pending" | "already"; ticket: string; tickets?: { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already" }[] };
+}
+/** Who signed in with Google on an event page: in the church already? registered already? (Round 7) */
+export async function eventMemberStatus(slug: string, event: string): Promise<MemberStatus> {
+  const { data: { session } } = await db().auth.getSession();
+  if (!session) return { signedIn: false, member: false, tickets: [] };
+  const g = namesFromGoogle(session.user.user_metadata);
+  const { data, error } = await db().rpc("event_member_status", { p_slug: slug, p_event: event });
+  if (error) throw new Error(error.message);
+  const d = (data ?? {}) as Partial<MemberStatus>;
+  return { signedIn: true, email: session.user.email ?? d.email, firstName: g.firstName, lastName: g.lastName, member: !!d.member, churchId: d.churchId, person: d.person ?? undefined, tickets: d.tickets ?? [] };
+}
+/** Continue with Google from an event page: whoever was signed in on this phone is signed out first, and Google asks which account. */
+export async function eventGoogle(returnPath: string) {
+  await db().auth.signOut({ scope: "local" }).catch(() => {});
+  const { error } = await db().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}${returnPath}`, queryParams: { prompt: "select_account" } } });
+  if (error) throw new Error(error.message);
+}
+/** A member registers: joins the church first if they're new, then gets their ticket. */
+export async function registerEventMember(slug: string, event: string, reg: Record<string, unknown>) {
+  const { data, error } = await db().rpc("register_event_member", { p_slug: slug, p_event: event, p_reg: reg });
+  if (error) throw new Error(error.message);
+  const r = data as { status: "confirmed" | "waitlist" | "pending" | "already"; ticket: string; tickets?: { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already" }[]; churchId?: string; joined?: boolean };
+  if (r.churchId) { try { localStorage.setItem("traqi-church", r.churchId); } catch {} }
+  return r;
 }
 export async function eventFeedback(slug: string, event: string, ticket: string, answers: Record<string, string>) {
   const { error } = await db().rpc("event_feedback", { p_slug: slug, p_event: event, p_ticket: ticket, p_answers: answers });

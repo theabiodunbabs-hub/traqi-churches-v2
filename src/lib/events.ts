@@ -77,7 +77,7 @@ export const QUESTION_LIBRARY: Suggestion[] = [
   q("church", "Which church do you attend?", "text", { why: "Useful when other churches are invited" }),
   q("first", "Is this your first time at this event?", "yesno"),
   q("age", "Age range", "choice", { options: ["Under 13", "13 to 17", "18 to 24", "25 to 34", "35 to 44", "45 and above"], match: /youth|teen|young|campus|singles|career/i }),
-  q("tshirt", "T-shirt size", "choice", { options: ["S", "M", "L", "XL", "XXL", "XXXL"], match: /youth|conference|camp|retreat|run|walk|outreach|summit/i, perPerson: true }),
+  q("tshirt", "T-shirt size", "choice", { options: ["S", "M", "L", "XL", "XXL", "XXXL"], match: /youth|conference|camp|retreat|run|walk|outreach|summit/i, perPerson: true, display: "dropdown" }),
   q("stay", "Will you need accommodation?", "yesno", { match: /conference|convention|retreat|camp|summit|congress|days|week/i, why: "For multi-day events" }),
   q("diet", "Any food needs or allergies?", "text", { match: /dinner|retreat|camp|lunch|banquet|feast|picnic/i, perPerson: true }),
   q("spouse", "Spouse's name", "text", { match: /couple|marri|marriage|family|wedding|valentine/i }),
@@ -91,7 +91,8 @@ export const QUESTION_LIBRARY: Suggestion[] = [
   q("prayer", "Anything you'd like us to pray about?", "long", { match: /prayer|vigil|healing|deliverance|night|fast|crusade|revival/i }),
   q("expect", "What are you trusting God for at this event?", "long", { match: /conference|convention|revival|encounter|crusade|congress/i }),
   q("volunteer", "Would you like to volunteer at this event?", "yesno"),
-  q("gender", "Gender", "choice", { options: ["Male", "Female"], perPerson: true }),
+  q("gender", "Gender", "choice", { options: ["Male", "Female"], perPerson: true, why: "Shows the men and women coming in the committee's briefing" }),
+  q("location", "Where are you coming from?", "text", { help: "Your area or city", why: "Shows where people are coming from in the committee's briefing" }),
 ];
 
 /** The questions that suit this event, judged from its title, theme and length. */
@@ -103,6 +104,8 @@ export function suggestQuestions(e: ChurchEvent, have: EventQuestion[] = e.quest
     let score = s.match ? (s.match.test(text) ? 3 : 0) : 1;
     if (s.id === "stay" && multiDay) score += 3;
     if (s.id === "member" && e.followup) score += 1;
+    // The briefing's gender and location breakdowns need these
+    if (s.id === "gender" || s.id === "location") score += 1;
     return { s, score };
   });
   return scored.filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.s);
@@ -111,9 +114,29 @@ export function suggestQuestions(e: ChurchEvent, have: EventQuestion[] = e.quest
 /** Options are entered one per line, so commas inside an option are fine ("Yes, I will"). */
 export const cleanOptions = (opts: string[]) => [...new Set(opts.map((o) => o.trim()).filter(Boolean))];
 
+/** T-shirt (or shirt / jersey) size questions, which suit a dropdown list. */
+export const isShirtSize = (label: string) => /\b(t[\s-]?shirts?|tees?|shirts?|jerseys?)\b/i.test(label);
+/**
+ * Questions that are optional unless the organiser says otherwise: T-shirt size, school or workplace,
+ * and where someone is coming from. Every other question is compulsory by default.
+ */
+export const optionalByDefault = (q: Pick<EventQuestion, "label">) =>
+  isShirtSize(q.label) ||
+  /\b(school|workplace|work\s?place|place of work|institution)\b/i.test(q.label) ||
+  /\b(coming from|where (are )?(you|they) (coming )?from|location|your area|which area|city)\b/i.test(q.label);
+/** Whether a registration question must be answered: the organiser's choice, else compulsory unless optional by default. */
+export const isRequired = (q: Pick<EventQuestion, "label" | "required">) => q.required ?? !optionalByDefault(q);
+/** "Ada Grace Obi" → first "Ada", last "Grace Obi". For older registrations saved with one name. */
+export const splitName = (full: string) => { const p = full.trim().split(/\s+/); return { first: p[0] ?? "", last: p.slice(1).join(" ") }; };
+export const joinName = (first?: string, last?: string) => [first?.trim(), last?.trim()].filter(Boolean).join(" ");
+
+/** Whether a one-choice question shows as a dropdown list: the organiser's choice, else T-shirt sizes. */
+export const showsDropdown = (q: Pick<EventQuestion, "type" | "label" | "display">) =>
+  q.type === "choice" && (q.display ? q.display === "dropdown" : isShirtSize(q.label));
+
 export const PERSON_LABELS = ["Speaker", "Minister", "Music minister", "Host", "Special guest", "Panelist", "Facilitator"];
 
-/** Ticket codes are short, readable and hard to guess. */
+/** Older random ticket codes (RISE-7KQ2MX). New tickets are numbered per event: see nextTicket in event-mgmt. */
 export function ticketCode(e: Pick<ChurchEvent, "slug">) {
   const pre = e.slug.replace(/[^a-z]/g, "").slice(0, 4).toUpperCase() || "TQ";
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

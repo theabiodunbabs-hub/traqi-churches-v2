@@ -63,5 +63,5 @@ const PLACES = new Set(["lagos", "ikeja", "lekki", "ajah", "yaba", "surulere", "
 /** Addresses the app uses for its own pages. */
 export const RESERVED_SLUGS = new Set(["today", "people", "first-timers", "welfare", "attendance", "classes", "events", "departments", "finance", "messages", "settings",
   "activity", "owner", "login", "signup", "start", "join", "welcome", "update", "display", "checkin", "invite", "api", "c", "e", "admin", "help", "about",
-  "pricing", "privacy", "terms", "support", "traqi", "app", "www", "mail", "static", "public", "auth", "dashboard",
+  "pricing", "privacy", "terms", "support", "traqi", "app", "www", "mail", "static", "public", "auth", "dashboard", "door",
   "prayer", "meeting", "offline", "icons", "sw", "share", "tickets", "ticket", "register", "demo"]);

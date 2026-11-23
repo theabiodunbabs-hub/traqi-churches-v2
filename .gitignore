@@ -1,0 +1,14 @@
+# Settings with keys stay on your computer
+.env
+.env*.local
+
+# Installed and built files (Vercel makes its own)
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Editors and systems
+.DS_Store
+.vscode/*
+!.vscode/extensions.json

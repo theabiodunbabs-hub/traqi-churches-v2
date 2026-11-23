@@ -11,7 +11,7 @@ import { accessFor } from "@/lib/access";
 import { seed, P } from "@/lib/seed";
 import { tables } from "@/lib/live";
 import { defaultJourney } from "@/lib/journey";
-import type { Attendance, FollowCase, Group, Person, RoleAssignment } from "@/lib/types";
+import type { Attendance, CounselRequest, FollowCase, Group, Household, Person, Programme, RoleAssignment } from "@/lib/types";
 
 const OUT = process.env.DEMO_OUT ?? "/home/claude/traqi-demo-church.sql";
 const PASSWORD = "Graceville@2026";
@@ -191,6 +191,7 @@ it("builds the Graceville demo", () => {
     { who: "Media head", personId: P.media.id, email: "media", sees: "Media department, a request to join Media, roll call, events, a media assistant" },
     { who: "Head usher", personId: P.usher.id, email: "usher", sees: "Today's service card, headcount, check-in screen, offering counts, a new-role card" },
     { who: "Welfare head", personId: P.welfare.id, email: "welfare", sees: "Welfare requests and decisions" },
+    { who: "Family Life head", personId: P.family.id, email: "family.life", sees: "Families at a glance (singles, couples, children), Marriage Preparation and Parenting courses, wedding anniversaries, a marriage case referred to her, the Couples' Dinner committee she leads" },
     { who: "Finance lead (bursar)", personId: P.bursar.id, email: "finance", sees: "Fund requests, payments, spending reports and finance insights" },
     { who: "Worker", personId: P.worker.id, email: "worker", sees: "Worker home: check-in, next step, her team" },
     { who: "Member", personId: P.member.id, email: "member", sees: "Member home: check-in, classes, prayer, events" },
@@ -217,6 +218,13 @@ it("builds the Graceville demo", () => {
   const lekkiSees = accessFor(S, map.get(lekki.pastorId!)!).visiblePeople();
   expect(lekkiSees.every((p) => p.branchId === "br-lekki" || p.id === map.get(lekki.pastorId!))).toBe(true);
   expect(accessFor(S, map.get(P.lead.id)!).visiblePeople().length).toBe(S.people.length);
+  // The Family Life head leads Family Life, sees everyone, and has her courses, couples and a referred case
+  const fam = accessFor(S, map.get(P.family.id)!);
+  expect(fam.leadsFamilyLife).toBe(true);
+  expect(fam.visiblePeople().length).toBe(S.people.length);
+  expect(S.programmes.filter((x: Programme) => x.owner === "family").length).toBe(2);
+  expect(S.counsel.some((c: CounselRequest) => c.handlerId === map.get(P.family.id))).toBe(true);
+  expect(S.households.filter((h: Household) => S.people.filter((p: Person) => p.householdId === h.id && p.custom?.marital === "married").length >= 2).length).toBeGreaterThanOrEqual(6);
   const churchId = uuid();
   const T = tables(S, churchId) as Record<string, Map<string, Record<string, unknown>>>;
   // activity_log ids come from the database
@@ -233,7 +241,7 @@ it("builds the Graceville demo", () => {
   const userIds = LOGINS.map((l) => ({ ...l, uid: uuid(), pid: map.get(l.personId)! }));
   const ORDER = ["people", "groups", "group_members", "roles", "role_assignments", "followup_cases", "followup_contacts", "care_notes", "placements",
     "meetings", "headcounts", "attendance_records", "absences", "welfare_requests", "programmes", "class_sessions", "enrolments", "registrations", "service_counts", "lodgements",
-    "transfers", "message_templates", "announcements", "wishes", "invites", "app_feedback", "prayer_requests", "download_log", "outreaches", "outreach_contacts", "challenges", "church_invites", "fund_requests", "counsel_requests", "counsel_private", "welfare_minutes", "activity_log"];
+    "transfers", "message_templates", "announcements", "wishes", "invites", "app_feedback", "prayer_requests", "download_log", "outreaches", "outreach_contacts", "challenges", "church_invites", "fund_requests", "counsel_requests", "counsel_private", "welfare_minutes", "event_notes", "meeting_rsvps", "activity_log"];
   const ins = (t: string, list: Record<string, unknown>[]) => {
     if (!list.length) return "";
     const cols = [...new Set(list.flatMap((x) => Object.keys(x)))];
@@ -250,7 +258,7 @@ it("builds the Graceville demo", () => {
 -- Traqi for Churches: the Graceville Church demo
 -- A complete, made-up church to show anyone how Traqi works:
 -- ${S.people.length} people, headquarters in Ikeja plus 4 branches in 2 regions, pastors, leaders,
--- workers, members, first-timers, classes, events, offerings, welfare, prayer and 14 sign-ins.
+-- workers, members, first-timers, classes, events, offerings, welfare, prayer and ${LOGINS.length} sign-ins.
 --
 -- Run once in Supabase: SQL Editor > New query > paste all > Run.
 -- To remove it later, run traqi-remove-demo-church.sql.

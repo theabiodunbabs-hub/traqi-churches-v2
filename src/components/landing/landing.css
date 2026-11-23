@@ -75,15 +75,36 @@ html.lenis, html.lenis body { height: auto; }
 .lp-logo--light small { color: rgb(255 255 255 / .6); }
 
 /* ── Header ── */
-.lp-header { position: fixed; inset: 0 0 auto 0; z-index: 60; height: var(--header-h); transition: background .4s, box-shadow .4s; }
-.lp-header.solid { background: rgb(255 255 255 / .82); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px); box-shadow: 0 1px 0 var(--line); }
-.lp-header__in { height: 100%; display: flex; align-items: center; gap: 20px; }
-.lp-nav { display: none; margin-left: auto; gap: 4px; }
-.lp-nav a { padding: 8px 12px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-2); transition: background .25s, color .25s; }
-.lp-nav a:hover { background: var(--brand-soft); color: var(--brand); }
-.lp-header__cta { margin-left: auto; display: flex; gap: 8px; }
+/* The header is a floating frosted bar with its own colours, so it reads clearly over any section behind it, light or dark. */
+.lp-header {
+  --h-bg: rgb(255 255 255 / .8); --h-ring: rgb(30 27 75 / .09); --h-ink: #1b1846; --h-ink-2: #3b3866; --h-muted: #5f5c85;
+  --h-hover: #eef0ff; --h-hover-ink: #4338ca; --h-shadow: 0 10px 30px -12px rgb(23 21 58 / .22);
+  position: fixed; inset: 0 0 auto 0; z-index: 60; height: calc(var(--header-h) + 8px); padding-top: 10px; pointer-events: none;
+}
+:root[data-theme="dark"] .lp-header {
+  --h-bg: rgb(17 15 42 / .78); --h-ring: rgb(255 255 255 / .12); --h-ink: #f6f5ff; --h-ink-2: #dcdaf5; --h-muted: #b4b1d8;
+  --h-hover: rgb(129 140 248 / .18); --h-hover-ink: #fff; --h-shadow: 0 10px 30px -12px rgb(0 0 0 / .6);
+}
+.lp-header__in {
+  pointer-events: auto; height: 58px; display: flex; align-items: center; gap: 16px;
+  max-width: calc(var(--maxw) - 2 * var(--gutter)); width: calc(100% - 2 * var(--gutter)); padding-inline: 10px 8px !important; margin-inline: auto;
+  background: var(--h-bg); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--h-ring), var(--h-shadow);
+  backdrop-filter: saturate(1.8) blur(20px); -webkit-backdrop-filter: saturate(1.8) blur(20px); transition: box-shadow .3s, background .3s;
+}
+.lp-header.solid .lp-header__in { --h-shadow: 0 14px 40px -14px rgb(23 21 58 / .32); }
+.lp-header .lp-logo { color: var(--h-ink); padding: 6px 8px; border-radius: 12px; }
+.lp-header .lp-logo__word small { color: var(--h-muted); font-weight: 600; }
+.lp-nav { display: none; margin-left: auto; gap: 2px; }
+.lp-nav a { padding: 9px 13px; border-radius: 12px; font-size: 14.5px; font-weight: 600; letter-spacing: -.005em; color: var(--h-ink-2); transition: background .2s, color .2s; }
+.lp-nav a:hover, .lp-nav a:focus-visible { background: var(--h-hover); color: var(--h-hover-ink); }
+.lp-header__cta { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.lp-header .lp-btn { height: 42px; border-radius: 13px; font-weight: 650; }
+.lp-header .lp-btn--ghost { color: var(--h-ink); box-shadow: inset 0 0 0 1.5px var(--h-ring); }
+.lp-header .lp-btn--ghost::before { background: var(--h-hover); }
+.lp-header__in { position: relative; }
+.lp-header .lp-progress { pointer-events: none; left: 16px; right: 16px; bottom: 0; height: 2px; border-radius: 2px; overflow: hidden; }
 @media (min-width: 64rem) { .lp-nav { display: flex; } .lp-header__cta { margin-left: 8px; } }
-@media (max-width: 30rem) { .lp-header__cta .lp-btn--ghost { display: none; } .lp-logo__word small { display: none; } }
+@media (max-width: 30rem) { .lp-header__cta .lp-btn--ghost { display: none; } .lp-logo__word small { display: none; } .lp-header__in { width: calc(100% - 20px); } }
 .lp-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; }
 .lp-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--glow)); transform-origin: 0 50%; transform: scaleX(var(--sp, 0)); }
 
@@ -488,7 +509,6 @@ html.lenis, html.lenis body { height: auto; }
 /* Dark mode: the white sections go to night, the rest already are */
 @media (prefers-color-scheme: dark) {
   .lp { --paper: #0f0d26; --page: #16143a; --cream: #13112e; --line: rgb(255 255 255 / .1); --ink: #f3f2ff; --ink-2: #b9b6dd; --muted: #8d8ab8; --brand-soft: rgb(99 102 241 / .16); }
-  .lp-header.solid { background: rgb(15 13 38 / .82); }
   .lp-problem, .lp-moments, .lp-doors { --stage-bg: #0f0d26; }
   .lp-section { background: #0f0d26; }
   .lp-section--cream { background: var(--cream); }

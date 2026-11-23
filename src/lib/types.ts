@@ -62,7 +62,13 @@ export type PendingContact = { personId: string; method: "call" | "whatsapp"; at
 export type Household = { id: string; name: string; address?: string };
 
 /** A department's regular meeting or one-off programme, shown on its members' Home. */
-export type DeptMeeting = { id: string; title: string; kind: "regular" | "programme"; weekday?: number; every?: "week" | "fortnight" | "month"; date?: string; time: string; venue?: string; link?: string };
+export type DeptMeeting = { id: string; title: string; kind: "regular" | "programme"; weekday?: number; every?: "week" | "fortnight" | "month"; date?: string; time: string; venue?: string; link?: string;
+  /** Physical or virtual (or both). Older meetings: worked out from the venue and link. */
+  mode?: Mode; notes?: string;
+  /** When it was set up or last changed, so members are told again. */
+  updatedAt?: string; byId?: string };
+/** A member's answer to "Will you be there?" for one meeting (one date of a regular meeting). */
+export type Rsvp = { id: string; personId: string; kind: "dept" | "committee"; refId: string; meetingId: string; date: string; answer: "yes" | "no"; note?: string; at: string };
 export type Group = {
   id: string;
   name: string;
@@ -229,7 +235,9 @@ export type Enrolment = { id: string; programmeId: string; personId: string; sta
   partnerId?: string };
 
 export type QuestionType = "text" | "long" | "choice" | "multi" | "yesno" | "number" | "date" | "phone" | "email";
-export type EventQuestion = { id: string; label: string; type: QuestionType; options?: string[]; required?: boolean; help?: string; /** Ask once per person when registering others too */ perPerson?: boolean };
+export type EventQuestion = { id: string; label: string; type: QuestionType; options?: string[]; /** Blank: compulsory, except T-shirt size, school or workplace and where they're coming from (see isRequired). */ required?: boolean; help?: string; /** Ask once per person when registering others too */ perPerson?: boolean;
+  /** One-choice questions: tap buttons, or a dropdown list. Blank: a dropdown for T-shirt sizes, buttons otherwise. */
+  display?: "buttons" | "dropdown" };
 
 /** One day of an event, with its own times and optional sessions. */
 export type EventDay = { date: string; start: string; end: string; title?: string; sessions?: EventSession[] };
@@ -274,9 +282,38 @@ export type ChurchEvent = {
   reminders?: { email: boolean; whatsapp: boolean; daysBefore: number[] };
   /** Branch hosting it, for churches with branches. */
   branchId?: string;
+  // ---- Round 5: event management ----
+  /** What the event is for, shown in the committee's brief. */
+  goals?: string;
+  objectives?: string[];
+  targetBudget?: number;
+  /** How many people the church hopes will register (a goal, not a limit: see capacity). */
+  regTarget?: number;
+  /** Start of every ticket ID, e.g. "CH26" gives CH26-00125. Made from the title and year when blank. */
+  ticketPrefix?: string;
+  /** Who follows up registrants, supports registration and checks people in on the day. */
+  duties?: Partial<Record<EventDuty, DutyTeam>>;
+  /** The Registration / Follow-up Lead, who manages the teams above. */
+  regLeadId?: string;
+  /** The lead may add helpers themselves. */
+  regLeadAdds?: boolean;
+  /** The shared check-in link. A new token replaces (revokes) the old one. */
+  checkinLink?: { token: string; at: string; byId: string; revoked?: boolean };
 };
+export type EventDuty = "followup" | "registration" | "checkin";
+/** A whole department (everyone in it, as it changes) and/or named people. */
+export type DutyTeam = { groupIds: string[]; personIds: string[] };
+export type CheckinVia = "qr" | "ticket" | "phone" | "email" | "name" | "walkin";
+/** One check-in: the day, when, who did it and how. */
+export type CheckinMark = { day: string; at: string; byId?: string; via?: CheckinVia; session?: string };
 export type Registration = {
-  id: string; eventId: string; personId?: string; name: string; phone: string; email?: string; guests: number;
+  id: string; eventId: string; personId?: string;
+  /** First and last name, asked separately. `name` is both together, for tickets, the door and older records. */
+  firstName?: string; lastName?: string;
+  name: string;
+  /** Their WhatsApp number. */ phone: string;
+  /** A second number: their hotline or call number. */ altPhone?: string;
+  email?: string; guests: number;
   days: string[]; answers: Record<string, string>; ticket: string; status: "confirmed" | "waitlist" | "pending"; checkins: string[]; at: string;
   /** Individual, group or online. */
   type?: RegType;
@@ -285,6 +322,8 @@ export type Registration = {
   /** Sessions this person checked into. */
   sessions?: string[];
   feedback?: { answers: Record<string, string>; at: string };
+  /** Who checked this person in, when and how. */
+  checkinLog?: CheckinMark[];
 };
 
 export type CountLine = { category: string; amount: number; currency: string };
@@ -320,9 +359,26 @@ export type OutreachContact = {
   consent: true; assigneeId?: string; status: "new" | "reached";
   contacts?: { at: string; byId: string; outcome: string }[];
 };
+/**
+ * What a committee member may do besides contribute. The head and assistant head may do all of it.
+ * team: add people, give roles · meetings: schedule meetings · landing: edit the event page and form ·
+ * budget: review budgets at committee level · checkin: set up the registration and check-in teams
+ */
+export type CommitteePerm = "team" | "meetings" | "landing" | "budget" | "checkin";
+export type CommitteeMember = { personId: string; role?: string; duties?: string; perms?: CommitteePerm[]; addedById?: string; addedAt?: string };
+export type CommitteeMeeting = {
+  id: string; date: string; time: string; mode: Mode; venue?: string; link?: string; agenda?: string;
+  byId: string; at: string; updatedAt?: string; cancelled?: boolean;
+};
+/** A thought or suggestion a committee member documents. Kept in its own table so any member can add one. */
+export type EventNote = { id: string; eventId: string; byId: string; at: string; kind: "thought" | "suggestion" | "concern"; text: string;
+  status?: "open" | "adopted" | "parked"; reply?: { byId: string; at: string; text: string } };
 export type Committee = {
-  members: { personId: string; role?: string }[];
+  members: CommitteeMember[];
   headId?: string; assistantId?: string;
+  /** The committee's Finance Lead: reviews budgets with the heads before they go to church finance. */
+  financeLeadId?: string;
+  meetings?: CommitteeMeeting[];
   approvedById?: string; approvedAt?: string;
   /** Instructions: the pastorate and admin write to the heads; the heads write to everyone. */
   messages: { id: string; byId: string; at: string; to: "heads" | "all"; text: string }[];
@@ -354,6 +410,8 @@ export type FundRequest = {
   /** Spent already (urgent), asking to be refunded. */
   refund?: boolean;
   stage: FundStage; returnedFrom?: FundStage;
+  /** Event requests sent back by finance or the Lead Pastor go to the committee leadership first ("committee"), who may pass them on to the person who raised them. */
+  returnedTo?: "committee" | "initiator";
   /** Event budgets: department requests gathered by the committee into one request. */
   parentId?: string; childIds?: string[];
   history: { at: string; byId: string; action: string; note?: string }[];

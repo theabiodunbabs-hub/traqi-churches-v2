@@ -9,12 +9,13 @@ import { useRef } from "react";
 import { ArrowLeft, Camera, Check, Copy, Crown, Lock, MoreHorizontal, Pencil, Plane, Share2, UserMinus, UserPlus, Undo2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useWords } from "@/components/theme";
-import { Avatar, Badge, Button, Empty, Field, JourneyTrack, Panel, Sheet, Toggle, cx, inputCls, toast, confirmAsk } from "@/components/ui";
+import { Avatar, Badge, Button, Empty, Field, FieldGroup, JourneyTrack, Panel, Sheet, Toggle, cx, inputCls, toast, confirmAsk } from "@/components/ui";
 import { WhatsAppIcon } from "@/components/care";
 import { uploadImage } from "@/lib/upload";
 import { CustomFieldInput, customValue } from "@/components/custom-fields";
 import { isAway, progress, sundayDots } from "@/lib/domain";
-import { shortDate, todayLagos, waLink } from "@/lib/format";
+import { birthdayLabel, hasBirthYear, shortDate, todayLagos, waLink } from "@/lib/format";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { ReachOut, ReasonTag, messages } from "@/components/care";
 import { FOLLOW_STAGES, ago, completeness, fullName, hoursSince, longDate } from "@/lib/format";
 import type { Person } from "@/lib/types";
@@ -93,7 +94,7 @@ export default function Profile() {
               <Row k="Email" v={contacts ? p.email : <Hidden />} />
               <Row k="Area" v={p.location} />
               <Row k="Address" v={contacts ? hh?.address : <Hidden />} />
-              <Row k="Birthday" v={p.birthday ? longDate(p.birthday) : undefined} />
+              <Row k="Birthday" v={p.birthday ? birthdayLabel(p.birthday) : undefined} />
               <Row k="Occupation" v={p.occupation} />
               <Row k="Marital status" v={MARITAL.find(([k]) => k === p.custom?.marital)?.[1]?.concat(p.custom?.maritalOther ? `: ${p.custom.maritalOther}` : "")} />
               {p.custom?.bornAgain && <Row k="Born again" v={BORN_AGAIN.find(([k]) => k === p.custom?.bornAgain)?.[1]} />}
@@ -131,7 +132,7 @@ export default function Profile() {
             <Panel title={hh?.name ?? "Household"}>
               <ul className="space-y-3">
                 {household.map((h) => (
-                  <li key={h.id}><Link href={`/people/${h.id}`} className="flex items-center gap-3 hover:text-brand"><Avatar person={h} size={34} /><span className="font-medium">{fullName(h)}</span>{h.isChild && <span className="text-xs text-muted">Child, born {h.birthday?.slice(0, 4)}</span>}</Link></li>
+                  <li key={h.id}><Link href={`/people/${h.id}`} className="flex items-center gap-3 hover:text-brand"><Avatar person={h} size={34} /><span className="font-medium">{fullName(h)}</span>{h.isChild && <span className="text-xs text-muted">Child{hasBirthYear(h.birthday) ? `, born ${h.birthday!.slice(0, 4)}` : ""}</span>}</Link></li>
                 ))}
               </ul>
             </Panel>
@@ -337,7 +338,7 @@ function EditPerson({ open, onClose, person: p }: { open: boolean; onClose: () =
         <Field label="WhatsApp number"><input className={inputCls} value={f.whatsapp ?? ""} onChange={set("whatsapp")} inputMode="tel" /></Field>
         <Field label="Email"><input className={inputCls} value={f.email ?? ""} onChange={set("email")} type="email" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Birthday" hint="Day, month and year"><input className={inputCls} value={f.birthday ?? ""} onChange={set("birthday")} type="date" /></Field>
+          <FieldGroup label="Birthday (day-month)" hint="Year optional, e.g. for children"><BirthdayPicker value={f.birthday} withYear onChange={(v) => setF({ ...f, birthday: v || undefined })} /></FieldGroup>
           <Field label="Wedding anniversary" hint="If married"><input className={inputCls} value={f.anniversary ?? ""} onChange={set("anniversary")} type="date" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

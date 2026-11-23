@@ -6,10 +6,11 @@ import { ArrowRight, BadgeCheck, Building2, Loader2, MapPin, Search, X } from "l
 import { useStore } from "@/lib/store";
 import { findChurches, type FoundChurch } from "@/lib/live";
 import { DEMO_CHURCHES, rankChurches } from "@/lib/church-search";
-import { digits } from "@/lib/format";
+import { birthdayParts, digits } from "@/lib/format";
+import { BirthdayPicker } from "@/components/birthday-picker";
 import { OnboardFrame, Steps } from "@/components/onboarding";
 import { LiveSignIn } from "@/components/auth";
-import { Button, Confetti, Field, cx, inputCls } from "@/components/ui";
+import { Button, Confetti, Field, FieldGroup, cx, inputCls } from "@/components/ui";
 import { ChurchMark } from "@/components/brand";
 
 /** Join a church found by search. Instant member access; the church confirms you later. */
@@ -60,10 +61,11 @@ export default function Join() {
     if (!f.firstName.trim() || !f.lastName.trim()) return setErr("Please enter your first and last name.");
     if (!f.gender) return setErr("Please choose male or female.");
     if (digits(f.phone).length < 10) return setErr("Please enter your phone number.");
+    if (!birthdayParts(f.birthday)) return setErr("Please choose your birthday (day and month).");
     if (mode !== "live" && church!.id !== "heirs") return setErr(`In this demo you can join ${state.church.name}. On your live site, every church on Traqi can be joined.`);
     setBusy(true);
     try {
-      await joinChurch({ church: church!.id, branch: branch ?? undefined, firstName: f.firstName, lastName: f.lastName, gender: f.gender as "M" | "F", phone: f.phone, birthday: f.birthday || undefined });
+      await joinChurch({ church: church!.id, branch: branch ?? undefined, firstName: f.firstName, lastName: f.lastName, gender: f.gender as "M" | "F", phone: f.phone, birthday: f.birthday });
       setStep("done");
     } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong. Try again."); }
     setBusy(false);
@@ -151,7 +153,7 @@ export default function Join() {
             ))}</div>
           </Field>
           <Field label="Phone number" hint="Your church uses it to reach you."><input className={inputCls} inputMode="tel" autoComplete="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="0803 123 4567" /></Field>
-          <Field label="Birthday (optional)" hint="So the church can celebrate you."><input type="date" className={inputCls} value={f.birthday} onChange={(e) => setF({ ...f, birthday: e.target.value })} /></Field>
+          <FieldGroup label="Birthday (day-month only)" hint="So the church can celebrate you. No year needed."><BirthdayPicker value={f.birthday} onChange={(v) => { setF({ ...f, birthday: v }); setErr(""); }} invalid={err.startsWith("Please choose your birthday")} /></FieldGroup>
           {err && <p className="text-sm text-alert" role="alert">{err}</p>}
           <Button variant="primary" type="submit" disabled={busy} className="h-12 w-full text-[16px]">{busy ? <Loader2 size={17} className="animate-spin" /> : null}Join {church.name.split(/[,(]/)[0]}</Button>
           <p className="text-center text-[12.5px] text-muted">You can use Traqi as a member straight away. Your church confirms you soon after.</p>

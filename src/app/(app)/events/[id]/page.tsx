@@ -5,7 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BellRing, Check, CheckCircle2, Copy, CopyPlus, Eye, Handshake, Image as ImageIcon, MessageSquareText, ScanLine, Send, UserPlus, Users, X } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { CommitteePanel, committeeRights } from "@/components/committee";
+import { CommitteePanel } from "@/components/committee";
+import { EventBriefing } from "@/components/event-briefing";
+import { EventDoor, TeamsPanel } from "@/components/event-door";
+import { checksIn, committeeRights, managesEvent, managesTeams, onDuty } from "@/lib/event-mgmt";
 import { Badge, Button, CountUp, Empty, Panel, ProgressRing, Sheet, Tabs, cx, inputCls, toast } from "@/components/ui";
 import { COVERS } from "@/components/brand";
 import { QR } from "@/components/public";
@@ -22,24 +25,60 @@ import { saveBlob } from "@/lib/download";
 import { dayName, digits, todayLagos, waLink } from "@/lib/format";
 import type { ChurchEvent, Registration } from "@/lib/types";
 
-type Tab = "overview" | "people" | "door" | "share" | "feedback" | "committee" | "edit";
+type Tab = "overview" | "people" | "door" | "teams" | "share" | "feedback" | "committee" | "briefing" | "edit" | "page";
+const TABS: Tab[] = ["overview", "people", "door", "teams", "share", "feedback", "committee", "briefing", "edit", "page"];
 
 export default function EventPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { state, access, me, put, drop, newId, findByPhone } = useStore();
+  const { state, access, me, put, drop, newId, updatePerson } = useStore();
   const demoRegister = useDemoRegister();
   const [tab, setTab] = useState<Tab>("overview");
   const [preview, setPreview] = useState<ChurchEvent | null>(null);
-  useEffect(() => { if (typeof window !== "undefined" && new URLSearchParams(location.search).get("edit")) setTab("edit"); }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(location.search);
+    const t = q.get("tab") as Tab | null;
+    if (q.get("edit")) setTab("edit"); else if (t && TABS.includes(t)) setTab(t);
+  }, []);
   const e = state.events.find((x) => x.id === id);
   if (!access || !me) return null;
   if (!e) return <Empty title="Event not found" body="It may have been removed." action={<Link href="/events" className="text-brand">Back to events</Link>} />;
 
-  const coOrg = e.coOrganisers.some((c) => c.status === "approved" && access.leads.has(c.groupId));
-  const manage = canCreateEvents(access) || e.createdById === me.id || coOrg || access.isPastoral;
+  const manage = canCreateEvents(access) || managesEvent(state, e, access);
   const s = eventState(e); const b = STATE_BADGE[s]; const c = eventCounts(state, e);
   const church = { name: state.church.name, slug: state.church.slug, profile: state.church.profile };
+  const cr = committeeRights(e, access);
+  const atDoor = checksIn(state, e, access) && e.status === "published";
+  const teams = managesTeams(e, access);
+  const onTeam = (["followup", "registration"] as const).some((d) => onDuty(state, e, me.id, d));
+
+  // Committee members, the Registration Lead and the check-in team get their own workspace
+  if (!manage && !preview && (cr.sees || atDoor || teams || onTeam)) {
+    const items = [
+      ...(cr.sees ? [{ key: "committee" as Tab, label: "Committee" }, { key: "briefing" as Tab, label: "Briefing" }] : []),
+      ...(atDoor ? [{ key: "door" as Tab, label: "Check-in" }] : []),
+      ...(teams ? [{ key: "teams" as Tab, label: "Teams" }] : []),
+      ...(onTeam || teams ? [{ key: "people" as Tab, label: "Registrations", count: c.regs.length }] : []),
+      { key: "page" as Tab, label: "Event page" },
+    ];
+    const cur = items.some((x) => x.key === tab) ? tab : items[0].key;
+    return (
+      <div className="mx-auto max-w-5xl">
+        <Link href="/today" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft size={15} /> Home</Link>
+        <div className="mb-4"><Badge tone={b.tone}>{b.label}</Badge><h1 className="mt-2 font-display text-[28px] font-semibold leading-tight tracking-tight md:text-[34px]">{e.title}</h1><p className="text-ink-soft">{whenLine(e)}{e.venue && e.mode !== "virtual" ? ` · ${e.venue}` : ""}</p></div>
+        <Tabs className="mb-5" value={cur} onChange={setTab} items={items} />
+        <div key={cur} className="rise">
+          {cur === "committee" && <CommitteePanel e={e} />}
+          {cur === "briefing" && <EventBriefing e={e} />}
+          {cur === "door" && <EventDoor e={e} />}
+          {cur === "teams" && <TeamsPanel e={e} />}
+          {cur === "people" && <People e={e} />}
+          {cur === "page" && <div className="-mx-4 md:-mx-8"><EventLanding e={e} church={church} registered={c.people} recent={c.confirmed.slice(-4).map((r) => r.name)} onRegister={(r) => demoRegister(e, r)} preview /></div>}
+        </div>
+      </div>
+    );
+  }
 
   if (!manage || preview) {
     const shown = preview ?? e;
@@ -48,7 +87,16 @@ export default function EventPage() {
       <div className="-mx-4 -mt-5 md:-mx-8 md:-mt-8">
         {onCommittee && <div className="mx-auto max-w-5xl px-4 pb-2 pt-5 md:px-8"><CommitteePanel e={e} /></div>}
         {preview && <div className="sticky top-14 z-50 flex justify-center md:top-3"><Button className="shadow-lg" onClick={() => setPreview(null)}><X size={15} /> Close preview</Button></div>}
-        <EventLanding e={shown} church={church} registered={c.people} recent={c.confirmed.slice(-4).map((r) => r.name)} onRegister={(r) => demoRegister(e, r)} preview={!!preview} />
+        <EventLanding e={shown} church={church} registered={c.people} recent={c.confirmed.slice(-4).map((r) => r.name)} onRegister={(r) => demoRegister(e, r)} preview={!!preview}
+          member={{
+            known: true,
+            // Signed in already: their own details fill the form, and the ticket is theirs
+            status: async () => ({ signedIn: true, member: true, email: me.email, person: { firstName: me.firstName, lastName: me.lastName, phone: me.phone, birthday: me.birthday, gender: me.gender, email: me.email },
+              tickets: state.registrations.filter((r) => r.eventId === e.id && r.personId === me.id).map((r) => ({ name: r.name, ticket: r.ticket, status: r.status })) }),
+            google: async () => {},
+            register: async (r) => { if (!me.birthday && r.birthday) updatePerson(me.id, { birthday: r.birthday }, "self"); return demoRegister(e, r, me.id); },
+            dashboard: () => router.push("/today"),
+          }} />
       </div>
     );
   }
@@ -101,19 +149,22 @@ export default function EventPage() {
 
       <Tabs className="mb-5" value={tab} onChange={setTab} items={[
         { key: "overview", label: "Overview" }, { key: "people", label: "Registrations", count: c.regs.length },
-        { key: "door", label: "At the door" }, { key: "share", label: "Share" },
+        { key: "committee", label: "Committee", count: e.committee?.members.length || undefined }, { key: "briefing", label: "Briefing" },
+        { key: "door", label: "Check-in" }, { key: "teams", label: "Teams" }, { key: "share", label: "Share" },
         ...(e.feedback?.on ? [{ key: "feedback" as Tab, label: "Feedback", count: c.regs.filter((r) => r.feedback).length }] : []),
-        { key: "committee", label: "Committee", count: e.committee?.members.length || undefined },
         { key: "edit", label: "Edit" },
       ]} />
 
       <div key={tab} className="rise">
         {tab === "overview" && <Overview e={e} />}
         {tab === "people" && <People e={e} />}
-        {tab === "door" && <Door e={e} put={put} newId={newId} findByPhone={findByPhone} />}
+        {tab === "door" && (e.status === "published" ? <EventDoor e={e} /> : <Empty title="Not open yet" body="Check-in opens once a pastor publishes the event." icon={<ScanLine size={26} />} />)}
+        {tab === "teams" && <TeamsPanel e={e} />}
+        {tab === "briefing" && <EventBriefing e={e} />}
         {tab === "share" && <Share e={e} />}
         {tab === "feedback" && <FeedbackResults e={e} />}
-        {tab === "committee" && <CommitteePanel e={e} />}
+        {tab === "committee" && <CommitteePanel e={e} onEdit={() => setTab("edit")} />}
+        {tab === "page" && <Overview e={e} />}
         {tab === "edit" && <EventEditor e={e} onPreview={setPreview} onSave={(x) => {
           const moved = e.status === "published" && (x.start !== e.start || x.venue !== e.venue || x.link !== e.link || x.days.join() !== e.days.join());
           put("events", moved && !access.isPastoral ? { ...x, status: "pending" } : x, `updated the event ${x.title}`);
@@ -132,13 +183,15 @@ function Overview({ e }: { e: ChurchEvent }) {
   const types = { individual: 0, group: 0, online: 0 } as Record<string, number>;
   c.regs.forEach((r) => { types[r.type ?? "individual"] = (types[r.type ?? "individual"] ?? 0) + 1; });
   const live = happeningNow(e);
+  const goal = e.regTarget ?? e.capacity;
   return (
     <div className="space-y-5">
       {live && <div className="flex items-center gap-3 rounded-2xl bg-alert px-4 py-3 text-white"><span className="size-2.5 animate-pulse rounded-full bg-white" /><b>Happening now</b><span className="truncate">{live.session?.title ?? `Day ${live.dayIndex + 1}`}</span></div>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="card flex items-center gap-4 p-4">
-          {e.capacity ? <span className="text-brand"><ProgressRing value={c.people / e.capacity} size={56}>{Math.round((c.people / e.capacity) * 100)}%</ProgressRing></span> : null}
-          <div><p className="num text-[28px] font-semibold"><CountUp to={c.people} /></p><p className="text-[13px] text-ink-soft">coming{e.capacity ? ` of ${e.capacity}` : ""}</p></div>
+          {goal ? <span className="text-brand"><ProgressRing value={Math.min(1, c.people / goal)} size={56}>{Math.round((c.people / goal) * 100)}%</ProgressRing></span> : null}
+          <div><p className="num text-[28px] font-semibold"><CountUp to={c.people} /></p><p className="text-[13px] text-ink-soft">registered{e.regTarget ? ` of ${e.regTarget.toLocaleString("en-NG")} target` : e.capacity ? ` of ${e.capacity} places` : ""}</p>
+            {e.regTarget ? <p className="text-[12px] text-muted">{Math.max(0, e.regTarget - c.people).toLocaleString("en-NG")} to reach the target</p> : null}</div>
         </div>
         <div className="card p-4"><p className="num text-[28px] font-semibold text-good"><CountUp to={c.checkedIn} /></p><p className="text-[13px] text-ink-soft">checked in</p></div>
         <div className="card p-4"><p className="num text-[28px] font-semibold text-brand"><CountUp to={c.newContacts} /></p><p className="text-[13px] text-ink-soft">new to the church</p></div>
@@ -169,7 +222,7 @@ function People({ e }: { e: ChurchEvent }) {
   const [q, setQ] = useState("");
   const [toFollow, setToFollow] = useState(false);
   const fresh = c.regs.filter((r) => !r.personId && digits(r.phone).length >= 10 && r.status === "confirmed" && !c.regs.some((x) => x !== r && x.personId && digits(x.phone).slice(-10) === digits(r.phone).slice(-10)));
-  const list = c.regs.filter((r) => !q || `${r.name} ${r.phone} ${r.ticket}`.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.at.localeCompare(a.at));
+  const list = c.regs.filter((r) => !q || `${r.name} ${r.phone} ${r.ticket} ${r.email ?? ""}`.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.at.localeCompare(a.at));
   const leadOf = (r: Registration) => (r.byRegId ? c.regs.find((x) => x.id === r.byRegId) : undefined);
   return (
     <Panel title="Registrations" action={<DownloadButton what={`${e.title} registrations`} sheets={() => [registrationsSheet(state, e)]} />}>
@@ -181,7 +234,7 @@ function People({ e }: { e: ChurchEvent }) {
         </div>
       )}
       {toFollow && <ToFollowUp e={e} regs={fresh} onClose={() => setToFollow(false)} />}
-      <input className={cx(inputCls, "mb-3")} value={q} onChange={(x) => setQ(x.target.value)} placeholder="Search name, phone or ticket" />
+      <input className={cx(inputCls, "mb-3")} value={q} onChange={(x) => setQ(x.target.value)} placeholder="Search name, phone, email or ticket ID" />
       {list.length === 0 ? <p className="py-6 text-center text-sm text-muted">No registrations yet. Share the link to get started.</p> : (
         <ul className="divide-y divide-line">{list.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
@@ -225,74 +278,6 @@ function ToFollowUp({ e, regs, onClose }: { e: ChurchEvent; regs: Registration[]
         </li>
       ))}</ul>
     </Sheet>
-  );
-}
-
-function Door({ e, put, newId, findByPhone }: { e: ChurchEvent; put: ReturnType<typeof useStore>["put"]; newId: (p: string) => string; findByPhone: ReturnType<typeof useStore>["findByPhone"] }) {
-  const { state } = useStore();
-  const c = eventCounts(state, e);
-  const days = daysOf(e);
-  const today = days.some((d) => d.date === todayLagos()) ? todayLagos() : days[0].date;
-  const [day, setDay] = useState(today);
-  const plan = days.find((d) => d.date === day);
-  const sessions = e.sessionCheckin ? (plan?.sessions ?? []).filter((s) => s.checkin !== false) : [];
-  const live = happeningNow(e);
-  const [sess, setSess] = useState<string>(live?.session?.id && sessions.some((s) => s.id === live.session!.id) ? live.session.id : "");
-  const [code, setCode] = useState("");
-  const [walk, setWalk] = useState(false);
-  const [w, setW] = useState({ name: "", phone: "" });
-  const [last, setLast] = useState<Registration | null>(null);
-  const scan = (r?: Registration) => {
-    if (!r) return toast("No ticket with that code");
-    if (r.status !== "confirmed") return toast(`${r.name} is ${r.status === "waitlist" ? "on the waiting list" : "not confirmed yet"}`);
-    const inDay = r.checkins.includes(day);
-    const inSess = !sess || (r.sessions ?? []).includes(sess);
-    if (inDay && inSess) { setLast(r); return toast(`${r.name.split(" ")[0]} is already in`); }
-    const next = { ...r, checkins: inDay ? r.checkins : [...r.checkins, day], sessions: sess && !inSess ? [...(r.sessions ?? []), sess] : r.sessions };
-    put("registrations", next); setLast(next); setCode("");
-  };
-  const inCount = sess ? c.regs.filter((r) => (r.sessions ?? []).includes(sess)).length : c.regs.filter((r) => r.checkins.includes(day)).length;
-  return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-      <Panel title="Check people in" action={days.length > 1 && <select className="rounded-xl bg-page px-3 py-1.5 text-sm ring-1 ring-line" value={day} onChange={(x) => { setDay(x.target.value); setSess(""); }}>{days.map((d, i) => <option key={d.date} value={d.date}>Day {i + 1} · {dayName(d.date, { weekday: "short", day: "numeric", month: "short" })}</option>)}</select>}>
-        {sessions.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => setSess("")} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", !sess ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>The day</button>
-            {sessions.map((s) => <button type="button" key={s.id} onClick={() => setSess(s.id)} className={cx("rounded-full px-3 py-1.5 text-[13px] ring-1", sess === s.id ? "bg-deep text-white ring-deep" : "bg-page ring-line")}>{s.title || s.start}</button>)}
-          </div>
-        )}
-        <form onSubmit={(x) => { x.preventDefault(); const k = code.trim().toUpperCase(); scan(c.regs.find((r) => r.ticket === k || (digits(k).length >= 10 && digits(r.phone).slice(-10) === digits(k).slice(-10)))); }} className="flex gap-2">
-          <div className="relative flex-1"><ScanLine size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" /><input autoFocus className={cx(inputCls, "num py-3.5 pl-11 text-lg uppercase tracking-wider")} value={code} onChange={(x) => setCode(x.target.value)} placeholder="Ticket code or phone" /></div>
-          <Button variant="primary" type="submit">Check in</Button>
-        </form>
-        <p className="mt-2 text-[12.5px] text-muted">A barcode scanner types the code for you. Or search by phone number.</p>
-        {last && (
-          <div className="pop mt-5 flex items-center gap-4 rounded-2xl bg-good-soft p-4">
-            <span className="flex size-12 items-center justify-center rounded-full bg-good text-white"><Check size={24} /></span>
-            <span><b className="block text-lg">{last.name}</b><span className="text-sm text-ink-soft">Welcome! {last.ticket}</span></span>
-          </div>
-        )}
-        <div className="mt-6 border-t border-line pt-4">
-          {walk ? (
-            <div className="space-y-3">
-              <p className="font-semibold">Walk-in</p>
-              <div className="grid grid-cols-2 gap-2"><input className={inputCls} placeholder="Full name" value={w.name} onChange={(x) => setW({ ...w, name: x.target.value })} /><input className={inputCls} placeholder="Phone" inputMode="tel" value={w.phone} onChange={(x) => setW({ ...w, phone: x.target.value })} /></div>
-              <Button variant="primary" disabled={w.name.trim().length < 2 || digits(w.phone).length < 10} onClick={() => {
-                const r: Registration = { id: newId("rg"), eventId: e.id, personId: findByPhone(w.phone)?.id, name: w.name.trim(), phone: w.phone, guests: 0, days: [day], answers: {},
-                  ticket: ticketCode(e), status: "confirmed", checkins: [day], sessions: sess ? [sess] : [], at: new Date().toISOString(), type: "individual" };
-                put("registrations", r, `added a walk-in at ${e.title}`); setLast(r); toast(`${r.name.split(" ")[0]} is checked in`);
-                setW({ name: "", phone: "" }); setWalk(false);
-              }}><UserPlus size={15} /> Add and check in</Button>
-            </div>
-          ) : <Button onClick={() => setWalk(true)}><UserPlus size={15} /> Add a walk-in</Button>}
-        </div>
-      </Panel>
-      <div className="card flex flex-col items-center justify-center p-6 text-center">
-        <p className="text-sm text-muted">In {sess ? "this session" : "today"}</p>
-        <p className="num mt-1 text-[56px] font-semibold leading-none"><CountUp to={inCount} /></p>
-        <p className="mt-2 text-sm text-ink-soft">of {c.regs.filter((r) => r.days.includes(day) && r.status === "confirmed" && r.type !== "online").length} expected in person</p>
-      </div>
-    </div>
   );
 }
 

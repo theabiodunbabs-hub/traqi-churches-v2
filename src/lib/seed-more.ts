@@ -6,7 +6,7 @@ import { defaultJourney } from "./journey";
 import { DEFAULT_TEMPLATES } from "./templates";
 import type {
   Announcement, Attendance, Away, ChurchEvent, ChurchProfile, ClassSession, Enrolment, FollowCase, Group, Headcount, Invite, Lodgement,
-  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog, Outreach, OutreachContact, Challenge, ChurchInvite, FundRequest, CounselRequest } from "./types";
+  Meeting, MessageTemplate, Person, Programme, Registration, ServiceCount, Transfer, WelfareRequest, Wish, AppFeedback, PrayerRequest, DownloadLog, Outreach, OutreachContact, Challenge, ChurchInvite, FundRequest, CounselRequest, EventNote, Rsvp } from "./types";
 
 function rng(seed: number) {
   return () => {
@@ -185,6 +185,51 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
   });
   members.slice(5, 11).forEach((p) => enrolments.push({ id: id("en"), programmeId: "pr-stewardship", personId: p.id, status: "active", enrolledAt: stampISO(-24 * 3) }));
 
+  // ---------- Family Life: marital status, couples, and the department's own courses ----------
+  const grown = people.filter((p) => !p.isChild && !p.inactive && p.stage !== "first_timer");
+  const men = grown.filter((p) => p.gender === "M" && !p.householdId), women = grown.filter((p) => p.gender === "F" && !p.householdId);
+  // The households already in the demo are married couples
+  people.filter((p) => !p.isChild && (p.householdId === "h1" || p.householdId === "h2")).forEach((p) => { p.custom = { ...(p.custom ?? {}), marital: "married" }; });
+  // Six more married couples sharing a home and an anniversary
+  for (let i = 0; i < 6 && men[i] && women[i]; i++) {
+    const hid = `hf${i + 1}`, ann = `${2008 + i * 2}${dayISO(3 + i * 9).slice(4)}`;
+    [men[i], women[i]].forEach((p) => { p.householdId = hid; p.anniversary = ann; p.custom = { ...(p.custom ?? {}), marital: "married" }; });
+  }
+  // Engaged couples taking the marriage course, a few widowed, and plenty of singles
+  const engaged: [Person, Person][] = [[men[6], women[6]], [men[7], women[7]], [men[8], women[8]]].filter(([m, w]) => m && w) as [Person, Person][];
+  engaged.flat().forEach((p) => { p.custom = { ...(p.custom ?? {}), marital: "other", maritalOther: "Engaged, wedding planned this year" }; });
+  [women[9], men[9]].filter(Boolean).forEach((p) => { p.custom = { ...(p.custom ?? {}), marital: "other", maritalOther: "Widowed" }; });
+  grown.forEach((p, i) => { if (!p.custom?.marital && i % 5 !== 4) p.custom = { ...(p.custom ?? {}), marital: p.anniversary ? "married" : "single" }; });
+  const famHead = `${P.family.firstName} ${P.family.lastName}`;
+  programmes.push(
+    { id: "pr-marriage", name: "Marriage Preparation", description: "Premarital counselling for engaged couples: communication, money, intimacy, family and faith. Couples attend together and receive one certificate.",
+      modules: ["God's design for marriage", "Communication and conflict", "Money and the home", "Families and in-laws", "Intimacy and purity", "Building a Christ-centred home"].map((t, i) => ({ id: `mm${i + 1}`, title: t })),
+      run: "batch", mode: "physical", venue: "Family Life room", weekday: 6, time: "15:00", minutes: 90, completeAfter: 6, recordingsCount: false,
+      signatories: ["Lead Pastor", "Head, Family Life"], startDate: addDays(sun, -20), color: 3, owner: "family", couples: true,
+      signers: [{ name: `${P.lead.firstName} ${P.lead.lastName}`, title: "Lead Pastor", personId: P.lead.id }, { name: famHead, title: "Head, Family Life", personId: P.family.id }] },
+    { id: "pr-parenting", name: "Parenting with Purpose", description: "Four evenings for parents: raising children in the faith, discipline with love, the teenage years and screens.",
+      modules: ["Parenting God's way", "Discipline with love", "The teenage years", "Screens, friends and safety"].map((t, i) => ({ id: `pp${i + 1}`, title: t })),
+      run: "batch", mode: "hybrid", venue: "Family Life room", link: "https://meet.google.com/heirs-parenting", weekday: 3, time: "19:00", minutes: 75, completeAfter: 3, recordingsCount: true,
+      signatories: ["Head, Family Life"], startDate: addDays(sun, 10), color: 2, owner: "family" },
+  );
+  programmes.at(-2)!.modules.forEach((mod, i) => {
+    const d = addDays(sun, -20 + i * 7);
+    sessions.push({ id: `cs-m-${i}`, programmeId: "pr-marriage", moduleId: mod.id, date: d, start: at(d, "15:00"), venue: "Family Life room", teacherId: P.family.id });
+  });
+  programmes.at(-1)!.modules.forEach((mod, i) => {
+    const d = addDays(sun, 10 + i * 7);
+    sessions.push({ id: `cs-p-${i}`, programmeId: "pr-parenting", moduleId: mod.id, date: d, start: at(d, "19:00"), venue: "Family Life room", link: "https://meet.google.com/heirs-parenting", teacherId: P.family.id });
+  });
+  const pastM = sessions.filter((s) => s.programmeId === "pr-marriage" && Date.parse(s.start) < Date.now());
+  engaged.forEach(([m, w], i) => [m, w].forEach((p, k) => {
+    enrolments.push({ id: id("en"), programmeId: "pr-marriage", personId: p.id, partnerId: (k ? m : w).id, status: "active", enrolledAt: stampISO(-24 * 25) });
+    pastM.forEach((s, j) => { if ((i + j) % 4 !== 3) classAttendance.push({ id: id("at"), meetingId: s.id, personId: p.id, method: "qr", at: s.start }); });
+  }));
+  // Last year's couples finished and received their certificate
+  [[men[10], women[10]], [men[11], women[11]]].filter(([m, w]) => m && w).forEach(([m, w], i) => [m, w].forEach((p, k) => enrolments.push({ id: id("en"), programmeId: "pr-marriage", personId: p.id, partnerId: (k ? m : w).id,
+    status: "completed", enrolledAt: stampISO(-24 * 300), completedAt: stampISO(-24 * (200 + i)), certNo: `HC-MP-2026-0${12 + i}` })));
+  grown.filter((p) => p.householdId?.startsWith("hf")).slice(0, 6).forEach((p) => enrolments.push({ id: id("en"), programmeId: "pr-parenting", personId: p.id, status: "active", enrolledAt: stampISO(-24 * 2) }));
+
   // ---------- Events ----------
   const yc = addDays(sun, 26);
   const events: ChurchEvent[] = [
@@ -237,7 +282,11 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
       speakers: [{ name: "Pastor Samuel Kayode", role: "Associate pastor" }, { name: "Abiodun Babatunde", role: "Head, Faculty of Training" }, { name: "Edify Worship", role: "Worship" }],
       schedule: [{ time: "10:00 AM", item: "Worship" }, { time: "11:00 AM", item: "Main session" }, { time: "1:00 PM", item: "Lunch and connect" }, { time: "2:00 PM", item: "Workshops" }],
       capacity: 400, closesAt: at(addDays(yc, -1), "23:59"), groupReg: true, needsApproval: false, followup: true,
-      questions: [{ id: "q1", label: "T-shirt size", type: "choice", options: ["S", "M", "L", "XL", "XXL"], required: true, perPerson: true }, { id: "q2", label: "Do you need accommodation?", type: "yesno" }, { id: "q3", label: "School or workplace", type: "text" }],
+      questions: [{ id: "q1", label: "T-shirt size", type: "choice", options: ["S", "M", "L", "XL", "XXL"], perPerson: true, display: "dropdown" }, { id: "q2", label: "Do you need accommodation?", type: "yesno" }, { id: "q3", label: "School or workplace", type: "text" },
+        { id: "gender", label: "Gender", type: "choice", options: ["Male", "Female"], perPerson: true }, { id: "location", label: "Where are you coming from?", type: "text", help: "Your area or city" }],
+      goals: "Gather 500 young people for three days, see first-timers connected to a department, and launch the campus fellowship.",
+      objectives: ["500 registrations, at least 150 from outside the church", "Every first-timer called within 48 hours", "30 young people signed up to serve"],
+      targetBudget: 2500000, regTarget: 500, ticketPrefix: "RI26",
       status: "published", createdById: P.media.id, approvedById: P.associate.id, coOrganisers: [{ groupId: "g-protocol", status: "approved" }, { groupId: "g-ushering", status: "requested" }], createdAt: stampISO(-24 * 20) },
     { id: "ev-carol", slug: "carol-night-2026", title: "Carols by Candlelight", tagline: "An evening of carols, candles and the Christmas story.", cover: 2,
       theme: "Emmanuel: God with us", verse: { text: "For unto us a Child is born, unto us a Son is given.", ref: "Isaiah 9:6" }, template: "elegant",
@@ -260,10 +309,11 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
   adults.slice(20, 78).forEach((p, i) => {
     const days = i % 5 === 0 ? [events[0].days[0]] : i % 3 === 0 ? events[0].days.slice(0, 2) : events[0].days;
     registrations.push({ id: id("rg"), eventId: "ev-youth", personId: p.id, name: `${p.firstName} ${p.lastName}`, phone: p.phone, email: p.email, guests: 0, type: i % 7 === 0 ? "online" : "individual",
-      days, answers: { q1: pick(["M", "L", "XL", "M", "S"]), q2: i % 6 === 0 ? "Yes" : "No", q3: pick(["UNILAG", "YabaTech", "LASU", "Self-employed", "Access Bank", ""]) }, ticket: `RISE-${(1000 + i * 37).toString(36).toUpperCase()}`, status: "confirmed", checkins: [], at: stampISO(-24 * (18 - (i % 15))) });
+      days, answers: { q1: pick(["M", "L", "XL", "M", "S"]), q2: i % 6 === 0 ? "Yes" : "No", q3: pick(["UNILAG", "YabaTech", "LASU", "Self-employed", "Access Bank", ""]), gender: p.gender === "M" ? "Male" : "Female", location: pick(["Ikeja", "Ogba", "Yaba", "Surulere", "Ikorodu", "Lekki", "Ikeja", "Ogba"]) },
+      ticket: `RI26-${String(i + 1).padStart(5, "0")}`, status: "confirmed", checkins: [], at: stampISO(-24 * (18 - (i % 15))) });
   });
   guestsOut.forEach((name, i) => registrations.push({ id: id("rg"), eventId: "ev-youth", name, phone: `+234 81${i} 555 ${String(1000 + i * 111).slice(0, 4)}`, guests: 0, days: events[0].days,
-    answers: { q1: "L", q2: "No", q3: "" }, ticket: `RISE-G${i}`, status: "confirmed", checkins: [], at: stampISO(-24 * (6 - (i % 5))) }));
+    answers: { q1: "L", q2: i % 3 === 0 ? "Yes" : "No", q3: "", gender: i % 2 ? "Female" : "Male", location: ["Ibadan", "Abeokuta", "Yaba", "Ikeja"][i % 4] }, ticket: `RI26-${String(59 + i).padStart(5, "0")}`, email: i % 2 ? undefined : `${name.split(" ")[0].toLowerCase()}@example.com`, status: "confirmed", checkins: [], at: stampISO(-24 * (6 - (i % 5))) }));
 
   // ---------- Finance ----------
   const counts: ServiceCount[] = [];
@@ -319,11 +369,48 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
   // The youth conference has a planning committee and two department budgets waiting on it
   const yev = events.find((e) => e.id === "ev-youth");
   if (yev) yev.committee = {
-    members: [{ personId: P.outreach.id, role: "Committee head" }, { personId: P.media.id, role: "Publicity and live stream" }, { personId: P.protocol.id, role: "Guest ministers" }, { personId: P.usher.id, role: "Seating and crowd" }, { personId: P.choir.id, role: "Music" }],
-    headId: P.outreach.id, assistantId: P.media.id,
+    members: [{ personId: P.outreach.id, role: "Committee head" }, { personId: P.media.id, role: "Publicity and live stream", perms: ["landing"] }, { personId: P.protocol.id, role: "Guest ministers" },
+      { personId: P.usher.id, role: "Seating and crowd", duties: "Seating plan, overflow tent, crowd control at the gates" }, { personId: P.choir.id, role: "Music" },
+      { personId: P.bursar.id, role: "Finance Lead", perms: ["budget"], addedById: P.outreach.id, addedAt: stampISO(-40) }],
+    headId: P.outreach.id, assistantId: P.media.id, financeLeadId: P.bursar.id,
+    meetings: [{ id: "cmt1", date: dayISO(3), time: "18:30", mode: "virtual", link: "https://meet.google.com/rise-planning", agenda: "Budget sign-off, guest ministers' travel, registration push", byId: P.outreach.id, at: stampISO(-24) },
+      { id: "cmt0", date: dayISO(-11), time: "13:00", mode: "physical", venue: "Youth hall, after second service", byId: P.outreach.id, at: stampISO(-24 * 14) }],
     messages: [{ id: "cm1", byId: P.lead.id, at: stampISO(-50), to: "heads", text: "Please keep the budget lean this year. Let's prioritise the sound and the guest ministers' hospitality." },
       { id: "cm2", byId: P.outreach.id, at: stampISO(-30), to: "all", text: "Each department should send its budget here by Friday. Meeting after second service on Sunday." }],
   };
+  // Media and follow-up check people in; follow-up calls registrants who are new
+  if (yev) {
+    yev.duties = { checkin: { groupIds: ["g-media"], personIds: [P.worker.id] }, followup: { groupIds: ["g-outreach"], personIds: [] }, registration: { groupIds: [], personIds: [P.membership.id] } };
+    yev.regLeadId = P.membership.id; yev.regLeadAdds = true;
+  }
+  const eventNotes: EventNote[] = [
+    { id: "en1", eventId: "ev-youth", byId: P.usher.id, at: stampISO(-30), kind: "suggestion", text: "Let's open Gate C on Saturday so the workshop crowd doesn't block the main entrance.", status: "adopted",
+      reply: { byId: P.outreach.id, at: stampISO(-26), text: "Agreed. Ushering will staff Gate C from 9:30." } },
+    { id: "en2", eventId: "ev-youth", byId: P.choir.id, at: stampISO(-8), kind: "thought", text: "A short worship rehearsal with the guest band on Thursday evening would help a lot." },
+  ];
+  const rsvps: Rsvp[] = [];
+  // Family Life: the Couples' Dinner is theirs, with a small committee, and the department meets monthly
+  const fam = groups.find((g) => g.id === "g-family");
+  const famTeam = (fam?.memberIds ?? []).filter((x) => x !== P.family.id).slice(0, 3);
+  const cev = events.find((e) => e.id === "ev-couples");
+  if (cev) {
+    cev.goals = "A warm, unhurried evening that strengthens marriages and draws in couples who don't yet attend.";
+    cev.objectives = ["60 couples, with at least 10 visiting couples", "Every couple leaves with the Marriage Enrichment dates"];
+    cev.targetBudget = 900000; cev.regTarget = 60;
+    cev.questions = [...cev.questions, { id: "gender", label: "Gender", type: "choice", options: ["Male", "Female"], perPerson: true }, { id: "diet", label: "Any food needs or allergies?", type: "text", perPerson: true }];
+    cev.committee = {
+      members: [{ personId: P.family.id, role: "Committee head" }, ...famTeam.map((personId, i) => ({ personId, role: ["Hospitality and menu", "Decor and seating", "Programme and music"][i], perms: i === 0 ? ["budget" as const] : undefined, addedById: P.lead.id, addedAt: stampISO(-24 * 4) }))],
+      headId: P.family.id, assistantId: famTeam[0], financeLeadId: famTeam[0],
+      meetings: [{ id: "cmc1", date: dayISO(6), time: "19:30", mode: "virtual", link: "https://meet.google.com/couples-dinner", agenda: "Venue options, menu tasting, ticket price", byId: P.family.id, at: stampISO(-6) }],
+      messages: [{ id: "cmc-m1", byId: P.resident.id, at: stampISO(-24 * 3), to: "heads", text: "Let's keep it affordable so young couples can come. Please confirm a venue before you publish." }],
+    };
+  }
+  if (fam) {
+    const famMeetDate = (() => { const d = new Date(`${dayISO(0)}T12:00:00Z`); while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+    fam.meetings = [{ id: "dm-fam1", title: "Family Life team meeting", kind: "regular", weekday: 6, every: "month", time: "16:00", mode: "hybrid", venue: "Family Life room", link: "https://meet.google.com/family-life-team",
+      notes: "Plan the Couples' Dinner and the next Marriage Preparation class.", updatedAt: stampISO(-20), byId: P.family.id }];
+    famTeam.slice(0, 2).forEach((pid, i) => rsvps.push({ id: `dept|dm-fam1|${famMeetDate}|${pid}`, personId: pid, kind: "dept", refId: fam.id, meetingId: "dm-fam1", date: famMeetDate, answer: i ? "no" : "yes", at: stampISO(-10) }));
+  }
   // Sermon platforms for "Listen to messages"
   profile.sermonLinks = [{ platform: "YouTube", url: "https://youtube.com/@heirschurch" }, { platform: "Spotify", url: "https://open.spotify.com/show/heirschurch" }, { platform: "Mixlr", url: "https://heirschurch.mixlr.com" }];
   // Fund requests at every step: waiting on finance, waiting on the pastor, paid and awaiting a report, returned, and closed
@@ -360,6 +447,9 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     { id: "cs1", personId: P.member.id, at: stampISO(-20), urgency: "soon", description: "My wife and I keep arguing about money and it's affecting the children. We'd like to talk to a pastor together.", tags: ["Marriage", "Finances"], status: "new", log: [{ at: stampISO(-20), byId: P.member.id, text: "Asked for counselling" }] },
     { id: "cs2", personId: P.worker.id, at: stampISO(-24 * 3), urgency: "convenient", timeline: "Any Saturday in the next month", description: "Pre-marital counselling before our wedding.", tags: ["Pre-marital"], status: "scheduled", handlerId: P.lead.id,
       appt: { date: dayISO(5), time: "11:00", mode: "in-person", venue: "Pastor's office" }, log: [{ at: stampISO(-24 * 3), byId: P.worker.id, text: "Asked for counselling" }, { at: stampISO(-24 * 2), byId: P.admin.id, text: "Booked for the pastor" }] },
+    // The pastor referred a marriage case to the Family Life head
+    { id: "cs3", personId: members[12]?.id ?? P.member.id, at: stampISO(-24 * 2), urgency: "soon", description: "We've been married three years and we've stopped talking. We want help before it gets worse.", tags: ["Marriage"], status: "referred", handlerId: P.family.id,
+      log: [{ at: stampISO(-24 * 2), byId: members[12]?.id ?? P.member.id, text: "Asked for counselling" }, { at: stampISO(-30), byId: P.lead.id, text: `Referred to ${P.family.firstName} ${P.family.lastName} (Family Life)` }] },
   ];
   profile.finance = { route: 2, limit: 50000, categories: ["Equipment", "Outreach", "Welfare", "Maintenance", "Hospitality", "Events", "Utilities", "Other"], budgets: [{ groupId: "g-media", period: "year", amount: 2500000 }, { groupId: "g-outreach", period: "quarter", amount: 900000 }] };
   profile.counselling = { step: 4, done: true, delegates: [{ personId: P.admin.id, title: "Personal assistant", perms: ["manage", "approve", "reply", "reassign"] }, { personId: P.protocol.id, title: "Head of protocol", perms: ["manage"] }], link: "https://meet.google.com/heirs-counsel", venue: "Pastor's office" };
@@ -392,6 +482,7 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     collections: {
       meetings, headcounts, attendance: [...attendance, ...classAttendance], away, welfare, programmes, sessions, enrolments, events, registrations,
       counts, lodgements, transfers, templates, announcements, wishes, invites, appFeedback, prayers, downloads, outreaches, outreachContacts, challenges, churchInvites, funds, counsel,
+      eventNotes, rsvps,
     },
   };
 }
@@ -411,4 +502,5 @@ export const emptyCollections = () => ({
   counts: [] as ServiceCount[], lodgements: [] as Lodgement[], transfers: [] as Transfer[], templates: DEFAULT_TEMPLATES.map((t) => ({ ...t })) as MessageTemplate[],
   announcements: [] as Announcement[], wishes: [] as Wish[], invites: [] as Invite[], appFeedback: [] as AppFeedback[],
   prayers: [] as PrayerRequest[], downloads: [] as DownloadLog[], outreaches: [] as Outreach[], outreachContacts: [] as OutreachContact[], challenges: [] as Challenge[], funds: [] as FundRequest[], counsel: [] as CounselRequest[], churchInvites: [] as ChurchInvite[],
+  eventNotes: [] as EventNote[], rsvps: [] as Rsvp[],
 });

@@ -3,7 +3,7 @@
 import { clearCache, readCache, writeCache } from "./cache";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LIVE, newId, supabase } from "./supabase";
-import { EMPTY, createChurchV2, joinChurchLive, loadChurch, mergeJoiner as mergeJoinerLive, snapshotOf, syncState, type Snapshot } from "./live";
+import { EMPTY, createChurchV2, joinChurchLive, loadChurch, mergeJoiner as mergeJoinerLive, rowJson, snapshotOf, syncState, type Snapshot } from "./live";
 import { atLeast, firstOfKind, firstStageKey, journeyStages, kindOf, stageView, type Journey } from "./journey";
 import { confirmStage, onClassDone, onEnrolled, onPlaced, onReturned } from "./journey-engine";
 import type { DeptDraft } from "./setup";
@@ -19,7 +19,7 @@ import type { Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, Follo
  * Demo data layer. Every action here maps to a Supabase call once the
  * database is connected; the shapes match supabase/migrations.
  */
-const DATA_KEY = "traqi-demo-v7";
+const DATA_KEY = "traqi-demo-v8";
 const USER_KEY = "traqi-demo-user";
 
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
@@ -88,7 +88,8 @@ type Store = {
   importPeople: (rows: ImportRow[], fileName: string) => { added: number; updated: number };
   createChurch: (c: { church: Omit<Church, "trialEndsAt" | "template"> & { profile: ChurchProfile }; me: NewPerson; role: "lead" | "pastor" | "admin"; departments: DeptDraft[] }) => Promise<void>;
   /** Join a church found in search: instant member access, "not yet confirmed" until the admin confirms. */
-  joinChurch: (j: { church: string; branch?: string; firstName: string; lastName: string; gender: "M" | "F"; phone: string; birthday?: string }) => Promise<void>;
+  /** Joins a church as a member; returns their person id. */
+  joinChurch: (j: { church: string; branch?: string; firstName: string; lastName: string; gender: "M" | "F"; phone: string; birthday?: string; email?: string }) => Promise<string | undefined>;
   /** The admin confirms people who joined from search. */
   confirmPeople: (ids: string[]) => void;
   /** The admin merges a new joiner into the record the church already had. */
@@ -98,13 +99,15 @@ type Store = {
   /** Save several items at once. */
   putMany: <K extends ListKey>(key: K, items: SeedState[K][number][], log?: string) => void;
   drop: <K extends ListKey>(key: K, id: string, log?: string) => void;
+  /** Take in items the database already saved (e.g. a check-in done by a server function): shown here, never written back. */
+  absorb: <K extends ListKey>(key: K, items: SeedState[K][number][]) => void;
   updateChurch: (patch: Partial<Church>, profile?: Partial<NonNullable<Church["profile"]>>, log?: string) => void;
   newId: (prefix: string) => string;
 };
 
 export type ListKey = "meetings" | "headcounts" | "attendance" | "away" | "welfare" | "programmes" | "sessions" | "enrolments" | "events" | "registrations"
   | "counts" | "lodgements" | "transfers" | "templates" | "announcements" | "wishes" | "invites" | "appFeedback" | "prayers" | "downloads"
-  | "outreaches" | "outreachContacts" | "challenges" | "churchInvites" | "funds" | "counsel";
+  | "outreaches" | "outreachContacts" | "challenges" | "churchInvites" | "funds" | "counsel" | "eventNotes" | "rsvps";
 
 /** How items in each collection are identified. */
 export const keyOf = (key: ListKey, item: Record<string, unknown>): string =>
@@ -566,6 +569,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const next = { ...s, [key]: list.filter((x) => keyOf(key, x) !== id) } as SeedState;
         return text ? log(next, actor, text) : next;
       }),
+      absorb: (key, items) => {
+        if (!items.length) return;
+        if (LIVE && snap.current && churchId.current) for (const it of items) { const [t, id, json] = rowJson(key, it as Record<string, unknown>, churchId.current); snap.current[t]?.set(id, json); }
+        setState((s) => {
+          const ks = new Set(items.map((i) => keyOf(key, i as Record<string, unknown>)));
+          return { ...s, [key]: [...(s[key] as Record<string, unknown>[]).filter((x) => !ks.has(keyOf(key, x))), ...items] } as SeedState;
+        });
+      },
       updateChurch: (patch, profile, text) => setState((s) => {
         const next = { ...s, church: { ...s.church, ...patch, profile: { ...(s.church.profile ?? DEFAULT_PROFILE()), ...(profile ?? {}) } } };
         return text ? log(next, actor, text) : next;
@@ -607,22 +618,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       joinChurch: async (j) => {
         if (LIVE) {
-          await joinChurchLive({ ...j });
+          const pid = await joinChurchLive({ ...j });
           churchId.current = null;
           await refresh();
-          return;
+          return pid;
         }
         // Demo: join Heirs Church as a new member who isn't confirmed yet
         const id = nid("p");
         const match = state.people.find((p) => digits(p.phone).slice(-10) === digits(j.phone).slice(-10));
         const first = journeyStages()[0]?.key ?? "first_timer";
         setState((s) => log({ ...s, people: [...s.people, {
-          id, firstName: j.firstName.trim(), lastName: j.lastName.trim(), gender: j.gender, phone: j.phone.trim(), whatsapp: j.phone.trim(), birthday: j.birthday || undefined,
+          id, firstName: j.firstName.trim(), lastName: j.lastName.trim(), gender: j.gender, phone: j.phone.trim(), whatsapp: j.phone.trim(), email: j.email?.trim() || undefined, birthday: j.birthday || undefined,
           stage: first, firstVisit: today(), missedInARow: 0, tracked: true, joinedVia: "search", branchId: j.branch, possibleMatchId: match?.id,
           consent: { at: new Date().toISOString(), via: "staff" },
         }] }, id, "joined from Traqi search"));
         setMeId(id);
         try { localStorage.setItem(USER_KEY, id); } catch {}
+        return id;
       },
       confirmPeople: (ids) => setState((s) => log({ ...s, people: s.people.map((p) => (ids.includes(p.id) ? { ...p, confirmedAt: new Date().toISOString(), possibleMatchId: undefined } : p)) }, actor,
         `confirmed ${ids.length === 1 ? fullName(s.people.find((p) => p.id === ids[0])!) : `${ids.length} new people`}`)),

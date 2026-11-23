@@ -7,6 +7,7 @@ import type { Access } from "./access";
 import type { ChurchEvent, OutreachContact, Person } from "./types";
 import type { SheetSpec } from "./download";
 import { stageView } from "./journey";
+import { splitName } from "./events";
 import { FOLLOW_STAGES, fullName } from "./format";
 import { eventCounts, financeByMonth, lineTotal, sundaySeries } from "./domain";
 
@@ -90,8 +91,10 @@ export function registrationsSheet(s: SeedState, e: ChurchEvent): SheetSpec<Seed
   return {
     name: e.title.slice(0, 31), rows: eventCounts(s, e).regs,
     columns: [
-      { key: "name", label: "Name", value: (r) => r.name, width: 24 },
-      { key: "phone", label: "Phone", value: (r) => r.phone, width: 16 },
+      { key: "first", label: "First name", value: (r) => r.firstName ?? splitName(r.name).first, width: 16 },
+      { key: "last", label: "Last name", value: (r) => r.lastName ?? splitName(r.name).last, width: 18 },
+      { key: "phone", label: "WhatsApp number", value: (r) => r.phone, width: 16 },
+      { key: "alt", label: "Alternative number", value: (r) => r.altPhone, width: 16 },
       { key: "email", label: "Email", value: (r) => r.email, width: 26 },
       { key: "ticket", label: "Ticket", value: (r) => r.ticket, width: 12 },
       { key: "status", label: "Status", value: (r) => r.status },

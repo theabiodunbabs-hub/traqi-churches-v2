@@ -268,6 +268,11 @@ const churchInfo: Church = {
 import { buildMore } from "./seed-more";
 const more = buildMore({ people, groups, P, cases: firstTimerCases, dayISO, stampISO });
 churchInfo.profile = more.profile;
+// Homes for the married couples Family Life added
+for (const hid of [...new Set(people.map((p) => p.householdId).filter((h): h is string => !!h?.startsWith("hf")))]) {
+  const man = people.find((p) => p.householdId === hid && p.gender === "M");
+  households.push({ id: hid, name: `${man?.lastName ?? "Family"} household` });
+}
 
 export const seed = {
   church: churchInfo,
@@ -281,6 +286,7 @@ export type SeedState = typeof seed;
 export const PERSONAS: { id: string; label: string; note: string }[] = [
   { id: P.lead.id, label: "Lead pastor", note: "Sees the whole church" },
   { id: P.resident.id, label: "Resident pastor", note: "Oversees training, children, membership, welfare, family life" },
+  { id: P.family.id, label: "Family Life head", note: "Marriages, couples' courses, anniversaries, family events" },
   { id: P.associate.id, label: "Associate pastor", note: "Oversees outreach, media, choir and more" },
   { id: P.admin.id, label: "Admin", note: "Runs setup and records" },
   { id: P.outreach.id, label: "Follow-up lead", note: "Mission and Outreach head" },

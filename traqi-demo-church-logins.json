@@ -1,0 +1,87 @@
+{
+ "password": "Graceville@2026",
+ "logins": [
+  {
+   "who": "Lead pastor",
+   "email": "lead.pastor@graceville.example",
+   "sees": "Everything: the pastor's home, Ask Traqi, church health, giving, branches, roles, approvals"
+  },
+  {
+   "who": "Resident pastor",
+   "email": "resident.pastor@graceville.example",
+   "sees": "The departments he oversees and their people; care notes shared with him"
+  },
+  {
+   "who": "Associate pastor (Lagos Region)",
+   "email": "associate.pastor@graceville.example",
+   "sees": "His departments; Lagos Region overseer"
+  },
+  {
+   "who": "Church admin",
+   "email": "admin@graceville.example",
+   "sees": "Runs the church; role changes she makes wait for the pastor"
+  },
+  {
+   "who": "Follow-up head",
+   "email": "followup@graceville.example",
+   "sees": "First-timers board, picks the follow-up team and assigns, outreach contacts"
+  },
+  {
+   "who": "Membership Ministry head",
+   "email": "membership@graceville.example",
+   "sees": "New joiners to confirm, placements, prayer requests"
+  },
+  {
+   "who": "Media head",
+   "email": "media@graceville.example",
+   "sees": "Media department, a request to join Media, roll call, events, a media assistant"
+  },
+  {
+   "who": "Head usher",
+   "email": "usher@graceville.example",
+   "sees": "Today's service card, headcount, check-in screen, offering counts, a new-role card"
+  },
+  {
+   "who": "Welfare head",
+   "email": "welfare@graceville.example",
+   "sees": "Welfare requests and decisions"
+  },
+  {
+   "who": "Family Life head",
+   "email": "family.life@graceville.example",
+   "sees": "Families at a glance (singles, couples, children), Marriage Preparation and Parenting courses, wedding anniversaries, a marriage case referred to her, the Couples' Dinner committee she leads"
+  },
+  {
+   "who": "Finance lead (bursar)",
+   "email": "finance@graceville.example",
+   "sees": "Fund requests, payments, spending reports and finance insights"
+  },
+  {
+   "who": "Worker",
+   "email": "worker@graceville.example",
+   "sees": "Worker home: check-in, next step, her team"
+  },
+  {
+   "who": "Member",
+   "email": "member@graceville.example",
+   "sees": "Member home: check-in, classes, prayer, events"
+  },
+  {
+   "who": "Branch pastor, Lekki",
+   "email": "lekki.pastor@graceville.example",
+   "sees": "Only the Lekki branch: its people, departments and first-timers"
+  },
+  {
+   "who": "Regional overseer, South-West",
+   "email": "southwest.overseer@graceville.example",
+   "sees": "The Ibadan and Abeokuta branches"
+  },
+  {
+   "who": "New joiner (not yet confirmed)",
+   "email": "new.joiner@graceville.example",
+   "sees": "Joined from Traqi search; waiting to be confirmed"
+  }
+ ],
+ "people": 350,
+ "adults": 347
+}
