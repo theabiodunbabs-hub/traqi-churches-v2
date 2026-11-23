@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { RollCallSheet, myRollCalls, rollCallMeetings } from "@/components/rollcall";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -109,7 +111,7 @@ function ServiceHero({ meeting }: { meeting?: Meeting }) {
       {access?.can("checkin.code") && <div className="mt-6 flex flex-wrap gap-2">
         <Link href={`/display/checkin?m=${meeting.id}`} target="_blank" className="inline-flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-sm font-semibold text-ink hover:bg-white/90"><MonitorPlay size={16} /> Show on the screen</Link>
         <button type="button" onClick={() => setQr(true)} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><QrCode size={16} /> QR code</button>
-        <button type="button" onClick={() => { navigator.clipboard?.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15">
+        <button type="button" onClick={() => { void copyText(link).then((ok) => { if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1800); } }); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15">
           {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Copied" : "Copy church link"}
         </button>
         <button type="button" onClick={() => { put("meetings", { ...meeting, code: newCode() }, `changed the code for ${meeting.name}`); toast("New code ready"); }} className="glass inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium hover:bg-white/15"><RefreshCw size={15} /> New code</button>

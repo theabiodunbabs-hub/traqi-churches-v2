@@ -22,6 +22,7 @@ import { registrationsSheet } from "@/lib/exports";
 import { daysOf, duplicateEvent, eventPath, happeningNow, themeOf, ticketCode } from "@/lib/events";
 import { shareImage } from "@/lib/share-image";
 import { saveBlob } from "@/lib/download";
+import { copyText, savePicture } from "@/lib/share";
 import { dayName, digits, todayLagos, waLink } from "@/lib/format";
 import type { ChurchEvent, Registration } from "@/lib/types";
 
@@ -290,12 +291,12 @@ function Share({ e }: { e: ChurchEvent }) {
   const c = eventCounts(state, e);
   const reminder = useMemo(() => `Hello! A reminder that *${e.title}* is ${daysOf(e).length > 1 ? "starting" : "on"} ${whenLine(e)}. Please come with your ticket (the code you got when you registered).${e.mode !== "physical" && e.link ? `\nWatch online: ${e.link}` : ""}\nDetails: ${url}`, [e, url]);
   if (e.status !== "published") return <Empty title="Not public yet" body="Once a pastor approves this event, its link, QR code and share image appear here." icon={<Send size={26} />} />;
-  const img = async (size: "story" | "square") => { setBusy(true); try { saveBlob(await shareImage(e, { name: state.church.name, color: state.church.profile?.color }, url, size), `${e.slug}-${size}.png`); } finally { setBusy(false); } };
+  const img = async (size: "story" | "square") => { setBusy(true); try { await savePicture(await shareImage(e, { name: state.church.name, color: state.church.profile?.color, logo: state.church.profile?.logo }, url, size), `${e.slug}-${size}.png`, { title: e.title, text: msg }); } catch { toast("Couldn't make the picture. Try again."); } finally { setBusy(false); } };
   return (
     <div className="space-y-5">
       <div className="grid gap-5 md:grid-cols-[1fr_300px]">
         <Panel title="Share the event">
-          <div className="flex items-center gap-2 rounded-2xl bg-page p-2 pl-4 ring-1 ring-line"><span className="flex-1 truncate text-[14.5px] font-medium">{url.replace(/^https?:\/\//, "")}</span><Button onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy"}</Button></div>
+          <div className="flex items-center gap-2 rounded-2xl bg-page p-2 pl-4 ring-1 ring-line"><span className="flex-1 truncate text-[14.5px] font-medium">{url.replace(/^https?:\/\//, "")}</span><Button onClick={() => { void copyText(url).then((ok) => { if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); } }); }}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy"}</Button></div>
           <div className="mt-4 whitespace-pre-line rounded-2xl bg-[#e7fbe9] p-4 text-[14px] text-[#14361f]">{msg}</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <a href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[#25d366] px-3.5 py-2 text-sm font-medium text-white"><WhatsAppIcon /> Share on WhatsApp</a>
@@ -311,7 +312,7 @@ function Share({ e }: { e: ChurchEvent }) {
           <p className="text-[13.5px] text-ink-soft">Ready to send {(e.reminders.daysBefore ?? [1]).map((n) => (n === 1 ? "the day before" : `${n} days before`)).join(" and ")}. Copy it to your broadcast list, or send one by one.</p>
           <div className="mt-3 whitespace-pre-line rounded-2xl bg-[#e7fbe9] p-4 text-[14px] text-[#14361f]">{reminder}</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button onClick={() => { navigator.clipboard?.writeText(reminder); toast("Reminder copied"); }}><Copy size={15} /> Copy</Button>
+            <Button onClick={() => { void copyText(reminder, "Copy the reminder").then((ok) => ok && toast("Reminder copied")); }}><Copy size={15} /> Copy</Button>
             <details className="w-full">
               <summary className="cursor-pointer text-[13.5px] font-medium text-brand">Send one by one</summary>
               <ul className="mt-2 max-h-72 divide-y divide-line overflow-y-auto rounded-xl ring-1 ring-line">

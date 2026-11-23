@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { SERMON_PLATFORMS } from "@/components/messages-help";
 import Link from "next/link";
 import { useState } from "react";
@@ -178,7 +180,7 @@ export default function ChurchSettings() {
               <li key={l} className="rounded-2xl bg-page p-3 ring-1 ring-line">
                 <p className="text-[13px] font-semibold">{l}</p>
                 <div className="mt-1 flex items-center gap-1"><span className="min-w-0 flex-1 truncate text-[12.5px] text-muted">{(origin + path).replace(/^https?:\/\//, "")}</span>
-                  <button type="button" onClick={() => { navigator.clipboard?.writeText(origin + path); toast("Link copied"); }} className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Copy ${l}`}><Copy size={14} /></button>
+                  <button type="button" onClick={() => { void copyText(origin + path).then((ok) => ok && toast("Link copied")); }} className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Copy ${l}`}><Copy size={14} /></button>
                   <Link href={path} target="_blank" className="rounded-lg p-1.5 hover:bg-surface" aria-label={`Open ${l}`}><ExternalLink size={14} /></Link></div>
               </li>
             ))}</ul>

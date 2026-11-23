@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { useMemo, useState } from "react";
 import { Check, ClipboardCheck, Copy, Link2, RefreshCw, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -95,7 +97,7 @@ export function TeamsPanel({ e }: { e: ChurchEvent }) {
         {e.status !== "published" ? <p className="text-[14px] text-muted">Available once the event is published.</p> : url ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-2xl bg-page p-2 pl-4 ring-1 ring-line"><span className="num flex-1 truncate text-[14px]">{url.replace(/^https?:\/\//, "")}</span>
-              <Button onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy"}</Button></div>
+              <Button onClick={() => { void copyText(url).then((ok) => { if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); } }); }}>{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy"}</Button></div>
             <div className="flex flex-wrap gap-2">
               <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[#25d366] px-3.5 py-2 text-sm font-medium text-white"><WhatsAppIcon /> Share to WhatsApp</a>
               {can && <Button onClick={() => { save({ ...e, checkinLink: { token: newLinkToken(), at: new Date().toISOString(), byId: me.id } }, `made a new check-in link for ${e.title} (the old one stopped working)`); toast("New link made. The old one no longer works."); }}><RefreshCw size={15} /> New link</Button>}

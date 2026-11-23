@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Download, ImagePlus, Mail, MapPin, Megaphone, Phone, Send, X } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -95,7 +97,7 @@ function InviteDetail({ i, inbox, onClose, onStatus }: { i: ChurchInvite; inbox:
       )}
       <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={download}><Download size={15} /> Download</Button>
-        <Button onClick={() => { navigator.clipboard?.writeText(text); toast("Details copied, ready to announce"); }}>Copy details</Button>
+        <Button onClick={() => { void copyText(text, "Copy the details").then((ok) => ok && toast("Details copied, ready to announce")); }}>Copy details</Button>
         {inbox && i.status === "new" && <Button onClick={() => onStatus("contacted")}>Mark contacted</Button>}
         {inbox && i.status !== "confirmed" && <Button variant="primary" onClick={() => onStatus("confirmed")}>Confirmed</Button>}
         {inbox && i.status !== "declined" && i.status !== "confirmed" && <Button variant="ghost" onClick={() => onStatus("declined")}><X size={15} /> Can&apos;t honour</Button>}

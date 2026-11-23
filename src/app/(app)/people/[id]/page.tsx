@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { AboutYou, BORN_AGAIN, MARITAL, aboutAnswers, aboutOf } from "@/components/about-you";
 import { kindOf } from "@/lib/journey";
 import Link from "next/link";
@@ -410,7 +412,7 @@ function MoreActions({ person: p, onDone }: { person: Person; onDone: () => void
           <p className="mb-2 flex items-center gap-2 font-semibold"><UserPlus size={17} className="text-brand" /> Invite to Traqi</p>
           {linked ? <p className="rounded-xl bg-good-soft px-3 py-2.5 text-sm text-good"><Check size={14} className="mr-1 inline" />{p.firstName} has joined Traqi.</p> : invite ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-[13px]">{url.replace(/^https?:\/\//, "")}</span><Button onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); }}>{copied ? <Check size={14} /> : <Copy size={14} />}</Button></div>
+              <div className="flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-[13px]">{url.replace(/^https?:\/\//, "")}</span><Button onClick={() => { void copyText(url).then((ok) => ok && setCopied(true)); }}>{copied ? <Check size={14} /> : <Copy size={14} />}</Button></div>
               <a href={waLink(p.whatsapp || p.phone, `Hello ${p.firstName}, here's your link to join ${state.church.name} on Traqi: ${url}`)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#25d366] py-2.5 text-sm font-semibold text-white"><WhatsAppIcon /> Send on WhatsApp</a>
               <p className="text-[12.5px] text-muted">They can sign in with any Google account or email. The link works once.</p>
             </div>

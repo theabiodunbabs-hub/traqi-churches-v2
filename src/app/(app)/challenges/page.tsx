@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, Copy, Plus, Trophy, UserPlus, Users } from "lucide-react";
@@ -87,7 +89,7 @@ function ChallengeSheet({ c, onClose, staff }: { c: Challenge; onClose: () => vo
       <Sheet open={sharing} onClose={() => setSharing(false)} title="Invite people to join">
         <div className="text-center">
           <div className="mx-auto w-fit rounded-3xl bg-white p-3 ring-1 ring-line"><QR value={link} size={220} /></div>
-          <div className="mt-4 flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-left text-[13px]">{link.replace(/^https?:\/\//, "")}</span><Button className="py-1.5" onClick={() => { navigator.clipboard?.writeText(link); toast("Link copied"); }}><Copy size={14} /> Copy</Button></div>
+          <div className="mt-4 flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-left text-[13px]">{link.replace(/^https?:\/\//, "")}</span><Button className="py-1.5" onClick={() => { void copyText(link).then((ok) => ok && toast("Link copied")); }}><Copy size={14} /> Copy</Button></div>
           <a href={`https://wa.me/?text=${encodeURIComponent(`Join the ${c.name} challenge: ${link}`)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center gap-2 font-medium text-[#128c4a]"><WhatsAppIcon size={16} /> Share on WhatsApp</a>
         </div>
       </Sheet>

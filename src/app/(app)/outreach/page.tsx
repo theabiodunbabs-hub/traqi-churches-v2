@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import Link from "next/link";
 import { useState } from "react";
 import { Copy, Megaphone, Phone, Plus, QrCode } from "lucide-react";
@@ -123,7 +125,7 @@ export default function OutreachPage() {
           <div className="text-center">
             <p className="mb-4 text-[14px] text-ink-soft">Everyone on the outreach opens this link (or scans the code) and adds people as they meet them. Each one is tagged to {sharing.name}.</p>
             <div className="mx-auto w-fit rounded-3xl bg-white p-3 ring-1 ring-line"><QR value={link(sharing)} size={220} /></div>
-            <div className="mt-4 flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-left text-[13px]">{link(sharing).replace(/^https?:\/\//, "")}</span><Button className="py-1.5" onClick={() => { navigator.clipboard?.writeText(link(sharing)); toast("Link copied"); }}><Copy size={14} /> Copy</Button></div>
+            <div className="mt-4 flex items-center gap-1 rounded-xl bg-page p-1.5 pl-3 ring-1 ring-line"><span className="flex-1 truncate text-left text-[13px]">{link(sharing).replace(/^https?:\/\//, "")}</span><Button className="py-1.5" onClick={() => { void copyText(link(sharing)).then((ok) => ok && toast("Link copied")); }}><Copy size={14} /> Copy</Button></div>
             <a href={`https://wa.me/?text=${encodeURIComponent(`For ${sharing.name}: add everyone you meet here ${link(sharing)}`)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center gap-2 font-medium text-[#128c4a]"><WhatsAppIcon size={16} /> Send to the team&apos;s WhatsApp</a>
           </div>
         )}

@@ -489,10 +489,11 @@ An event page is also a way into Traqi. Before "In person or online", registrati
 ```mermaid
 flowchart TB
   R[Register] --> W{Are you a member<br/>of the church?}
-  W -->|Invited| G1[Form as before] --> T1[Tickets on the event page<br/>+ Register someone else]
-  W -->|A member of the church| GG[Continue with Google<br/>signs out whoever was signed in,<br/>asks which account]
+  W -->|Invited| TY1[In person or online] --> G1[Form as before] --> T1[Tickets on the event page<br/>+ Register someone else]
+  W -->|A member of the church| TY2[In person or online] --> GG[Continue with Google<br/>signs out whoever was signed in,<br/>asks which account]
   GG --> S{event_member_status}
-  S -->|already in the church| H[Home<br/>event card: Register now<br/>or tickets]
+  S -->|in the church, registered| H[Home<br/>with their ticket]
+  S -->|in the church, not registered| F3[Form filled in from their record<br/>button: Register] --> J
   S -->|new to the church| F[Form filled in from Google<br/>first and last name editable · email locked<br/>Birthday day-month · I am]
   F --> J[register_event_member<br/>joins the church + registers]
   J --> H2[Home: ticket card open<br/>the first time]
@@ -504,11 +505,13 @@ flowchart TB
 |---|---|
 | MEM-1 | Registration starts with two choices, with no question above them: **A member of {church}?** ("Continue here") and **Invited** ("Continue with the form"). Invited guests keep the earlier flow (in person or online, then the form, then tickets on the page). |
 | MEM-2 | *A member of {church}* shows **Continue with Google** with one line: "Continue registration with your Google account. This also creates an account for you if you don't have one." Whoever was signed in on that phone is signed out first and Google asks which account, so a shared phone can register someone else (not spelled out on the page). |
-| MEM-3 | Someone already in the church goes straight to their Home. An event they haven't registered for shows **Register now**, which opens the form filled in from their record. |
+| MEM-3 | After either choice, the next step is always **In person** or **Online** (an option the event doesn't offer shows greyed out, "Not offered for this event"). Members then **Continue with Google**. Someone already in the church **and already registered** goes straight to Home, where the ticket is. Someone in the church **but not registered** continues to the form, filled in from their record, and the button says **Register**. On Home, an event they haven't registered for shows **Register now**, which asks in person or online, then opens the filled-in form. |
 | MEM-4 | Someone new sees the form filled in from Google. First and last name are editable; the email is the Google email and is locked. After the email: **Birthday (day-month only)**, compulsory, and **I am** (male or female). The event's own Gender question is answered from "I am" and not asked twice. |
 | MEM-5 | **Register and join {church}** registers them and joins them to the church as a member, "not yet confirmed" until the admin confirms them (`joined_via = search`, member role). Then they go to Home. |
 | MEM-6 | On Home, every event is a collapsible card (`MyEvents`). The title opens the event. The arrow shows the tickets (QR, Image, PDF, Send) and **Register someone else** (back to the event page). A new ticket is open the first time it is seen, then collapsed (`traqi-ticket-seen:<id>` on the device). Staff homes show their own tickets the same way. |
 | MEM-7 | A member already signed in who opens an event inside the app skips the question and Google: the form comes filled in and the ticket is theirs. |
+| MEM-9 | The register panel scrolls on its own on wide screens, so a long form is never cut off below the fold (it used to stop at "Do you need accommodation?" on long live forms). |
+| MEM-10 | Every **Copy** button (event link, reminder, account number, invite and check-in links) and every **Image/PDF** button (share pictures, tickets, certificates) uses one helper (`src/lib/share.ts`). Copy tries the clipboard, then the older copy command, then shows the text selected to copy by hand, and says **Copied** when done. Pictures use the phone's share sheet, then a download, then show the picture to press and hold to save (WhatsApp and Instagram's own browsers). The event page's share row now has labelled **Copy link** (the event link itself) and **Image** buttons. |
 | MEM-8 | The demo offers pretend Google accounts: two people already in the church and two new people. |
 
 ### 9.5 Duty teams, tickets & door check-in
@@ -874,6 +877,7 @@ preview/           single-file click-through preview (npm run preview:build)
 | Date | Version | Change |
 |---|---|---|
 | 2026-11-23 | 7.4 | **Demo add-ons for an existing Graceville demo.** `traqi-demo-add-family-life-login.sql` adds only the Family Life head's sign-in; `traqi-demo-add-family-life.sql` (built by `scripts/demo-family-life.mjs`) adds the Family Life demo content to a demo already in the database, matching people by name and phone and keeping anything edited while testing. No change to the app or schema. |
+| 2026-11-23 | 7.4 | **Registration fixes and working share buttons.** Both choices ask in person or online first (members then continue with Google). A member already in the church but not registered gets the form, with a plain **Register** button; only people already registered go straight to Home. The register panel scrolls on its own so long forms are never cut off. Copy link (the event link) and Image now work everywhere, with fallbacks for in-app browsers and phones; tickets and certificates save the same way. |
 | 2026-11-23 | 7.3 | **Simpler member choice on event registration.** No question above the choices: **A member of {church}** ("Continue here") and **Invited**. The Google step says only "Continue registration with your Google account. This also creates an account for you if you don't have one." |
 | 2026-11-23 | 7.2 | **Localhost uses real sign-in.** `.env.local` (Supabase address filled in; paste the publishable key) switches localhost to live mode: type a real or test login, or use Google. A localhost-only note on the sign-in page says which data you are on. Added `.env.example` and a `.gitignore` so keys and build files are never uploaded. |
 | 2026-11-23 | 7.1 | **Homepage header readable everywhere.** The landing page header is now a floating frosted bar with its own colours (dark text on light glass; light text on dark glass when the app is set to dark), so the logo, menu and Log in stay readable over any section. Bolder menu links, rounded hover states, and the scroll progress line along the bar. |

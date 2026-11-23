@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText } from "@/lib/share";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy as CopyIcon, Link2, Search, Upload, UserMinus, UserPlus, Users, X } from "lucide-react";
@@ -202,7 +204,7 @@ export default function People() {
         <div className="mt-5 flex justify-center rounded-3xl bg-page p-5"><QR value={typeof location !== "undefined" ? `${location.origin}/update` : "/update"} size={200} /></div>
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-page p-2 pl-3.5 ring-1 ring-line">
           <span className="flex-1 truncate text-sm">{typeof location !== "undefined" ? `${location.origin}/update` : "/update"}</span>
-          <Button onClick={async () => { try { await navigator.clipboard.writeText(`${location.origin}/update`); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); } }}>{copied ? "Copied" : "Copy"}</Button>
+          <Button onClick={async () => { if (await copyText(`${location.origin}/update`)) { setCopied(true); setTimeout(() => setCopied(false), 1800); } }}>{copied ? "Copied" : "Copy"}</Button>
         </div>
         <Link href="/update" className="mt-4 inline-block text-sm font-medium text-brand">See what members see</Link>
       </Sheet>

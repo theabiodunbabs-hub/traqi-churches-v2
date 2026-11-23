@@ -26,17 +26,24 @@ Replace the `src`, `supabase` and `tests` folders. No new packages.
 On a phone, open a published event's page and press **Register**:
 
 1. It first shows two choices: **A member of {church}?** and **Invited** (Continue with the form).
-2. **Invited**: the same as before. Fill in the form; the tickets show on the page.
-3. **A member of {church}**, then **Continue with Google** ("Continue registration with your Google account. This also creates an account for you if you don't have one."). Google asks which account. Anyone signed in on that phone is signed out first, so a phone can be passed round.
-   - **Already in the church**: goes straight to their **Home**. The event shows there with **Register now**, and the form comes filled in.
+2. Either way, it then asks **In person** or **Online** (anything the event doesn't offer is greyed out).
+3. **Invited**: the form, then the tickets show on the page.
+4. **A member of {church}?**, then **Continue with Google** ("Continue registration with your Google account. This also creates an account for you if you don't have one."). Google asks which account. Anyone signed in on that phone is signed out first, so a phone can be passed round.
+   - **Already in the church and registered**: goes straight to their **Home**, where the ticket is.
+   - **Already in the church, not registered yet**: the form, filled in from their record, with a plain **Register** button.
    - **New**: back on the event page, the form is filled in from Google. First and last name can be changed; the email can't. Below the email: **Birthday (day-month only)** and **I am** (male or female). **Register and join {church}** registers them, joins them to the church and opens their **Home**.
-4. On **Home**, each event is a card that opens and closes:
+5. On **Home**, each event is a card that opens and closes:
    - Tapping the **title** opens the event.
    - The **arrow** shows the tickets (QR code, **Image**, **PDF**, **Send**) and **Register someone else**, which goes back to the event page.
    - A new ticket shows open the first time; after that the card starts closed.
-5. **Settings › People**: the new member waits to be confirmed, like anyone who joins from search.
+6. **Settings › People**: the new member waits to be confirmed, like anyone who joins from search.
 
 Signed-in members who open an event inside Traqi skip the question and Google: the form comes filled in.
+
+## Also in this update
+
+- **The form is never cut off.** On a computer the register panel scrolls on its own, so long forms show every question and the Register button.
+- **Copy link** (the event link itself) and **Image** work on the event page, in the event's Share tab and everywhere else that copies or saves, including inside WhatsApp's browser and on iPhones. When a phone blocks copying, the link shows selected so you can copy it by hand.
 
 ## Good to know
 

@@ -3,6 +3,7 @@
  * or just the certificate: PNG, JPEG or PDF. A certificate is always landscape, whatever the screen.
  */
 import QRCode from "qrcode";
+import { savePicture } from "./share";
 
 export type Format = "png" | "jpeg" | "pdf";
 
@@ -145,13 +146,12 @@ export async function saveCanvas(c: HTMLCanvasElement, name: string, format: For
       : new jsPDF({ orientation: land ? "landscape" : "portrait", unit: "px", format: [c.width / 2, c.height / 2], hotfixes: ["px_scaling"] });
     const w = pdf.internal.pageSize.getWidth(), h = pdf.internal.pageSize.getHeight();
     pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, w, h);
-    pdf.save(`${safe}.pdf`);
+    await savePicture(pdf.output("blob"), `${safe}.pdf`, { title: name });
     return;
   }
   const blob = await new Promise<Blob | null>((res) => c.toBlob(res, format === "png" ? "image/png" : "image/jpeg", 0.92));
   if (!blob) return;
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${safe}.${format === "png" ? "png" : "jpg"}`;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  await savePicture(blob, `${safe}.${format === "png" ? "png" : "jpg"}`, { title: name });
 }
 
 /** Share the picture straight to WhatsApp and other apps where the phone allows it. */

@@ -1,5 +1,7 @@
 "use client";
 
+import { copyText, savePicture } from "@/lib/share";
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   ArrowLeft, ArrowRight, BadgeCheck, BedDouble, CalendarPlus, Check, ChevronDown, Clock, Copy, Download, Gift, Globe, Image as ImageIcon, Lock, Mail, MapPin, Navigation,
@@ -86,6 +88,8 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
     { id: "venue", label: "Venue", show: e.mode !== "virtual" || !!e.venues?.length },
     { id: "faq", label: "FAQ", show: !!e.faq?.length },
   ].filter((s) => s.show);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
   const share = `*${e.title}*${theme ? `\n${theme}` : ""}\n${whenLine(e)}${e.venue && e.mode !== "virtual" ? `\n${e.venue}` : ""}\n\nRegister free: ${url}`;
 
   return (
@@ -125,17 +129,17 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
             <Contact e={e} church={church} H={H} share={share} url={url} />
           </div>
 
-          <aside id="register" className="scroll-mt-20 pt-12 lg:sticky lg:top-16 lg:h-fit lg:self-start">
+          <aside id="register" className="scroll-mt-20 pt-12 lg:sticky lg:top-16 lg:h-fit lg:max-h-[calc(100dvh-4.5rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:pb-6 lg:[scrollbar-width:thin]">
             {regOn ? <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} member={preview ? undefined : member} H={H} />
               : <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>No registration needed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Just come. Everyone is welcome.</p></div>}
             {url && !closed && (
               <div className="mt-4 flex items-center gap-4 rounded-3xl bg-[var(--ev-card)] p-4 ring-1 ring-[var(--ev-line)]">
                 <div className="rounded-xl bg-white p-1.5"><QR value={url} size={78} /></div>
                 <div className="min-w-0 text-[13px] text-[var(--ev-muted)]"><p>Scan to open on another phone, or share:</p>
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer" className="flex size-9 items-center justify-center rounded-xl bg-[#25d366] text-white" aria-label="Share on WhatsApp"><WhatsAppIcon size={17} /></a>
-                    <button type="button" onClick={() => { navigator.clipboard?.writeText(url); }} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Copy link"><Copy size={15} /></button>
-                    <button type="button" onClick={async () => saveBlob(await shareImage(e, { name: church.name, color: church.profile?.color, logo: church.profile?.logo }, url), `${e.slug}-share.png`)} className="flex size-9 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]" aria-label="Download share image"><ImageIcon size={15} /></button>
+                    <button type="button" onClick={() => { void copyText(url, "Copy the event link").then((ok) => { if (ok) { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800); } }); }} className={cx("flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold ring-1", linkCopied ? "text-[#059669] ring-[#059669]" : "text-[var(--ev-fg)] ring-[var(--ev-line)]")} aria-label="Copy the event link">{linkCopied ? <Check size={15} /> : <Copy size={15} />}<span aria-live="polite">{linkCopied ? "Copied" : "Copy link"}</span></button>
+                    <button type="button" disabled={imgBusy} onClick={async () => { setImgBusy(true); try { await savePicture(await shareImage(e, { name: church.name, color: church.profile?.color, logo: church.profile?.logo }, url), `${e.slug}-share.png`, { title: e.title, text: share }); } catch { alert("Couldn't make the picture. Please try again."); } finally { setImgBusy(false); } }} className="flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold text-[var(--ev-fg)] ring-1 ring-[var(--ev-line)] disabled:opacity-60" aria-label="Save the share picture"><ImageIcon size={15} />{imgBusy ? "Making…" : "Image"}</button>
                   </div>
                 </div>
               </div>
@@ -530,7 +534,7 @@ function Give({ give, H }: { give: NonNullable<ChurchEvent["give"]>; H: string }
             <p className="text-[14px] text-[var(--ev-muted)]">{give.accountName}</p>
           </div>
         ) : <p className="flex-1 text-[15px] text-[var(--ev-muted)]">Every gift helps us welcome more people.</p>}
-        {give.account && <button type="button" onClick={() => { navigator.clipboard?.writeText(give.account!); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]">{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy number"}</button>}
+        {give.account && <button type="button" onClick={() => { void copyText(give.account!, "Copy the account number").then((ok) => { if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); } }); }} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold ring-1 ring-[var(--ev-line)]">{copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy number"}</button>}
         {give.url && <a href={give.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[var(--ev-accent)] px-4 py-2.5 text-[14px] font-semibold text-white">Give online <ArrowRight size={15} /></a>}
       </div>
     </section>
@@ -629,14 +633,16 @@ export type MemberReg = RegInput & { gender: "M" | "F"; birthday: string };
 type Step = "who" | "google" | "checking" | "type" | "you" | "done" | "home";
 
 function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; member?: MemberFlow; H: string }) {
-  // One path: your details, then register. "Register someone else" comes after, for families and friends.
-  const types = (() => { const t = regTypesOf(e).filter((x) => x !== "group"); return t.length ? t : (["individual"] as RegType[]); })();
+  // Member or invited → in person or online → (members: Google) → the form. "Register someone else" comes after.
+  const offered = (() => { const t = regTypesOf(e).filter((x) => x !== "group"); return t.length ? t : (["individual"] as RegType[]); })();
+  const types: RegType[] = ["individual", "online"];
   const days = daysOf(e);
-  const afterWho = types.length > 1 ? "type" : "you";
-  const start: Step = member && !member.known ? "who" : afterWho;
-  const [step, setStep] = useState<Step>(member?.known ? "checking" : start);
-  const [asMember, setAsMember] = useState(false);
-  const [type, setType] = useState<RegType>(types[0]);
+  const start: Step = member && !member.known ? "who" : "type";
+  const [step, setStep] = useState<Step>(start);
+  const [asMember, setAsMember] = useState(!!member?.known);
+  /** Already in the church: the button says Register, not Register and join. */
+  const [inChurch, setInChurch] = useState(!!member?.known);
+  const [type, setType] = useState<RegType>(offered[0]);
   const [me, setMe] = useState<Attendee>(blank());
   const [gender, setGender] = useState<"" | "M" | "F">("");
   const [birthday, setBirthday] = useState("");
@@ -652,30 +658,49 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
   const churchShort = church.name.split(/[,(]/)[0].trim();
   const genderQ = asMember ? e.questions.find(isGenderQuestion) : undefined;
   const questions = genderQ ? e.questions.filter((q) => q.id !== genderQ.id) : e.questions;
+  // The in person / online choice survives the trip to Google and back
+  const typeKey = `traqi-reg-type:${e.id}`;
+  const keepType = (t: RegType) => { setType(t); try { sessionStorage.setItem(typeKey, t); } catch { /* storage unavailable */ } };
 
-  // Who signed in with Google: already in the church → Home; new → the form, filled in from Google
-  const resolve = async (wantsForm: boolean) => {
+  // Who signed in with Google: registered already → Home (their ticket is there); otherwise the form, filled in
+  const resolve = async () => {
     if (!member) return;
     setAsMember(true); go("checking");
     try {
       const s = await member.status();
       if (!s.signedIn) return go("google");
-      if (s.member && (!wantsForm || s.tickets.length)) { if (member.known && s.tickets.length) { setMine(s.tickets); setLast("already"); setAsMember(false); return go("done"); } go("home"); member.dashboard(); return; }
+      if (s.member && s.tickets.length) {
+        if (member.known) { setMine(s.tickets); setLast("already"); return go("done"); }
+        go("home"); member.dashboard(); return;
+      }
       const p = s.person;
       const firstName = p?.firstName || s.firstName || "", lastName = p?.lastName || s.lastName || "";
       setMe({ ...blank(), firstName, lastName, name: joinName(firstName, lastName), phone: p?.phone ?? "", email: s.email || p?.email || "" });
       setLockedEmail(s.email || p?.email || "");
       setGender(p?.gender ?? ""); setBirthday(p?.birthday ?? "");
-      go(afterWho);
+      setInChurch(s.member);
+      go("you");
     } catch (x) { setErr(x instanceof Error ? x.message : "Couldn't check your account. Try again."); setStep("google"); }
   };
   useEffect(() => {
-    if (!member || typeof window === "undefined") return;
+    if (!member || member.known || typeof window === "undefined") return;
     const q = new URLSearchParams(location.search);
-    if (member.known) void resolve(true);
-    else if (q.get(MEMBER_PARAM)) void resolve(!!q.get(REGISTER_PARAM));
+    if (!q.get(MEMBER_PARAM)) return;
+    setAsMember(true);
+    // From Home ("Register now"): already signed in, so ask in person or online, then the form
+    if (q.get(REGISTER_PARAM)) return go("type");
+    // Back from Google: the choice made before leaving
+    let t: string | null = null; try { t = sessionStorage.getItem(typeKey); } catch { /* storage unavailable */ }
+    if (t === "individual" || t === "online") setType(t);
+    void resolve();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const pickType = (t: RegType) => {
+    keepType(t);
+    if (!asMember || !member) return go("you");
+    const fromHome = typeof window !== "undefined" && !!new URLSearchParams(location.search).get(REGISTER_PARAM);
+    if (member.known || fromHome) void resolve(); else go("google");
+  };
 
   const check = (a: Attendee) => {
     if (!a.firstName?.trim()) return "Enter the first name.";
@@ -697,8 +722,12 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
     const input: RegInput = { ...me, answers, firstName, lastName, name, altPhone: me.altPhone?.trim() || undefined, email: (lockedEmail || me.email!).trim(), type, days: pickDays, guests: 0, others: [] };
     try {
       if (asMember && member) {
-        await member.register({ ...input, gender: gender as "M" | "F", birthday });
-        go("home"); member.dashboard();
+        const r = await member.register({ ...input, gender: gender as "M" | "F", birthday });
+        try { sessionStorage.removeItem(typeKey); } catch { /* storage unavailable */ }
+        if (member.known) {
+          const got = r.tickets?.length ? r.tickets : [{ name, ticket: r.ticket, status: r.status }];
+          setMine(got); setLast(r.status); go("done");
+        } else { go("home"); member.dashboard(); }
       } else {
         const r = await onRegister(input);
         const got = r.tickets?.length ? r.tickets : [{ name, ticket: r.ticket, status: r.status }];
@@ -708,8 +737,8 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
     } catch (x) { setErr(x instanceof Error ? x.message : "Something went wrong. Please try again."); }
     setBusy(false);
   };
-  const another = () => { setMe(blank()); setAsMember(false); setGender(""); setBirthday(""); setLockedEmail(""); setPickDays(days.map((d) => d.date)); go(start); };
-  const back = () => go(step === "google" ? "who" : step === "type" ? (member && !member.known ? "who" : "done") : afterWho === "type" ? "type" : member && !member.known ? "who" : "done");
+  const another = () => { setMe(blank()); setAsMember(!!member?.known); setInChurch(!!member?.known); setGender(""); setBirthday(""); setLockedEmail(""); setPickDays(days.map((d) => d.date)); go(start); };
+  const back = () => go(step === "google" ? "type" : step === "type" ? "who" : "type");
 
   if (closed && !mine.length) return <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>Registration has closed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Thank you for your interest. See you next time!</p></div>;
   if (step === "done" && last) return <Tickets e={e} church={church} url={url} tickets={mine} status={last} H={H} onAnother={closed ? undefined : another} />;
@@ -735,8 +764,8 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
 
         {step === "who" && (
           <div className="space-y-2">
-            {choice("member", <BadgeCheck size={18} />, `A member of ${churchShort}?`, "Continue here", () => { setAsMember(true); go("google"); })}
-            {choice("guest", <UserRound size={18} />, "Invited", "Continue with the form", () => { setAsMember(false); go(afterWho); })}
+            {choice("member", <BadgeCheck size={18} />, `A member of ${churchShort}?`, "Continue here", () => { setAsMember(true); setInChurch(false); go("type"); })}
+            {choice("guest", <UserRound size={18} />, "Invited", "Continue with the form", () => { setAsMember(false); go("type"); })}
           </div>
         )}
 
@@ -752,7 +781,7 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
               <div className="overflow-hidden rounded-2xl bg-white text-[#1f1f1f] ring-1 ring-black/15">
                 <p className="flex items-center gap-2 border-b border-black/10 px-4 py-3 text-[13.5px]"><GoogleMark /> Choose an account <span className="ml-auto rounded-full bg-[#fff4d6] px-2 py-0.5 text-[11px] font-semibold text-[#8a5a00]">Demo</span></p>
                 {member.accounts.map((a) => (
-                  <button key={a.key} type="button" onClick={() => { member.pick?.(a.key); setChoosing(false); void resolve(false); }} className="flex w-full items-center gap-3 border-b border-black/5 px-4 py-3 text-left last:border-0 hover:bg-[#f4f6fb]">
+                  <button key={a.key} type="button" onClick={() => { member.pick?.(a.key); setChoosing(false); void resolve(); }} className="flex w-full items-center gap-3 border-b border-black/5 px-4 py-3 text-left last:border-0 hover:bg-[#f4f6fb]">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e8eefc] text-[13px] font-semibold text-[#2b4ea2]">{initials(a.name)}</span>
                     <span className="min-w-0 flex-1"><b className="block truncate text-[14px] font-medium">{a.name}</b><span className="block truncate text-[12.5px] text-[#5f6368]">{a.email} · {a.note}</span></span>
                   </button>
@@ -769,7 +798,16 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
         {step === "type" && (
           <div className="space-y-2">
             <p className="text-[14px] text-[var(--ev-muted)]">How are you joining?</p>
-            {types.map((t) => { const I = TYPE_INFO[t]; return choice(t, <I.icon size={18} />, I.title, I.body, () => { setType(t); go("you"); }); })}
+            {types.map((t) => {
+              const I = TYPE_INFO[t];
+              if (offered.includes(t)) return choice(t, <I.icon size={18} />, I.title, I.body, () => pickType(t));
+              return (
+                <div key={t} aria-disabled="true" className="flex w-full items-center gap-3 rounded-2xl p-4 opacity-55 ring-1 ring-[var(--ev-line)]">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-[var(--ev-line)]"><I.icon size={18} /></span>
+                  <span className="flex-1"><b className="block text-[15px]">{I.title}</b><span className="text-[13px] text-[var(--ev-muted)]">Not offered for this event</span></span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -809,12 +847,12 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H }: 
 
         {(step === "google" || step === "type" || step === "you") && (
           <div className="flex gap-2">
-            {(step !== start || mine.length > 0) && (
+            {((step !== start && !(step === "type" && asMember && !member?.known && start === "type")) || mine.length > 0) && (
               <button type="button" onClick={() => (step === start ? go("done") : back())} className="flex items-center gap-1.5 rounded-2xl px-4 py-3.5 text-[15px] font-semibold ring-1 ring-[var(--ev-line)]"><ArrowLeft size={16} /> Back</button>
             )}
             {step === "you" && (
               <button type="button" disabled={busy} onClick={() => void submit()} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 text-[16px] font-semibold text-white shadow-lg disabled:opacity-60">
-                {busy ? "Registering…" : asMember && !member?.known ? `Register and join ${churchShort}` : e.needsApproval ? "Request a place" : "Register"}
+                {busy ? "Registering…" : asMember && !inChurch ? `Register and join ${churchShort}` : e.needsApproval ? "Request a place" : "Register"}
               </button>
             )}
           </div>
