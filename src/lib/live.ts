@@ -97,7 +97,7 @@ const person = (r: Row): Person => ({
   anniversary: (r.anniversary as string) ?? undefined, feedback: (r.feedback as Person["feedback"]) ?? undefined, prefs: (r.prefs as Person["prefs"]) ?? undefined, custom: (r.custom as Person["custom"]) ?? undefined,
   confirmedAt: (r.confirmed_at as string) ?? undefined, joinedVia: (r.joined_via as Person["joinedVia"]) ?? undefined,
   branchId: (r.branch_id as string) ?? undefined,
-  ...((r.extra as Pick<Person, "possibleMatchId" | "unavailable" | "probation" | "awaitingStage">) ?? {}),
+  ...((r.extra as Pick<Person, "possibleMatchId" | "unavailable" | "probation" | "awaitingStage" | "formerHead">) ?? {}),
 });
 
 // ---------- app -> database rows ----------
@@ -109,7 +109,7 @@ const personRow = (p: Person, c: string): Row => ({
   consent_at: p.consent?.at ?? null, consent_via: p.consent?.via ?? null,
   photo_url: nul(p.photo), inactive: p.inactive ?? null, is_leader: !!p.isLeader, anniversary: nul(p.anniversary), feedback: p.feedback ?? [], prefs: p.prefs ?? {}, custom: p.custom ?? {},
   confirmed_at: p.confirmedAt ?? null, joined_via: p.joinedVia ?? null, branch_id: nul(p.branchId),
-  extra: { possibleMatchId: p.possibleMatchId, unavailable: p.unavailable, probation: p.probation, awaitingStage: p.awaitingStage },
+  extra: { possibleMatchId: p.possibleMatchId, unavailable: p.unavailable, probation: p.probation, awaitingStage: p.awaitingStage, formerHead: p.formerHead },
 });
 const groupRow = (g: Group, c: string): Row => ({
   id: g.id, church_id: c, name: g.name, kind: g.kind, purpose: nul(g.purpose), parent_id: nul(g.parentId),

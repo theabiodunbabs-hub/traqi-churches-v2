@@ -87,7 +87,7 @@ export default function People() {
         </div>
       </section>
 
-      {canEditAll && everyone.some(isUnconfirmed) && (
+      {(canEditAll || access.confirmsJoiners) && everyone.some(isUnconfirmed) && (
         <button type="button" onClick={() => setJoiners(true)} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-brand-soft px-4 py-3 text-left text-[14px] text-brand ring-1 ring-brand/20">
           <UserPlus size={17} /> <span className="flex-1"><b>{everyone.filter(isUnconfirmed).length} new {everyone.filter(isUnconfirmed).length === 1 ? "person" : "people"}</b> joined from Traqi search and {everyone.filter(isUnconfirmed).length === 1 ? "is" : "are"} waiting to be confirmed.</span><span className="font-semibold">Review</span>
         </button>

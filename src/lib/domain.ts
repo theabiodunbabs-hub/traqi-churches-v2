@@ -9,6 +9,7 @@ import type { Attendance, ChurchEvent, ClassSession, Enrolment, Meeting, Person,
 import { addDays, at, lastSunday } from "./seed-more";
 import { daysToBirthday, fullName, hoursSince, todayLagos } from "./format";
 import { actionsFor } from "./funds";
+import { kindOf } from "./journey";
 import { DUTY_LABEL, myEventDuties, nextDate, rsvpId } from "./event-mgmt";
 
 const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -299,7 +300,7 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
   if (pendingRoles.length && a.isPastoral) out.push({ key: `roles-${pendingRoles.length}-${pendingRoles[0].pending!.at}`, title: `${pendingRoles.length} role change${pendingRoles.length > 1 ? "s" : ""} need your approval`,
     body: "An admin asked to give or remove roles.", href: "/settings/roles", tone: "glow", at: pendingRoles[0].pending!.at });
   // People who joined from search and are waiting for confirmation (reminders at 30 and 60 days)
-  if (a.can("people.edit")) {
+  if (a.confirmsJoiners) {
     const waiting = state.people.filter(isUnconfirmed);
     if (waiting.length) {
       const oldest = Math.max(...waiting.map(daysSinceJoined));
@@ -307,6 +308,14 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
       out.push({ key: `joined-${waiting.length}-${band}`, title: `${waiting.length} ${waiting.length === 1 ? "person" : "people"} joined and ${waiting.length === 1 ? "isn't" : "aren't"} confirmed yet`,
         body: band ? `Some have waited over ${band} days. Accounts pause after 90.` : "Confirm them, or merge with records you already have.", href: "/people?joined=1", tone: band ? "alert" : "brand", at: waiting[0].firstVisit });
     }
+  }
+  // Someone stopped being a department head: the admin decides whether they stay a Leader
+  if (a.isAdmin || a.isLead) {
+    state.people.filter((p) => p.formerHead && Date.now() - Date.parse(p.formerHead.at) < 30 * 864e5 && kindOf(p.stage) === "leader").forEach((p) => {
+      const g = state.groups.find((x) => x.id === p.formerHead!.groupId);
+      out.push({ key: `exhead-${p.id}-${p.formerHead!.at}`, title: `${fullName(p)} is no longer head of ${g?.name ?? "a department"}`,
+        body: "They're still a Leader. Keep that, or change their stage on their profile.", href: `/people/${p.id}`, tone: "glow", at: p.formerHead!.at });
+    });
   }
   // Classes tomorrow for teachers and students
   const tomorrow = addDays(new Date(Date.now() + 36e5).toISOString().slice(0, 10), 1);

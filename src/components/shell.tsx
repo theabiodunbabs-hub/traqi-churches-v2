@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { key: "follow", label: "Follow-up", icon: Sprout, items: [
       { href: "/first-timers", label: w.firstTimers, icon: Sprout, show: (a) => a.seesAllCases || a.assignsCases || state.cases.some((c) => c.assigneeId === me.id || c.helperIds?.includes(me.id)), badge: access.assignsCases ? overdue : undefined },
       { href: "/outreach", label: "Outreach", icon: Megaphone, show: (a) => a.seesAllCases || a.assignsCases || state.outreachContacts.some((c) => c.assigneeId === me.id) },
-      { href: "/challenges", label: "Challenges", icon: Trophy, show: (a) => a.seesAllCases || a.isAdmin || a.assignsCases || state.challenges.some((c) => c.participantIds.includes(me.id)) },
+      { href: "/challenges", label: "Challenge", icon: Trophy, show: (a) => a.seesAllCases || a.isAdmin || a.assignsCases || state.challenges.some((c) => c.participantIds.includes(me.id)) },
     ] },
     { key: "care", label: "Care", icon: HeartHandshake, items: [
       { href: "/welfare", label: w.welfare, icon: HeartHandshake, show: () => true, badge: welfareWaiting || undefined },

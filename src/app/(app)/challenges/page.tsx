@@ -28,7 +28,7 @@ function Challenges() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Soul-winning challenges" sub="Join a challenge, add everyone you meet, and watch the harvest grow."
+      <PageHeader title="Soul-winning challenge" sub="Join a challenge, add everyone you meet, and watch the harvest grow."
         actions={canCreate && <Button variant="primary" onClick={() => setMaking(true)}><Plus size={16} /> New challenge</Button>} />
       {list.length === 0 ? <Empty title="No challenges yet" body={canCreate ? "Start one: give it a name, dates and an optional target." : "When the church starts a challenge, it shows here."} icon={<Trophy size={26} />} /> : (
         <ul className="grid gap-3 sm:grid-cols-2">

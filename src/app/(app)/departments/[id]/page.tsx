@@ -6,23 +6,24 @@ import { goneQuiet } from "@/lib/metrics";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronLeft, Pencil, Plus, Search, Users } from "lucide-react";
+import { ChevronLeft, Pencil, Plus, Search, UserMinus, Users } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Avatar, Button, Empty, Field, Panel, PersonLink, Sheet, StageChip, cx, inputCls } from "@/components/ui";
+import { Avatar, Button, Empty, Field, Panel, PersonLink, Sheet, StageChip, cx, inputCls, toast } from "@/components/ui";
 import { holdersOf } from "@/lib/metrics";
 import { AssistantsPanel, DeptExtras, DeptMeetings, FollowupPanel } from "@/components/department-extras";
 import { DownloadButton } from "@/components/download";
 import { canDownloadGroup, departmentDownload } from "@/lib/exports";
-import type { Group } from "@/lib/types";
+import type { Group, Person } from "@/lib/types";
 import { ReachOut, ReasonTag, messages } from "@/components/care";
 import { daysToBirthday, fullName, shortDate } from "@/lib/format";
 
 export default function Department() {
   const { id } = useParams<{ id: string }>();
-  const { state, access, person, addToGroup, me } = useStore();
+  const { state, access, person, addToGroup, removeFromGroup, me } = useStore();
   const [filter, setFilter] = useState<"all" | "leaders" | "quiet">("all");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState<Person | null>(null);
 
   const g = state.groups.find((x) => x.id === id);
   const data = useMemo(() => {
@@ -136,6 +137,9 @@ export default function Department() {
                   </div>
                   <span className="hidden w-20 text-right text-[13px] text-muted md:block">{m.lastSeen ? shortDate(m.lastSeen) : ""}</span>
                   <ReachOut person={m} compact canContact={contacts} message={m.missedInARow >= 3 ? messages.absent(m, state.church.name) : `Hello ${m.firstName}, `} />
+                  {canManage && !g.leaderIds.includes(m.id) && (
+                    <button type="button" onClick={() => setRemoving(m)} className="flex size-9 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${fullName(m)} from ${g.name}`} title="Remove from this department"><UserMinus size={16} /></button>
+                  )}
                 </li>
               );
             })}
@@ -158,6 +162,13 @@ export default function Department() {
       {editing && <EditGroup group={g} members={data.members.map((m) => m.id)} onClose={() => setEditing(false)} />}
       <AddToGroup open={adding} onClose={() => setAdding(false)} groupName={g.name} existing={g.memberIds}
         onPick={(pid) => { addToGroup(g.id, pid); }} />
+      {removing && (
+        <Sheet open onClose={() => setRemoving(null)} title={`Remove ${removing.firstName}?`} footer={
+          <div className="flex gap-2"><Button variant="ghost" className="flex-1" onClick={() => setRemoving(null)}>Keep</Button>
+            <Button variant="primary" className="flex-1 bg-alert" onClick={() => { const undo = removeFromGroup(g.id, removing.id); toast(`${removing.firstName} removed from ${g.name}`, { undo }); setRemoving(null); }}>Remove</Button></div>}>
+          <p className="text-[15px] text-ink-soft"><b className="text-ink">{fullName(removing)}</b> will no longer be in {g.name}{state.groups.some((x) => x.parentId === g.id) ? " or its units" : ""}. Their record and history stay. You can undo straight after.</p>
+        </Sheet>
+      )}
     </div>
   );
 }

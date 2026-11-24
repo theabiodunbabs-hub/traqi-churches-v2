@@ -33,6 +33,8 @@ export type Person = {
   custom?: Record<string, string>;
   /** People who joined through Traqi search are "not yet confirmed" until the admin confirms them. */
   joinedVia?: "search" | "invite" | "welcome" | "staff" | "import";
+  /** Set when someone stops being a department head, so the admin can keep or change their Leader stage. */
+  formerHead?: { groupId: string; at: string };
   confirmedAt?: string;
   /** An existing record with the same phone, for the admin to merge. Never shown to the person. */
   possibleMatchId?: string;

@@ -10,7 +10,9 @@ import { fullName, shortDate } from "@/lib/format";
 
 /** The admin's list of people who joined from search: confirm, merge with an existing record, or remove. */
 export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { state, confirmPeople, mergeJoiner, updatePerson } = useStore();
+  const { state, access, confirmPeople, mergeJoiner, updatePerson } = useStore();
+  // Follow-up and Membership can confirm; merging records and removing people stay with the admin
+  const admin = !!access?.can("people.edit");
   const [busy, setBusy] = useState<string | null>(null);
   const list = state.people.filter(isUnconfirmed).sort((a, b) => a.firstVisit.localeCompare(b.firstVisit));
   return (
@@ -36,12 +38,12 @@ export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => 
                   {match && (
                     <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-glow-soft p-2.5 text-[13px] text-glow-ink">
                       <GitMerge size={15} /> <span className="flex-1">Same phone as <b>{fullName(match)}</b>, already in your records{match.firstVisit ? ` since ${shortDate(match.firstVisit)}` : ""}.</span>
-                      <Button disabled={busy === p.id} onClick={async () => { setBusy(p.id); try { await mergeJoiner(p.id, match.id); toast(`Merged into ${match.firstName}'s record`); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't merge"); } setBusy(null); }}>Same person: merge</Button>
+                      {admin && <Button disabled={busy === p.id} onClick={async () => { setBusy(p.id); try { await mergeJoiner(p.id, match.id); toast(`Merged into ${match.firstName}'s record`); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't merge"); } setBusy(null); }}>Same person: merge</Button>}
                     </div>
                   )}
                   <div className="mt-2.5 flex gap-2">
                     <Button onClick={() => { confirmPeople([p.id]); toast(`${p.firstName} confirmed`); }}><Check size={15} /> {match ? "Different person: confirm" : "Confirm"}</Button>
-                    <Button variant="ghost" className="text-alert" onClick={() => { updatePerson(p.id, { inactive: { reason: "other", note: "Not recognised by the church", at: new Date().toISOString() } }); toast(`${p.firstName} removed`); }}><UserX size={15} /> Not ours</Button>
+                    {admin && <Button variant="ghost" className="text-alert" onClick={() => { updatePerson(p.id, { inactive: { reason: "other", note: "Not recognised by the church", at: new Date().toISOString() } }); toast(`${p.firstName} removed`); }}><UserX size={15} /> Not ours</Button>}
                   </div>
                 </li>
               );

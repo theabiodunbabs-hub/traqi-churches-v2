@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { EventDuties } from "./event-duties";
 import { MyEvents } from "./my-events";
-import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart, Check } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Avatar, Button, Sheet, cx } from "./ui";
+import { Avatar, Button, Sheet, cx, toast } from "./ui";
+import { kindOf } from "@/lib/journey";
 import { WhatsAppIcon } from "./care";
 import { NewRoleCard } from "./role-cards";
 import { MetSomeoneButton } from "./outreach";
@@ -28,7 +29,7 @@ export function MemberHome() {
   const { me, state, requestPlacement } = useStore();
   const w = useWords();
   const [asking, setAsking] = useState(false);
-  const [dept, setDept] = useState("");
+  const [depts, setDepts] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const [team, setTeam] = useState<string | null>(null);
@@ -43,7 +44,12 @@ export function MemberHome() {
   const step = nextStepFor(state, me);
   const myGroups = state.groups.filter((g) => g.memberIds.includes(me.id) || g.leaderIds.includes(me.id));
   const serving = myGroups.filter((g) => g.kind === "department" || g.kind === "unit");
-  const mine = state.placements.filter((x) => x.personId === me.id).at(-1);
+  const myPlacements = state.placements.filter((x) => x.personId === me.id);
+  const mine = myPlacements.at(-1);
+  const openAsks = myPlacements.filter((x) => x.status === "open");
+  const recentNo = myPlacements.filter((x) => x.status === "declined" && Date.now() - Date.parse(x.decidedAt ?? x.at) < 14 * 864e5);
+  // Members not yet serving anywhere get asked whether they're a worker
+  const askWorker = kindOf(me.stage) === "member" && !serving.length && !openAsks.length;
   const enrolments = state.enrolments.filter((e) => e.personId === me.id && e.status === "active");
   const myRegs = state.registrations.filter((r) => r.personId === me.id && r.status === "confirmed");
   const events = state.events.filter((e) => e.status === "published" && Date.parse(e.end) > now).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 3);
@@ -156,16 +162,25 @@ export function MemberHome() {
             <span className="min-w-0 flex-1 text-[14px]">There&apos;s an update on your support request.</span>
           </Link>
         )}
-        {mine?.status === "declined" && Date.now() - Date.parse(mine.decidedAt ?? mine.at) < 14 * 864e5 && (
-          <div className="card flex items-center gap-4 p-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-page text-ink-soft"><Users size={19} /></span>
-            <span className="min-w-0 flex-1 text-[14px]">{state.groups.find((g) => g.id === mine.groupId)?.name} can&apos;t take you just now.{mine.reply ? ` “${mine.reply}”` : ""} You can ask to join another team.</span>
+        {askWorker && (
+          <div className="card overflow-hidden border-l-4 border-brand p-5">
+            <p className="text-[14px] text-ink-soft">You&apos;re registered as a <b className="font-semibold text-ink">member</b> of {state.church.name}.</p>
+            <p className="mt-1 font-display text-[18px] font-semibold">Are you a worker?</p>
+            <p className="mt-0.5 text-[14px] text-ink-soft">Choose the {w.department.toLowerCase()}s you serve in. Each head will confirm you.</p>
+            <Button variant="primary" className="mt-3" onClick={() => setAsking(true)}><Users size={15} /> Choose my {w.department.toLowerCase()}</Button>
           </div>
         )}
-        {mine?.status === "open" && (
+        {recentNo.map((x) => (
+          <div key={x.id} className="card flex items-start gap-4 p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-page text-ink-soft"><Users size={19} /></span>
+            <span className="min-w-0 flex-1 text-[14px]">Your request to join {state.groups.find((g) => g.id === x.groupId)?.name} wasn&apos;t approved. Please speak to the church admin.
+              {profile?.phone && <a href={`tel:${profile.phone}`} className="mt-1 block font-medium text-brand">Call the church: {profile.phone}</a>}</span>
+          </div>
+        ))}
+        {openAsks.length > 0 && (
           <div className="card flex items-center gap-4 p-4">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-page text-ink-soft"><Users size={19} /></span>
-            <span className="min-w-0 flex-1 text-[14px]">You asked to join {state.groups.find((g) => g.id === mine.groupId)?.name}. The head will reply soon.</span>
+            <span className="min-w-0 flex-1 text-[14px]">You asked to join {openAsks.map((x) => state.groups.find((g) => g.id === x.groupId)?.name).filter(Boolean).join(", ")}. {openAsks.length > 1 ? "The heads" : "The head"} will confirm you soon.</span>
           </div>
         )}
 
@@ -238,18 +253,19 @@ export function MemberHome() {
         )}
       </Sheet>
 
-      <Sheet open={asking} onClose={() => setAsking(false)} title={`Join a ${w.department.toLowerCase()}`} footer={
+      <Sheet open={asking} onClose={() => setAsking(false)} title={`Your ${w.department.toLowerCase()}s`} footer={
         <div className="space-y-2">{err && <p className="text-sm text-alert" role="alert">{err}</p>}
-          <Button variant="primary" className="w-full py-3" onClick={() => { if (!dept) return setErr(`Choose a ${w.department.toLowerCase()}.`); requestPlacement(dept, note.trim() || undefined); setAsking(false); }}>Send request</Button></div>
+          <Button variant="primary" className="w-full py-3" onClick={() => { if (!depts.length) return setErr(`Tick at least one ${w.department.toLowerCase()}.`); depts.forEach((d) => requestPlacement(d, note.trim() || undefined)); setAsking(false); setDepts([]); setNote(""); toast(depts.length > 1 ? "Sent to each head" : "Sent to the head"); }}>{depts.length > 1 ? `Send ${depts.length} requests` : "Send request"}</Button></div>
       }>
         <div className="space-y-4">
           <div className="grid gap-2">
-            {state.groups.filter((g) => g.kind === "department" && !g.tags?.includes("children")).map((g) => {
+            <p className="text-[14px] text-ink-soft">Tick every {w.department.toLowerCase()} you&apos;re part of.</p>
+            {state.groups.filter((g) => g.kind === "department" && !g.tags?.includes("children") && !serving.some((x) => x.id === g.id) && !openAsks.some((x) => x.groupId === g.id)).map((g) => {
               const need = g.requiresClassId ? state.programmes.find((p) => p.id === g.requiresClassId) : undefined;
               return (
-                <button type="button" key={g.id} onClick={() => { setDept(g.id); setErr(""); }}
-                  className={cx("rounded-2xl px-4 py-3 text-left ring-1", dept === g.id ? "bg-brand-soft ring-brand" : "bg-surface ring-line hover:ring-ink/20")}>
-                  <span className="block font-medium">{g.name}</span>
+                <button type="button" key={g.id} role="checkbox" aria-checked={depts.includes(g.id)} onClick={() => { setDepts(depts.includes(g.id) ? depts.filter((x) => x !== g.id) : [...depts, g.id]); setErr(""); }}
+                  className={cx("rounded-2xl px-4 py-3 text-left ring-1", depts.includes(g.id) ? "bg-brand-soft ring-brand" : "bg-surface ring-line hover:ring-ink/20")}>
+                  <span className="flex items-center gap-2 font-medium"><span className={cx("flex size-5 shrink-0 items-center justify-center rounded-md ring-1", depts.includes(g.id) ? "bg-brand text-white ring-brand" : "ring-line")}>{depts.includes(g.id) && <Check size={13} />}</span>{g.name}</span>
                   <span className="block text-[13px] text-muted">{g.purpose}</span>
                   {need && <span className="mt-1 flex items-center gap-1 text-[12px] text-glow-ink"><BookOpen size={11} /> Asks for {need.name}</span>}
                 </button>

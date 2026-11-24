@@ -263,6 +263,8 @@ export function accessFor(state: SeedState, personId: string) {
     /** Special leads open on their own department, with a "See other departments" button. */
     seesAllDepartments: isPastoral || isAdmin || headsTag(["training", "welfare", "media", "followup", "membership"]),
     leadsFamilyLife: headsTag(["family"], true),
+    /** New joiners are confirmed by the admin, Follow-up or Membership (leads and assistants), not the admin alone. */
+    confirmsJoiners: perms.has("people.edit") || headsTag(["followup", "membership"], true),
     /** Prayer requests: the lead pastor, pastors, Membership Ministry leaders, and anyone the lead pastor added. */
     seesPrayers: isPastoral || state.groups.some((g) => g.tags?.includes("membership") && g.leaderIds.includes(personId))
       || (state.church.profile?.prayerViewers ?? []).includes(personId),

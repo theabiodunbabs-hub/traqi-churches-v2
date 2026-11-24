@@ -79,6 +79,8 @@ type Store = {
   startProbation: (personId: string, groupId?: string) => void;
   addProbationNote: (personId: string, text: string) => void;
   addToGroup: (groupId: string, personId: string) => void;
+  /** Take someone out of a department (and its units). Returns a function that puts them back. */
+  removeFromGroup: (groupId: string, personId: string) => () => void;
   updateGroup: (groupId: string, patch: Partial<Group>) => void;
   addUnit: (parentId: string, name: string, purpose: string) => void;
   assignRole: (personId: string, roleId: string, scope: RoleAssignment["scope"], until?: string) => void;
@@ -477,8 +479,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             assignments = [...assignments.filter((a) => !(a.personId === pid && a.roleId === dept.id)), { personId: pid, roleId: dept.id, scope: { type: "groups", groupIds: ids } }];
           });
         }
-        return log({ ...s, groups, assignments }, actor, `updated ${patch.name && patch.name !== g?.name ? `${g?.name}, now called ${patch.name}` : g?.name}`);
+        // Anyone made head of a department is a Leader; anyone who stops being one is flagged for the admin
+        let people = s.people;
+        if (g && g.kind === "department" && patch.leaderIds) {
+          const added = patch.leaderIds.filter((pid) => !g.leaderIds.includes(pid));
+          const gone = g.leaderIds.filter((pid) => !patch.leaderIds!.includes(pid));
+          const leaderStage = firstOfKind("leader");
+          people = people.map((p) => {
+            if (added.includes(p.id)) return { ...p, isLeader: true, formerHead: undefined, ...(leaderStage && !atLeast(p.stage, "leader") ? { stage: leaderStage } : {}) };
+            if (gone.includes(p.id) && !groups.some((x) => x.kind === "department" && x.leaderIds.includes(p.id))) return { ...p, formerHead: { groupId: g.id, at: new Date().toISOString() } };
+            return p;
+          });
+        }
+        return log({ ...s, groups, assignments, people }, actor, `updated ${patch.name && patch.name !== g?.name ? `${g?.name}, now called ${patch.name}` : g?.name}`);
       }),
+      removeFromGroup: (groupId, personId) => {
+        const before = latest.current.groups.filter((x) => x.id === groupId || x.parentId === groupId).map((x) => ({ ...x }));
+        setState((s) => {
+          const g = s.groups.find((x) => x.id === groupId);
+          const groups = s.groups.map((x) => (x.id === groupId || x.parentId === groupId
+            ? { ...x, memberIds: x.memberIds.filter((id) => id !== personId), leaderIds: x.leaderIds.filter((id) => id !== personId) } : x));
+          return log({ ...s, groups }, actor, `removed ${nameOf(s, personId)} from ${g?.name}`);
+        });
+        return () => setState((s) => {
+          const g = s.groups.find((x) => x.id === groupId);
+          const groups = s.groups.map((x) => before.find((b) => b.id === x.id) ?? x);
+          return log({ ...s, groups }, actor, `put ${nameOf(s, personId)} back in ${g?.name}`);
+        });
+      },
       addUnit: (parentId, name, purpose) => setState((s) => {
         const parent = s.groups.find((x) => x.id === parentId);
         return log({ ...s, groups: [...s.groups, { id: nid("g-"), name, purpose, kind: "unit", parentId, leaderIds: [], memberIds: [] }] }, actor, `added the ${name} unit to ${parent?.name}`);
@@ -626,7 +654,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Demo: join Heirs Church as a new member who isn't confirmed yet
         const id = nid("p");
         const match = state.people.find((p) => digits(p.phone).slice(-10) === digits(j.phone).slice(-10));
-        const first = journeyStages()[0]?.key ?? "first_timer";
+        const first = firstOfKind("member") ?? journeyStages()[0]?.key ?? "first_timer";
         setState((s) => log({ ...s, people: [...s.people, {
           id, firstName: j.firstName.trim(), lastName: j.lastName.trim(), gender: j.gender, phone: j.phone.trim(), whatsapp: j.phone.trim(), email: j.email?.trim() || undefined, birthday: j.birthday || undefined,
           stage: first, firstVisit: today(), missedInARow: 0, tracked: true, joinedVia: "search", branchId: j.branch, possibleMatchId: match?.id,
