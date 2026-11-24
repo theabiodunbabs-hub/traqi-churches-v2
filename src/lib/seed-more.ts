@@ -41,6 +41,7 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
 
   const profile: ChurchProfile = {
     color: "#4f46e5",
+    about: "A family of believers in Lagos, raising people who love God, love each other and serve the city.",
     welcome: "Welcome home. Whether it's your first Sunday or your five hundredth, there's a place for you at Heirs Church.",
     address: "14 Church Street, Ogba", city: "Ikeja", state: "Lagos",
     directions: "Off Ogba Road, opposite the filling station. Look for the white gate with the blue Heirs Church sign.",
@@ -236,6 +237,16 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
     { id: "ev-youth", slug: "rise-2026", title: "Rise: Youth Conference 2026", tagline: "Three days of worship, the Word and fire for a new generation.", cover: 0,
       theme: "Arise and Shine", verse: { text: "Arise, shine; for your light has come! And the glory of the Lord is risen upon you.", ref: "Isaiah 60:1" },
       template: "bold",
+      // Round 8: the new page sections, ticket types, accommodation link and check-in at the venue
+      page: {
+        colors: { bg: "#120d2e", section: "#1d1648", button: "#f5b544", icon: "#a78bfa" },
+        experience: [{ title: "Worship that lifts you", body: "Three nights of the presence of God, with the Heirs choir and friends." }, { title: "Teaching you can use", body: "Purpose, career and relationships: real talk for real life." }, { title: "Friends for the journey", body: "Meet young people who will pray with you long after Rise." }],
+        testimonials: [{ quote: "I came for my friend and left with a purpose. Rise changed my year.", name: "Tobi A.", role: "Rise 2025" }, { quote: "The prayer night was the best part. I'm bringing my whole class this time.", name: "Chioma E.", role: "Rise 2025" }],
+        invite: { title: "Arise and shine with us", body: "Three days. One generation. Bring a friend and come expecting." },
+      },
+      categories: [{ id: "tc-delegate", name: "Delegate", live: true }, { id: "tc-volunteer", name: "Volunteer", color: "#34d399", limit: 60, live: true }, { id: "tc-minister", name: "Minister", color: "#f472b6", private: true, token: "ministers26", live: true }],
+      accommodationUrl: "https://heirschurch.org/rise/stay",
+      venueCheckin: { on: true, printed: true, screen: true, secret: "rise2026demosecret" },
       description: "Rise is our yearly gathering for young people: powerful worship, practical teaching on purpose, career and relationships, and time to pray together. Bring a friend!",
       start: at(yc, "10:00"), end: at(addDays(yc, 2), "16:00"), days: [yc, addDays(yc, 1), addDays(yc, 2)], mode: "hybrid", venue: "Heirs Church main auditorium, Lagos", link: "https://youtube.com/@heirschurch/live",
       dayPlan: [

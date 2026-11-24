@@ -505,6 +505,8 @@ export type ChurchProfile = {
   /** People the admin named to take the leaders' roll call for them. */
   leadersRollcallBy?: string[];
   logo?: string; color?: string; email?: string; phone?: string; address?: string; welcome?: string;
+  /** A few lines about the church, for its page (traqi.church/{church}). */
+  about?: string;
   socials?: { instagram?: string; facebook?: string; youtube?: string; x?: string };
   liveStream?: string; services: ServiceSlot[]; approvalLimit: number; witness: boolean;
   categories: string[]; currencies: string[];

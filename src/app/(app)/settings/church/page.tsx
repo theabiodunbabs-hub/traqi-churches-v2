@@ -97,7 +97,7 @@ export default function ChurchSettings() {
   if (!(access.can("roles.manage") || access.isLead)) return <p className="text-muted">Only the lead pastor and the admin can change the church profile.</p>;
   const set = <K extends keyof ChurchProfile>(k: K, v: ChurchProfile[K]) => setP({ ...p, [k]: v });
   const origin = typeof window !== "undefined" ? location.origin : "";
-  const links = [["Church page", `/c/${state.church.slug}`], ["Sunday check-in", `/checkin/${state.church.slug}`], ["First-timer welcome", `/welcome?church=${state.church.slug}`]];
+  const links = [["Church page", `/${state.church.slug}`], ["Sunday check-in (first-timers and members)", `/checkin/${state.church.slug}`], ["First-timer welcome", `/welcome?church=${state.church.slug}`]];
   const save = () => { const clean = { ...p, terms: Object.fromEntries(Object.entries(p.terms ?? {}).filter(([, v]) => v?.trim())) }; updateChurch({ name: name.trim() || state.church.name, attendanceGoal: goal || undefined }, clean, "updated the church profile"); toast("Church profile saved"); };
   const color = p.color ?? "#4f46e5";
   const dirty = name !== state.church.name || goal !== (state.church.attendanceGoal ?? 0) || JSON.stringify(p) !== JSON.stringify(state.church.profile);
@@ -150,6 +150,7 @@ export default function ChurchSettings() {
                 {p.pin && <span className="text-[12.5px] text-muted">{p.pin.lat}, {p.pin.lng} · <button type="button" className="font-medium text-alert" onClick={() => set("pin", undefined)}>Remove</button></span>}
                 <span className="text-[12px] text-muted">Optional. Best done inside the church.</span>
               </div>
+              <Field label="About the church" hint="A few lines for your church page."><textarea className={cx(inputCls, "min-h-24")} value={p.about ?? ""} onChange={(e) => set("about", e.target.value)} placeholder="A family of believers in Ikeja, raising people who love God and serve the city." /></Field>
               <Field label="A welcome from the pastor"><textarea className={cx(inputCls, "min-h-28")} value={p.welcome ?? ""} onChange={(e) => set("welcome", e.target.value)} /></Field>
               <Field label="Live stream link"><input className={inputCls} value={p.liveStream ?? ""} onChange={(e) => set("liveStream", e.target.value)} placeholder="https://youtube.com/@…" /></Field>
               <div className="grid gap-3 sm:grid-cols-2">
