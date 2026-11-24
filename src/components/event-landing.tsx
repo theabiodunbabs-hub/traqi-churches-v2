@@ -30,7 +30,8 @@ export type Attendee = { firstName?: string; lastName?: string; name: string;
   /** Their hotline or call number. */ altPhone?: string;
   email?: string; answers: Record<string, string> };
 export type RegInput = Attendee & { type: RegType; days: string[]; guests: number; others: Attendee[];
-  /** Ticket category chosen, and the private link's token if it came from one. */ category?: string; categoryToken?: string };
+  /** Ticket category chosen, and the private link's token if it came from one. */ category?: string; categoryToken?: string;
+  /** Registering at the venue (with its check-in code). */ venueCode?: string };
 export type RegTicket = { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already"; category?: string };
 export type RegResult = { status: RegTicket["status"]; ticket: string; tickets?: RegTicket[] };
 type ChurchInfo = { name: string; slug: string; profile?: Partial<ChurchProfile> };
@@ -72,7 +73,6 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
   usePublicTheme(church.profile);
   const churchColor = church.profile?.color ?? "#4f46e5";
   const col = colorsOf(e, churchColor);
-  const fg = textOn(col.bg), cardFg = textOn(col.section), onBtn = textOn(col.button);
   const [url, setUrl] = useState("");
   const [now, setNow] = useState(Date.now());
   const [regOpen, setRegOpen] = useState(false);
@@ -105,11 +105,7 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
   const full = !!e.capacity && registered >= e.capacity;
   const theme = themeOf(e);
   const filled = (k: OptionalKey) => sectionFilled(e, k);
-  const vars = {
-    "--ev-page": col.bg, "--ev-card": col.section, "--ev-fg": fg, "--ev-card-fg": cardFg, "--ev-accent": col.button, "--ev-on-accent": onBtn, "--ev-icon": col.icon,
-    "--ev-muted": "color-mix(in oklab, currentColor 68%, transparent)", "--ev-line": "color-mix(in oklab, currentColor 12%, transparent)",
-    "--ev-heading": HEADING[e.template ?? "flyer"],
-  } as CSSProperties;
+  const vars = eventVars(e, churchColor);
   const H = "font-[family-name:var(--ev-heading)] tracking-tight";
   const nav = [
     { id: "when", label: "When and where", show: true },
@@ -187,6 +183,17 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
     </div>
   );
 }
+
+/** The page's colours as CSS variables, for anything drawn in the event's look (the venue check-in page too). */
+export function eventVars(e: ChurchEvent, churchColor: string): CSSProperties {
+  const col = colorsOf(e, churchColor);
+  return {
+    "--ev-page": col.bg, "--ev-card": col.section, "--ev-fg": textOn(col.bg), "--ev-card-fg": textOn(col.section), "--ev-accent": col.button, "--ev-on-accent": textOn(col.button), "--ev-icon": col.icon,
+    "--ev-muted": "color-mix(in oklab, currentColor 68%, transparent)", "--ev-line": "color-mix(in oklab, currentColor 12%, transparent)",
+    "--ev-heading": HEADING[e.template ?? "flyer"],
+  } as CSSProperties;
+}
+export const evCard = "rounded-3xl bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
 
 // ---------------- Headline ----------------
 function Countdown({ to, big }: { to: string; big?: boolean }) {
@@ -834,7 +841,9 @@ type Step = "who" | "google" | "checking" | "you" | "done";
  * The form holds the ticket type (if the event has categories), "How will you be attending?" (when both are offered),
  * the event's questions and the accommodation link.
  */
-function RegisterPanel({ e, church, url, closed, full, onRegister, member, H, catToken }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; member?: MemberFlow; H: string; catToken?: string | null }) {
+export function RegisterPanel({ e, church, url, closed, full, onRegister, member, H, catToken, checkedIn, venueCode }: { e: ChurchEvent; church: ChurchInfo; url: string; closed: boolean; full: boolean; onRegister: (r: RegInput) => Promise<RegResult>; member?: MemberFlow; H: string; catToken?: string | null;
+  /** At the venue: registering also checks them in. */ checkedIn?: boolean;
+  /** The venue's check-in code: lets people register on the day after online registration closes. */ venueCode?: string }) {
   const offered = (() => { const t = regTypesOf(e).filter((x) => x !== "group"); return t.length ? t : (["individual"] as RegType[]); })();
   const both = offered.includes("individual") && offered.includes("online");
   const cats = categoriesFor(e, catToken);
@@ -910,7 +919,7 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H, ca
     const firstName = me.firstName!.trim(), lastName = me.lastName!.trim(), name = joinName(firstName, lastName);
     const answers = genderQ && gender ? { ...me.answers, [genderQ.id]: genderAnswer(genderQ, gender) } : me.answers;
     const input: RegInput = { ...me, answers, firstName, lastName, name, altPhone: me.altPhone?.trim() || undefined, email: (lockedEmail || me.email!).trim(), type: type as RegType, days: pickDays, guests: 0, others: [],
-      category: cat || undefined, categoryToken: chosen?.private ? catToken ?? undefined : undefined };
+      category: cat || undefined, categoryToken: chosen?.private ? catToken ?? undefined : undefined, venueCode: venueCode || undefined };
     try {
       const r = asMember && member ? await member.register({ ...input, gender: gender as "M" | "F", birthday }) : await onRegister(input);
       const got = r.tickets?.length ? r.tickets : [{ name, ticket: r.ticket, status: r.status, category: cat || undefined }];
@@ -924,7 +933,7 @@ function RegisterPanel({ e, church, url, closed, full, onRegister, member, H, ca
 
   if (closed && !mine.length) return <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>Registration has closed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Thank you for your interest. See you next time!</p></div>;
   if (step === "done" && last) return (
-    <Tickets e={e} church={church} url={url} tickets={mine} status={last} H={H} onAnother={closed ? undefined : another}
+    <Tickets e={e} church={church} url={url} tickets={mine} status={last} H={H} onAnother={closed ? undefined : another} checkedIn={checkedIn && (last === "confirmed" || last === "already")}
       onHome={asMember && member && !member.known ? () => member.dashboard() : undefined} />
   );
 
@@ -1086,14 +1095,14 @@ function AttendeeFields({ a, set, questions, requirePhone, emailLocked, afterEma
 }
 
 /** One ticket per person: a clean card with their name and a QR code for the door, downloadable on its own. */
-export function Tickets({ e, church, url, tickets, status, H, onAnother, onHome }: { e: ChurchEvent; church: ChurchInfo; url: string; tickets: RegTicket[]; status: RegResult["status"]; H: string; onAnother?: () => void;
-  /** Members: "Open my Traqi". */ onHome?: () => void }) {
+export function Tickets({ e, church, url, tickets, status, H, onAnother, onHome, checkedIn }: { e: ChurchEvent; church: ChurchInfo; url: string; tickets: RegTicket[]; status: RegResult["status"]; H: string; onAnother?: () => void;
+  /** Members: "Open my Traqi". */ onHome?: () => void; checkedIn?: boolean }) {
   return (
     <div className="space-y-3">
       <Confetti show={status === "confirmed"} />
       <div className={cx(card, "p-5 text-center")}>
-        <p className={cx(H, "text-[24px] font-semibold")}>{status === "confirmed" ? "You're in!" : status === "already" ? "Already registered" : status === "waitlist" ? "You're on the waiting list" : "Thank you! We'll confirm soon"}</p>
-        <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{status === "waitlist" ? "We'll let you know if a place opens up." : tickets.length > 1 ? `${tickets.length} tickets below. Send each person theirs.` : "Show this ticket at the door."}</p>
+        <p className={cx(H, "text-[24px] font-semibold")}>{checkedIn ? "Registered and checked in!" : status === "confirmed" ? "You're in!" : status === "already" ? "Already registered" : status === "waitlist" ? "You're on the waiting list" : "Thank you! We'll confirm soon"}</p>
+        <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{checkedIn ? "Welcome! Keep your ticket handy." : status === "waitlist" ? "We'll let you know if a place opens up." : tickets.length > 1 ? `${tickets.length} tickets below. Send each person theirs.` : "Show this ticket at the door."}</p>
       </div>
       {e.accommodationUrl && (
         <a href={e.accommodationUrl} target="_blank" rel="noreferrer" className={cx(card, "flex items-center gap-3 p-4")}>

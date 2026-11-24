@@ -15,6 +15,7 @@ import { QR } from "@/components/public";
 import { WhatsAppIcon } from "@/components/care";
 import { EventLanding, whenLine } from "@/components/event-landing";
 import { EventEditor } from "@/components/event-editor";
+import { VenueCheckinCard } from "@/components/venue-codes";
 import { DownloadButton } from "@/components/download";
 import { useDemoRegister } from "@/components/event-page";
 import { STATE_BADGE, canCreateEvents, eventCounts, eventState } from "@/lib/domain";
@@ -72,7 +73,7 @@ export default function EventPage() {
         <div key={cur} className="rise">
           {cur === "committee" && <CommitteePanel e={e} />}
           {cur === "briefing" && <EventBriefing e={e} />}
-          {cur === "door" && <EventDoor e={e} />}
+          {cur === "door" && <>{e.venueCheckin?.on && <VenueCheckinCard e={e} canEdit={false} />}<EventDoor e={e} /></>}
           {cur === "teams" && <TeamsPanel e={e} />}
           {cur === "people" && <People e={e} />}
           {cur === "page" && <div className="-mx-4 md:-mx-8"><EventLanding e={e} church={church} registered={c.people} recent={c.confirmed.slice(-4).map((r) => r.name)} onRegister={(r) => demoRegister(e, r)} preview /></div>}
@@ -159,7 +160,7 @@ export default function EventPage() {
       <div key={tab} className="rise">
         {tab === "overview" && <Overview e={e} />}
         {tab === "people" && <People e={e} />}
-        {tab === "door" && (e.status === "published" ? <EventDoor e={e} /> : <Empty title="Not open yet" body="Check-in opens once a pastor publishes the event." icon={<ScanLine size={26} />} />)}
+        {tab === "door" && (e.status === "published" ? <><VenueCheckinCard e={e} canEdit /><EventDoor e={e} /></> : <Empty title="Not open yet" body="Check-in opens once a pastor publishes the event." icon={<ScanLine size={26} />} />)}
         {tab === "teams" && <TeamsPanel e={e} />}
         {tab === "briefing" && <EventBriefing e={e} />}
         {tab === "share" && <Share e={e} />}

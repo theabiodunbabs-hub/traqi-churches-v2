@@ -15,7 +15,7 @@ export type MemberStatus = {
   churchId?: string;
   person?: { firstName: string; lastName: string; phone?: string; birthday?: string; gender?: "M" | "F"; email?: string };
   /** Their tickets for this event, if they've registered. */
-  tickets: { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already" }[];
+  tickets: { name: string; ticket: string; status: "confirmed" | "waitlist" | "pending" | "already"; category?: string }[];
 };
 
 /** The page's link back after Google: the event page with this flag. `register` opens the form for a member. */

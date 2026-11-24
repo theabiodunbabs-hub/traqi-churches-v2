@@ -186,7 +186,8 @@ begin
   select id into c from churches where slug = p_slug;
   select * into e from events where church_id = c and slug = p_event and status = 'published';
   if e.id is null then raise exception 'This event is not open for registration'; end if;
-  if e.data->>'closesAt' is not null and now() > (e.data->>'closesAt')::timestamptz then raise exception 'Registration has closed'; end if;
+  -- At the venue (with its check-in code), people can still register on the day after online registration closes
+  if e.data->>'closesAt' is not null and now() > (e.data->>'closesAt')::timestamptz and venue_code_ok(e, p_reg->>'venueCode') <> 'ok' then raise exception 'Registration has closed'; end if;
   if (e.data->>'end') is not null and now() > (e.data->>'end')::timestamptz then raise exception 'This event has ended'; end if;
   perform pg_advisory_xact_lock(hashtext(c::text || '|' || e.id));
 
