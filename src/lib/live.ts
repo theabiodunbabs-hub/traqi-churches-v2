@@ -69,6 +69,35 @@ const isUuid = (s?: string) => !!s && /^[0-9a-f-]{36}$/i.test(s);
 
 let currentChurch: string | null = null;
 
+/** Videos and pictures for one event page (up to 10 MB), removed 14 days after the event. */
+export async function uploadEventMediaLive(blob: Blob, eventId: string, ext: string) {
+  if (!currentChurch) throw new Error("Sign in to your church first");
+  const path = `${currentChurch}/event-${eventId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await db().storage.from("event-media").upload(path, blob, { contentType: blob.type, cacheControl: "31536000", upsert: false });
+  if (error) throw new Error(/exceed|size/i.test(error.message) ? "That file is over 10 MB. Try a shorter or smaller video." : error.message);
+  return db().storage.from("event-media").getPublicUrl(path).data.publicUrl;
+}
+export type VenueFind = { status: "found" | "not-found" | "bad-code" | "closed" | "no-event"; name?: string };
+export type VenueIn = { status: "in" | "already" | "not-confirmed" | "not-found" | "bad-code" | "closed" | "no-event"; name?: string; ticket?: string; ticketStatus?: "confirmed" | "waitlist" | "pending"; category?: string };
+/** Check-in at the venue: who is this? (a partly hidden name) */
+export async function venueFind(slug: string, event: string, code: string, who: string) {
+  const { data, error } = await db().rpc("venue_checkin_find", { p_slug: slug, p_event: event, p_code: code, p_who: who });
+  if (error) throw new Error(error.message);
+  return data as VenueFind;
+}
+/** "Yes, that's me": checked in, with their ticket. */
+export async function venueCheckin(slug: string, event: string, code: string, who: string) {
+  const { data, error } = await db().rpc("venue_checkin", { p_slug: slug, p_event: event, p_code: code, p_who: who });
+  if (error) throw new Error(error.message);
+  return data as VenueIn;
+}
+/** The organiser's codes: the printed one and the one on screen right now. */
+export async function venueCodes(eventId: string) {
+  const { data, error } = await db().rpc("venue_codes", { p_event: eventId });
+  if (error) throw new Error(error.message);
+  return data as { printed: string; screen: string; open: boolean };
+}
+
 /** Store a file in the church's own folder of the media bucket; returns its public address. */
 export async function uploadFileLive(blob: Blob, kind: string, ext = "webp") {
   if (!currentChurch) throw new Error("Sign in to your church first");
@@ -371,8 +400,8 @@ export async function welcomeV2(slug: string, f: { firstName?: string; lastName?
   if (error) throw new Error(error.message);
   return data as { status: "new" | "back" | "updated" };
 }
-export async function eventPage(slug: string, event: string) {
-  const { data } = await db().rpc("event_page", { p_slug: slug, p_event: event });
+export async function eventPage(slug: string, event: string, cat?: string | null) {
+  const { data } = await db().rpc("event_page", { p_slug: slug, p_event: event, p_cat: cat ?? null });
   return (data as { church: Omit<PublicChurch, "events">; event: SeedState["events"][number]; registered: number } | null) ?? null;
 }
 export async function registerEvent(slug: string, event: string, reg: Record<string, unknown>) {

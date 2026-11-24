@@ -28,7 +28,7 @@ export function PublicEvent({ church, event }: { church: string; event: string }
   const [live, setLive] = useState<Live | null | undefined>(undefined);
   const churchOf = useRef<string | undefined>(undefined);
   const picked = useRef<string | null>(null);
-  useEffect(() => { if (mode === "live") eventPage(church, event).then((x) => setLive(x as Live | null)).catch(() => setLive(null)); }, [mode, church, event]);
+  useEffect(() => { if (mode === "live") eventPage(church, event, new URLSearchParams(location.search).get("t")).then((x) => setLive(x as Live | null)).catch(() => setLive(null)); }, [mode, church, event]);
   const path = `/${church}/${event}`;
 
   // Live: real Google sign-in. Home is reloaded so it opens on the church they just joined.

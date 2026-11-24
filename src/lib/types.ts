@@ -301,11 +301,57 @@ export type ChurchEvent = {
   regLeadAdds?: boolean;
   /** The shared check-in link. A new token replaces (revokes) the old one. */
   checkinLink?: { token: string; at: string; byId: string; revoked?: boolean };
+  // ---- Round 8 ----
+  /** The public page: headline media, colours and the optional sections. */
+  page?: EventPage;
+  /** "Need accommodation? Click here": shown on the form, after registering and on the ticket. */
+  accommodationUrl?: string;
+  /** Ticket categories, e.g. Delegate, Minister, VIP. None means one free ticket for everyone. */
+  categories?: TicketCategory[];
+  /** People check themselves in at the venue with a code: printed (valid during event hours) and/or on a screen (changes every minute). */
+  venueCheckin?: { on: boolean; printed: boolean; screen: boolean; secret: string };
+  /** A published event's unpublished changes, kept until "Update page" is pressed. */
+  draft?: { event: ChurchEvent; at: string };
+};
+export type TicketCategory = {
+  id: string; name: string;
+  /** The ticket colour; the page's button colour when empty. */
+  color?: string;
+  /** Most tickets in this category. Empty for no limit. */
+  limit?: number;
+  /** Private: only people with its own link can choose it. */
+  private?: boolean;
+  /** Its own link (private categories). */
+  token?: string;
+  /** Off: not offered yet (the organiser decides when it goes live). */
+  live?: boolean;
+  /** Extra questions for this category only. */
+  questions?: EventQuestion[];
+};
+export type EventColors = { bg: string; section: string; button: string; icon: string };
+export type EventPage = {
+  media?: { kind: "flyer" | "video" | "carousel"; video?: string; slides?: string[] };
+  colors?: EventColors;
+  /** The closing invitation near the bottom. */
+  invite?: { title?: string; body?: string };
+  host?: { name?: string; role?: string; letter: string; photos?: string[]; video?: string };
+  /** Three cards: what people will experience. */
+  experience?: { title: string; body: string }[];
+  /** Real quotes with names. */
+  testimonials?: { quote: string; name: string; role?: string }[];
+  /** Join online: the steps; shows by itself when there's an online link. */
+  online?: { steps?: string[] };
+  /** Up to four sections of the organiser's own. */
+  extras?: { id: string; title: string; body: string; image?: string; button?: { label: string; url: string } }[];
+  /** "Know someone who should be here?" On unless switched off. */
+  share?: boolean;
+  /** When the uploaded media was removed (14 days after the event). */
+  mediaCleared?: string;
 };
 export type EventDuty = "followup" | "registration" | "checkin";
 /** A whole department (everyone in it, as it changes) and/or named people. */
 export type DutyTeam = { groupIds: string[]; personIds: string[] };
-export type CheckinVia = "qr" | "ticket" | "phone" | "email" | "name" | "walkin";
+export type CheckinVia = "qr" | "ticket" | "phone" | "email" | "name" | "walkin" | "self";
 /** One check-in: the day, when, who did it and how. */
 export type CheckinMark = { day: string; at: string; byId?: string; via?: CheckinVia; session?: string };
 export type Registration = {
@@ -326,6 +372,8 @@ export type Registration = {
   feedback?: { answers: Record<string, string>; at: string };
   /** Who checked this person in, when and how. */
   checkinLog?: CheckinMark[];
+  /** The ticket category chosen. */
+  category?: string;
 };
 
 export type CountLine = { category: string; amount: number; currency: string };

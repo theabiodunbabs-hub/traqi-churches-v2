@@ -76,7 +76,7 @@ function EventCard({ e, regs, now }: { e: ChurchEvent; regs: Registration[]; now
           <div className="space-y-3 border-t border-line bg-page/50 p-4">
             {isReg ? (
               <>
-                {regs.map((r) => <TicketCard key={r.id} e={e} church={church} url={url} t={{ name: r.name, ticket: r.ticket, status: r.status }} />)}
+                {regs.map((r) => <TicketCard key={r.id} e={e} church={church} url={url} t={{ name: r.name, ticket: r.ticket, status: r.status, category: r.category }} />)}
                 <div className="flex flex-wrap gap-2">
                   <Link href={path} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-[14.5px] font-semibold text-white"><UserPlus size={16} /> Register someone else</Link>
                   <Link href={`/events/${e.id}`} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-surface px-4 text-[14px] font-semibold ring-1 ring-line">Open the event</Link>

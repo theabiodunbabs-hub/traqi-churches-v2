@@ -106,6 +106,8 @@ export function suggestQuestions(e: ChurchEvent, have: EventQuestion[] = e.quest
     if (s.id === "member" && e.followup) score += 1;
     // The briefing's gender and location breakdowns need these
     if (s.id === "gender" || s.id === "location") score += 1;
+    // T-shirt size is in the list, but never suggested by default (round 8)
+    if (s.id === "tshirt") score = 0;
     return { s, score };
   });
   return scored.filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.s);
