@@ -10,6 +10,7 @@ import { addDays, at, lastSunday } from "./seed-more";
 import { daysToBirthday, fullName, hoursSince, todayLagos } from "./format";
 import { actionsFor } from "./funds";
 import { kindOf } from "./journey";
+import { hasUploads, mediaRemovedOn } from "./event-page";
 import { DUTY_LABEL, myEventDuties, nextDate, rsvpId } from "./event-mgmt";
 
 const dayLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -317,6 +318,14 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
         body: "They're still a Leader. Keep that, or change their stage on their profile.", href: `/people/${p.id}`, tone: "glow", at: p.formerHead!.at });
     });
   }
+  // Event pictures and videos are removed 14 days after the event: a notice first, to whoever made the event and the admin
+  state.events.filter((e) => hasUploads(e) && (e.createdById === me.id || a.isAdmin)).forEach((e) => {
+    const off = mediaRemovedOn(e).getTime();
+    if (Date.now() < off - 4 * 864e5 || Date.now() > off) return;
+    out.push({ key: `media-${e.id}`, title: `${e.title}: videos and pictures go soon`,
+      body: `The headline video, carousel and host photos on its page are removed on ${new Date(off).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}. Save any you want to keep. Registrations stay.`,
+      href: `/events/${e.id}?edit=1`, tone: "glow", at: new Date(off - 4 * 864e5).toISOString() });
+  });
   // Classes tomorrow for teachers and students
   const tomorrow = addDays(new Date(Date.now() + 36e5).toISOString().slice(0, 10), 1);
   state.sessions.filter((s) => s.date === tomorrow && !s.cancelled).forEach((s) => {

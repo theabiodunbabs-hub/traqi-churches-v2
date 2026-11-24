@@ -167,12 +167,22 @@ export default function EventPage() {
         {tab === "feedback" && <FeedbackResults e={e} />}
         {tab === "committee" && <CommitteePanel e={e} onEdit={() => setTab("edit")} />}
         {tab === "page" && <Overview e={e} />}
-        {tab === "edit" && <EventEditor e={e} onPreview={setPreview} onSave={(x) => {
-          const moved = e.status === "published" && (x.start !== e.start || x.venue !== e.venue || x.link !== e.link || x.days.join() !== e.days.join());
-          put("events", moved && !access.isPastoral ? { ...x, status: "pending" } : x, `updated the event ${x.title}`);
-          toast(moved && !access.isPastoral ? "Saved. The date or venue changed, so a pastor must approve again." : "Event saved");
-          setTab("overview");
-        }} onDelete={e.status !== "published" ? () => { drop("events", e.id, `deleted the event ${e.title}`); router.push("/events"); } : undefined} />}
+        {tab === "edit" && <EventEditor key={e.id} e={e.draft?.event ?? e} published={e.status === "published"} onPreview={setPreview}
+          onAutosave={(x) => {
+            // Published: changes wait in a draft until "Update page". Otherwise the event saves as they type.
+            const cur = state.events.find((y) => y.id === e.id) ?? e;
+            if (cur.status === "published") put("events", { ...cur, draft: { event: { ...x, draft: undefined }, at: new Date().toISOString() } }, "");
+            else put("events", { ...x, status: cur.status, draft: undefined }, "");
+          }}
+          onDiscard={e.draft ? () => { put("events", { ...e, draft: undefined }, `discarded changes to ${e.title}`); toast("Changes discarded"); setTab("overview"); } : undefined}
+          onSave={(x) => {
+            const cur = state.events.find((y) => y.id === e.id) ?? e;
+            const moved = cur.status === "published" && (x.start !== cur.start || x.venue !== cur.venue || x.link !== cur.link || x.days.join() !== cur.days.join());
+            const next = { ...x, status: cur.status, approvedById: cur.approvedById, draft: undefined };
+            put("events", moved && !access.isPastoral ? { ...next, status: "pending" } : next, cur.status === "published" ? `updated the page for ${x.title}` : `updated the event ${x.title}`);
+            toast(moved && !access.isPastoral ? "Saved. The date or venue changed, so a pastor must approve again." : cur.status === "published" ? "Page updated" : "Event saved");
+            setTab("overview");
+          }} onDelete={e.status !== "published" ? () => { drop("events", e.id, `deleted the event ${e.title}`); router.push("/events"); } : undefined} />}
       </div>
     </div>
   );

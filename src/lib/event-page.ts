@@ -60,7 +60,7 @@ export const MAX_EXTRAS = 4;
 export function sectionFilled(e: ChurchEvent, k: OptionalKey): boolean {
   const p: EventPage = e.page ?? {};
   switch (k) {
-    case "partners": return !!e.partners?.length && e.showPartners !== false;
+    case "partners": return !!e.partners?.length && !!e.showPartners;
     case "host": return !!p.host?.letter?.trim();
     case "experience": return (p.experience ?? []).some((x) => x.title.trim());
     case "speakers": return !!e.people?.length || !!e.speakers?.length;

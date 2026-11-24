@@ -370,3 +370,9 @@ language sql security definer set search_path = public as $$
 $$;
 revoke all on function event_media_due() from public, anon, authenticated;
 revoke all on function event_media_cleared(uuid, text) from public, anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function event_media_due() to service_role;
+    grant execute on function event_media_cleared(uuid, text) to service_role;
+  end if;
+end $$;

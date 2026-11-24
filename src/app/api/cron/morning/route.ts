@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { admin, appUrl, cronAllowed, send } from "@/lib/email/server";
+import { clearEventMedia } from "@/lib/cron/media";
 import { dailyEmail, eventReminderEmail, lagosNow, mondayEmail, type EmailSummary } from "@/lib/email/templates";
 
 export const dynamic = "force-dynamic";
@@ -27,5 +28,8 @@ export async function GET(req: Request) {
       count(await send(db, c.id, "event_reminder", x.to, eventReminderEmail(summary.church, base, x.event, x.name, x.ticket)));
     }
   }
-  return NextResponse.json({ ok: true, at: now, tally });
+  // Event videos and pictures, 14 days after the event
+  let mediaCleared = 0;
+  try { mediaCleared = await clearEventMedia(db); } catch { /* try again tomorrow */ }
+  return NextResponse.json({ ok: true, mediaCleared, at: now, tally });
 }

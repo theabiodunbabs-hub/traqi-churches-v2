@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, ChevronDown, Eye, HelpCircle, Image as ImageIcon, LayoutTemplate, Link2, ListChecks, Loader2, MapPin, Plus,
-  Settings2, Sparkles, Trash2, Upload, Users, X,
+  ArrowDown, ArrowUp, BedDouble, BookOpen, CalendarDays, Check, ChevronDown, Clock, Eye, Gift, Handshake, HelpCircle, Image as ImageIcon, LayoutTemplate, Link2, ListChecks, Loader2, Mail, MessageSquareQuote, Plus,
+  Radio, Settings2, Share2, Sparkles, Ticket, Trash2, Upload, Users, X, type LucideIcon,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Button, Field, Toggle, cx, inputCls, toast } from "./ui";
@@ -11,7 +11,9 @@ import { COVERS } from "./brand";
 import { uploadImage } from "@/lib/upload";
 import { ticketPrefix } from "@/lib/event-mgmt";
 import { PERSON_LABELS, cleanOptions, daysOf, isRequired, isShirtSize, optionalByDefault, showsDropdown, peopleOf, slugify, suggestQuestions, themeOf, withDayPlan } from "@/lib/events";
-import type { ChurchEvent, EventDay, EventPerson, EventQuestion, EventVenue, QuestionType, RegType } from "@/lib/types";
+import { CategoriesEditor, ColorsEditor, ExperienceEditor, ExtrasEditor, HeadlineEditor, HostEditor, InviteEditor, OnlineEditor, TestimonialsEditor } from "./event-editor-page";
+import { OPTIONAL_SECTIONS, sectionFilled, type OptionalKey } from "@/lib/event-page";
+import type { ChurchEvent, EventDay, EventPage, EventPerson, EventQuestion, EventVenue, QuestionType } from "@/lib/types";
 
 const TYPES: { k: QuestionType; label: string }[] = [
   { k: "text", label: "Short answer" }, { k: "long", label: "Paragraph" }, { k: "choice", label: "One choice" }, { k: "multi", label: "Tick all that apply" },
@@ -20,26 +22,82 @@ const TYPES: { k: QuestionType; label: string }[] = [
 const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 const nextDate = (d: string) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
 
-type Sec = "basics" | "days" | "look" | "people" | "venues" | "registration" | "form" | "extras" | "options";
-const SECTIONS: { k: Sec; label: string; icon: typeof BookOpen }[] = [
-  { k: "basics", label: "Theme and about", icon: BookOpen }, { k: "days", label: "Days and programme", icon: CalendarDays },
-  { k: "look", label: "Flyer and look", icon: LayoutTemplate }, { k: "people", label: "Speakers and ministers", icon: Users },
-  { k: "venues", label: "Venues", icon: MapPin }, { k: "registration", label: "Registration and link", icon: Link2 },
-  { k: "form", label: "Registration form", icon: ListChecks }, { k: "extras", label: "FAQ, gallery and more", icon: HelpCircle },
+type Core = "basics" | "days" | "look" | "registration" | "tickets" | "form" | "invite" | "more" | "options";
+type Sec = Core | OptionalKey;
+/** The core sections, always there. */
+const CORE: { k: Core; label: string; icon: LucideIcon }[] = [
+  { k: "basics", label: "Theme and about", icon: BookOpen }, { k: "days", label: "When and where", icon: CalendarDays },
+  { k: "look", label: "Headline and colours", icon: LayoutTemplate }, { k: "registration", label: "Registration and link", icon: Link2 },
+  { k: "tickets", label: "Ticket types", icon: Ticket }, { k: "form", label: "Registration form", icon: ListChecks },
+  { k: "invite", label: "Closing invitation", icon: Sparkles }, { k: "more", label: "Gallery, stay, giving, contact", icon: Gift },
   { k: "options", label: "Check-in, feedback, reminders", icon: Settings2 },
 ];
+const OPT_ICON: Record<OptionalKey, LucideIcon> = {
+  partners: Handshake, host: Mail, experience: Sparkles, speakers: Users, programme: Clock, online: Radio, testimonials: MessageSquareQuote, faq: HelpCircle, extras: LayoutTemplate, share: Share2,
+};
+const labelOf = (k: Sec) => CORE.find((x) => x.k === k)?.label ?? OPTIONAL_SECTIONS.find((x) => x.k === k)!.label;
+const iconOf = (k: Sec) => CORE.find((x) => x.k === k)?.icon ?? OPT_ICON[k as OptionalKey];
 
 /** Everything about an event in one place, a section at a time. */
-export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: ChurchEvent; onSave: (e: ChurchEvent) => void; onDelete?: () => void; onPreview: (e: ChurchEvent) => void }) {
+export function EventEditor({ e: initial, onSave, onAutosave, onDiscard, published, onDelete, onPreview }: {
+  e: ChurchEvent; onSave: (e: ChurchEvent) => void;
+  /** Saves as they type: the event itself, or (published) the draft kept until "Update page". */
+  onAutosave?: (e: ChurchEvent) => void;
+  /** Published events with unpublished changes: throw them away. */
+  onDiscard?: () => void;
+  published?: boolean; onDelete?: () => void; onPreview: (e: ChurchEvent) => void;
+}) {
   const { state } = useStore();
   const [e, setE] = useState<ChurchEvent>(() => ({ ...initial, theme: themeOf(initial), people: peopleOf(initial), dayPlan: daysOf(initial) }));
   const [open, setOpen] = useState<Sec>("basics");
   const set = <K extends keyof ChurchEvent>(k: K, v: ChurchEvent[K]) => setE((x) => ({ ...x, [k]: v }));
+  const setPage = (p: Partial<EventPage>) => setE((x) => ({ ...x, page: { ...x.page, ...p } }));
+  // Optional sections: the filled ones, plus any just added
+  const [added, setAdded] = useState<Set<OptionalKey>>(() => new Set(OPTIONAL_SECTIONS.map((x) => x.k).filter((k) => sectionFilled(initial, k) && k !== "share")));
+  const [adding, setAdding] = useState(false);
+  const addSection = (k: OptionalKey) => {
+    setAdded((x) => new Set(x).add(k)); setAdding(false); setOpen(k);
+    if (k === "share") setPage({ share: true });
+    if (k === "partners") set("showPartners", true);
+    setTimeout(() => document.getElementById(`sec-${k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
+  const removeSection = (k: OptionalKey) => {
+    setAdded((x) => { const n = new Set(x); n.delete(k); return n; });
+    setE((x) => {
+      const pg = { ...x.page };
+      if (k === "host") delete pg.host; if (k === "experience") delete pg.experience; if (k === "testimonials") delete pg.testimonials; if (k === "extras") delete pg.extras; if (k === "online") delete pg.online;
+      if (k === "share") pg.share = false;
+      const y: ChurchEvent = { ...x, page: pg };
+      if (k === "partners") { y.partners = undefined; y.showPartners = false; }
+      if (k === "faq") y.faq = undefined;
+      if (k === "speakers") { y.people = []; }
+      if (k === "programme") return withDayPlan(y, (y.dayPlan ?? []).map((d) => ({ ...d, sessions: undefined })));
+      return y;
+    });
+  };
+  const shownOptional = OPTIONAL_SECTIONS.filter((x) => added.has(x.k) || (x.k === "share" && e.page?.share !== false) || (x.k === "online" && sectionFilled(e, "online")));
+  const toAdd = OPTIONAL_SECTIONS.filter((x) => !shownOptional.some((y) => y.k === x.k));
   const plan = e.dayPlan ?? [];
   const setPlan = (p: EventDay[]) => setE((x) => withDayPlan(x, p));
   const taken = new Set(state.events.filter((x) => x.id !== e.id).map((x) => x.slug));
   const slugOk = !!e.slug && !taken.has(e.slug);
   const changed = JSON.stringify(e) !== JSON.stringify(initial);
+
+  // Autosave: a moment after they stop typing
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const first = useRef(true);
+  const finish = (x: ChurchEvent): ChurchEvent => {
+    const objectives = (x.objectives ?? []).map((o) => o.trim()).filter(Boolean);
+    return { ...withDayPlan(x, x.dayPlan ?? []), objectives: objectives.length ? objectives : undefined, tagline: x.theme ?? x.tagline, speakers: (x.people ?? []).map((p) => ({ name: p.name, role: p.label })),
+      questions: x.questions.filter((q) => q.label.trim()).map((q) => ({ ...q, label: q.label.trim(), options: q.options ? cleanOptions(q.options) : undefined })) };
+  };
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (!onAutosave || !e.title.trim() || !(e.dayPlan ?? []).length) return;
+    if (!published && !slugOk) return;
+    const t = setTimeout(() => { onAutosave(finish(e)); setSavedAt(Date.now()); }, 900);
+    return () => clearTimeout(t);
+  }, [e]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {
     if (!e.title.trim()) return toast("Give the event a title");
@@ -49,24 +107,50 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
     if (bad) return toast(`On ${bad.date}, the end time is before the start time`);
     const q = e.questions.find((x) => (x.type === "choice" || x.type === "multi") && cleanOptions(x.options ?? []).length < 2);
     if (q) return toast(`“${q.label || "A question"}” needs at least two choices`);
-    const objectives = (e.objectives ?? []).map((o) => o.trim()).filter(Boolean);
-    onSave({ ...withDayPlan(e, plan), objectives: objectives.length ? objectives : undefined, tagline: e.theme ?? e.tagline, speakers: (e.people ?? []).map((p) => ({ name: p.name, role: p.label })),
-      questions: e.questions.filter((x) => x.label.trim()).map((x) => ({ ...x, label: x.label.trim(), options: x.options ? cleanOptions(x.options) : undefined })) });
+    const cat = (e.categories ?? []).find((c) => !c.name.trim());
+    if (cat) return toast("Give each ticket type a name");
+    onSave(finish(e));
+  };
+
+  const sec = (k: Sec, body: ReactNode, onRemove?: () => void) => <Section k={k} open={open} setOpen={setOpen} onRemove={onRemove}>{body}</Section>;
+  const optBody: Record<OptionalKey, ReactNode> = {
+    partners: <Partners items={e.partners ?? []} onChange={(p) => set("partners", p)} />,
+    host: <HostEditor e={e} setPage={setPage} />,
+    experience: <ExperienceEditor e={e} setPage={setPage} />,
+    speakers: <PeopleEditor people={e.people ?? []} onChange={(v) => set("people", v)} />,
+    programme: (
+      <ol className="space-y-3">{plan.map((d, i) => (
+        <li key={i} className="rounded-2xl bg-page p-4 ring-1 ring-line">
+          <p className="text-[13.5px] font-semibold">Day {i + 1}{d.title ? `: ${d.title}` : ""} <span className="font-normal text-muted">· {d.date}, {d.start} to {d.end}</span></p>
+          <Sessions day={d} people={e.people ?? []} venues={e.venues ?? []} checkin={!!e.sessionCheckin} onChange={(sessions) => setPlan(plan.map((y, j) => (j === i ? { ...y, sessions } : y)))} />
+        </li>
+      ))}</ol>
+    ),
+    online: <OnlineEditor e={e} setPage={setPage} />,
+    testimonials: <TestimonialsEditor e={e} setPage={setPage} />,
+    faq: <><PairList title="Frequently asked questions" items={(e.faq ?? []).map((f) => [f.q, f.a])} labels={["Question", "Answer"]} long onChange={(v) => set("faq", v.length ? v.map(([q, a]) => ({ q, a })) : undefined)}
+            ideas={[["Is it free?", "Yes. Registration is free."], ["Can I bring my children?", ""], ["Is there parking?", ""], ["Will it be streamed online?", ""], ["What should I wear?", ""]]} /></>,
+    extras: <ExtrasEditor e={e} setPage={setPage} />,
+    share: <p className="text-[13.5px] text-muted">“Know someone who should be here?” with WhatsApp, Copy link and a picture to share. On by default; remove this section to hide it.</p>,
   };
 
   return (
     <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <nav className="hidden space-y-1 lg:sticky lg:top-6 lg:block lg:self-start" aria-label="Event sections">
-        {SECTIONS.map((s) => (
-          <button type="button" key={s.k} onClick={() => { setOpen(s.k); document.getElementById(`sec-${s.k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-            className={cx("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[14px]", open === s.k ? "bg-surface font-medium shadow-sm ring-1 ring-line" : "text-ink-soft hover:bg-surface/60")}>
-            <s.icon size={16} className={open === s.k ? "text-brand" : ""} />{s.label}
-          </button>
-        ))}
+      <nav className="hidden space-y-1 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto" aria-label="Event sections">
+        {[...CORE.map((x) => x.k), ...shownOptional.map((x) => x.k)].map((k, i) => { const I = iconOf(k); return (
+          <div key={k}>
+            {i === CORE.length && <p className="px-3 pb-1 pt-4 text-[11.5px] font-semibold uppercase tracking-wider text-muted">Added sections</p>}
+            <button type="button" onClick={() => { setOpen(k); document.getElementById(`sec-${k}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              className={cx("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[14px]", open === k ? "bg-surface font-medium shadow-sm ring-1 ring-line" : "text-ink-soft hover:bg-surface/60")}>
+              <I size={16} className={open === k ? "text-brand" : ""} />{labelOf(k)}
+            </button>
+          </div>
+        ); })}
+        <button type="button" onClick={() => setAdding(true)} className="mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[14px] font-medium text-brand hover:bg-surface/60"><Plus size={16} /> Add a section</button>
       </nav>
 
       <div className="min-w-0 space-y-3 pb-28">
-        <Section k="basics" open={open} setOpen={setOpen}>
+        {sec("basics", <>
           <Field label="Title"><input className={cx(inputCls, "font-display text-lg font-semibold")} value={e.title} onChange={(x) => set("title", x.target.value)} placeholder="Rise: Youth Conference 2027" /></Field>
           <Field label="Theme" hint="The word for this year, e.g. “Arise and Shine”."><input className={inputCls} value={e.theme ?? ""} onChange={(x) => set("theme", x.target.value)} /></Field>
           <div className="grid gap-2 sm:grid-cols-[1fr_180px]">
@@ -85,9 +169,8 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
               </div>
             </div>
           </div>
-        </Section>
-
-        <Section k="days" open={open} setOpen={setOpen}>
+        </>)}
+        {sec("days", <>
           <div>
             <span className="mb-1.5 block text-sm font-medium">Where</span>
             <div className="grid grid-cols-3 gap-1.5">{(["physical", "virtual", "hybrid"] as const).map((m) => (
@@ -108,15 +191,30 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
                   <Field label="Starts"><input type="time" className={cx(inputCls, "bg-surface")} value={d.start} onChange={(x) => setPlan(plan.map((y, j) => (j === i ? { ...y, start: x.target.value } : y)))} /></Field>
                   <Field label="Ends"><input type="time" className={cx(inputCls, "bg-surface")} value={d.end} onChange={(x) => setPlan(plan.map((y, j) => (j === i ? { ...y, end: x.target.value } : y)))} /></Field>
                 </div>
-                <Sessions day={d} people={e.people ?? []} venues={e.venues ?? []} checkin={!!e.sessionCheckin} onChange={(sessions) => setPlan(plan.map((y, j) => (j === i ? { ...y, sessions } : y)))} />
               </li>
             ))}
           </ol>
           <Button onClick={() => { const last = plan.at(-1); setPlan([...plan, last ? { date: nextDate(last.date), start: last.start, end: last.end } : { date: new Date().toISOString().slice(0, 10), start: "10:00", end: "14:00" }]); }}><Plus size={15} /> Add a day</Button>
-        </Section>
-
-        <Section k="look" open={open} setOpen={setOpen}>
-          <span className="block text-sm font-medium">Page template</span>
+          <div className="border-t border-line pt-4">
+            <span className="mb-2 block text-sm font-medium">Venues</span>
+            {e.mode === "virtual" ? <p className="text-sm text-muted">This event is online only.</p> : (
+            <VenueEditor venues={e.venues ?? (e.venue ? [{ id: "v1", name: e.venue }] : [])} onChange={(v) => setE((x) => ({ ...x, venues: v, venue: v[0] ? [v[0].name, v[0].address].filter(Boolean).join(", ") : undefined }))} />
+          )}
+          </div>
+        </>)}
+        {sec("look", <>
+          <HeadlineEditor e={e} setPage={setPage} flyerPick={<>
+            <ImagePick label="Flyer" hint="Your designed flyer. Portrait works best." value={e.flyer} kind="flyer" size={1600} onChange={(v) => set("flyer", v)} />
+          {!e.flyer && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium">No flyer yet? Pick colours</span>
+              <div className="grid grid-cols-6 gap-2">{COVERS.map((cv, i) => <button key={i} type="button" onClick={() => set("cover", i)} aria-label={`Colours ${i + 1}`} className={cx("aspect-square rounded-xl", e.cover === i && "ring-4 ring-brand/40 ring-offset-2")} style={{ background: cv }} />)}</div>
+            </div>
+          )}
+          </>} />
+          <div className="border-t border-line pt-4"><ColorsEditor e={e} churchColor={state.church.profile?.color ?? "#4f46e5"} setPage={setPage} /></div>
+          <div className="space-y-2 border-t border-line pt-4">
+            <span className="block text-sm font-medium">Heading style</span>
           <div className="grid gap-2 sm:grid-cols-3">
             {([["flyer", "Flyer", "Your flyer front and centre, details beside it"], ["bold", "Bold", "Night-of-worship feel: dark, big type, the line-up"], ["elegant", "Elegant", "Calm and warm, for conventions, carols, dinners"]] as const).map(([k, n, d]) => (
               <button key={k} type="button" onClick={() => set("template", k)} className={cx("overflow-hidden rounded-2xl text-left ring-1 transition", (e.template ?? "flyer") === k ? "ring-2 ring-brand" : "ring-line hover:ring-ink/20")}>
@@ -125,26 +223,9 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
               </button>
             ))}
           </div>
-          <ImagePick label="Flyer" hint="Your designed flyer. Portrait works best." value={e.flyer} kind="flyer" size={1600} onChange={(v) => set("flyer", v)} />
-          {!e.flyer && (
-            <div>
-              <span className="mb-1.5 block text-sm font-medium">No flyer yet? Pick colours</span>
-              <div className="grid grid-cols-6 gap-2">{COVERS.map((cv, i) => <button key={i} type="button" onClick={() => set("cover", i)} aria-label={`Colours ${i + 1}`} className={cx("aspect-square rounded-xl", e.cover === i && "ring-4 ring-brand/40 ring-offset-2")} style={{ background: cv }} />)}</div>
-            </div>
-          )}
-        </Section>
-
-        <Section k="people" open={open} setOpen={setOpen}>
-          <PeopleEditor people={e.people ?? []} onChange={(v) => set("people", v)} />
-        </Section>
-
-        <Section k="venues" open={open} setOpen={setOpen}>
-          {e.mode === "virtual" ? <p className="text-sm text-muted">This event is online only.</p> : (
-            <VenueEditor venues={e.venues ?? (e.venue ? [{ id: "v1", name: e.venue }] : [])} onChange={(v) => setE((x) => ({ ...x, venues: v, venue: v[0] ? [v[0].name, v[0].address].filter(Boolean).join(", ") : undefined }))} />
-          )}
-        </Section>
-
-        <Section k="registration" open={open} setOpen={setOpen}>
+          </div>
+        </>)}
+        {sec("registration", <>
           <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">People need to register<Toggle label="People need to register" on={e.registration !== false} onChange={(v) => set("registration", v)} /></label>
           {e.registration !== false && e.mode !== "physical" && (
             <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">Let people register to join online<Toggle label="Online registration" on={(e.regTypes ?? []).includes("online")} onChange={(v) => setE((x) => ({ ...x, regTypes: v ? ["individual", "online"] : ["individual"], groupReg: false }))} /></label>
@@ -167,16 +248,15 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
               <label key={k} className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">{l}<Toggle label={l} on={!!e[k]} onChange={(v) => set(k, v)} /></label>
             ))}
           </div>
-        </Section>
-
-        <Section k="form" open={open} setOpen={setOpen}>
-          <FormBuilder e={e} questions={e.questions} onChange={(q) => set("questions", q)} />
-        </Section>
-
-        <Section k="extras" open={open} setOpen={setOpen}>
-          <p className="text-[13.5px] text-muted">All optional. Anything you leave empty doesn&apos;t show. Your media team can fill these in.</p>
-          <PairList title="Frequently asked questions" items={(e.faq ?? []).map((f) => [f.q, f.a])} labels={["Question", "Answer"]} long onChange={(v) => set("faq", v.length ? v.map(([q, a]) => ({ q, a })) : undefined)}
-            ideas={[["Is it free?", "Yes. Registration is free."], ["Can I bring my children?", ""], ["Is there parking?", ""], ["Will it be streamed online?", ""], ["What should I wear?", ""]]} />
+          <Field label="Accommodation link (optional)" hint="Shows “Need accommodation? Click here” on the form, after registering and on the ticket.">
+            <div className="flex items-center gap-2"><BedDouble size={17} className="shrink-0 text-muted" /><input className={inputCls} value={e.accommodationUrl ?? ""} onChange={(x) => set("accommodationUrl", x.target.value.trim() || undefined)} placeholder="https://…" /></div>
+          </Field>
+        </>)}
+        {sec("tickets", <CategoriesEditor e={e} churchSlug={state.church.slug} onChange={(c) => set("categories", c)} formBuilder={(q, setQ) => <FormBuilder e={e} questions={q} onChange={setQ} compact />} />)}
+        {sec("form", <FormBuilder e={e} questions={e.questions} onChange={(q) => set("questions", q)} />)}
+        {sec("invite", <InviteEditor e={e} setPage={setPage} />)}
+        {sec("more", <>
+          <p className="text-[13.5px] text-muted">All optional. Anything you leave empty doesn&apos;t show.</p>
           <Gallery images={e.gallery ?? []} onChange={(g) => set("gallery", g.length ? g : undefined)} />
           <PairList title="Where to stay (for people coming from far)" items={(e.stay ?? []).map((s) => [s.name, s.note ?? "", s.url ?? "", s.phone ?? ""])} labels={["Name", "Note", "Booking link", "Phone"]} onChange={(v) => set("stay", v.length ? v.map(([name, note, url, phone]) => ({ name, note: note || undefined, url: url || undefined, phone: phone || undefined })) : undefined)} />
           <div className="rounded-2xl bg-page p-4 ring-1 ring-line">
@@ -195,13 +275,8 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
               {(["name", "phone", "whatsapp", "email"] as const).map((k) => <input key={k} className={cx(inputCls, "bg-surface")} placeholder={{ name: "Team name, e.g. Rise guest services", phone: "Phone", whatsapp: "WhatsApp number", email: "Email" }[k]} value={e.contact?.[k] ?? ""} onChange={(x) => set("contact", { ...e.contact, [k]: x.target.value || undefined })} />)}
             </div>
           </div>
-          <div className="rounded-2xl bg-page p-4 ring-1 ring-line">
-            <label className="flex items-center justify-between gap-3 text-sm"><span><b className="font-medium">Partner logos</b><span className="block text-[12.5px] text-muted">Off unless you switch it on</span></span><Toggle label="Show partner logos" on={!!e.showPartners} onChange={(v) => set("showPartners", v)} /></label>
-            {e.showPartners && <Partners items={e.partners ?? []} onChange={(p) => set("partners", p)} />}
-          </div>
-        </Section>
-
-        <Section k="options" open={open} setOpen={setOpen}>
+        </>)}
+        {sec("options", <>
           <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line"><span><b className="font-medium">Check in to each session</b><span className="block text-[12.5px] text-muted">Ushers check people into sessions, not just the day</span></span><Toggle label="Session check-in" on={!!e.sessionCheckin} onChange={(v) => set("sessionCheckin", v)} /></label>
           <div className="rounded-xl bg-page p-3 ring-1 ring-line">
             <label className="flex items-center justify-between gap-3 text-sm"><span><b className="font-medium">Feedback form after the event</b><span className="block text-[12.5px] text-muted">Appears on the event page when it ends</span></span>
@@ -221,32 +296,60 @@ export function EventEditor({ e: initial, onSave, onDelete, onPreview }: { e: Ch
             ); })}</div>
             <p className="mt-2 text-[12.5px] text-muted">Emails go out once email sending is switched on. WhatsApp reminders are prepared for you to send from the event&apos;s Share tab.</p>
           </div>
-        </Section>
+        </>)}
+
+        {shownOptional.length > 0 && <p className="px-1 pt-4 text-[12.5px] font-semibold uppercase tracking-wider text-muted">Added sections · only shown on the page when filled in</p>}
+        {shownOptional.map((x) => <div key={x.k}>{sec(x.k, optBody[x.k], x.k === "online" && e.link ? undefined : () => removeSection(x.k))}</div>)}
+
+        <div className="rounded-2xl border border-dashed border-line p-4">
+          {!adding ? (
+            <button type="button" onClick={() => setAdding(true)} className="flex w-full items-center justify-center gap-2 py-2 text-[15px] font-medium text-brand"><Plus size={17} /> Add a section</button>
+          ) : (
+            <div>
+              <p className="mb-2 flex items-center justify-between text-sm font-medium">Add a section <button type="button" onClick={() => setAdding(false)} className="rounded-lg p-1 text-muted hover:bg-page" aria-label="Close"><X size={16} /></button></p>
+              {toAdd.length === 0 ? <p className="text-[13.5px] text-muted">Every section is on the page.</p> : (
+                <div className="grid gap-2 sm:grid-cols-2">{toAdd.map((x) => { const I = OPT_ICON[x.k]; return (
+                  <button key={x.k} type="button" onClick={() => addSection(x.k)} className="flex items-start gap-3 rounded-2xl bg-page p-3 text-left ring-1 ring-line hover:ring-brand/40">
+                    <I size={18} className="mt-0.5 shrink-0 text-brand" /><span><b className="block text-[14px]">{x.label}</b><span className="text-[12.5px] text-muted">{x.hint}</span></span>
+                  </button>
+                ); })}</div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Save bar */}
       <div className="fixed inset-x-0 bottom-[calc(58px+env(safe-area-inset-bottom))] z-30 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:bottom-0 lg:left-[264px]">
         <div className="mx-auto flex max-w-5xl items-center gap-2">
-          <p className="hidden flex-1 text-[13px] text-muted sm:block">{changed ? "Unsaved changes" : "All saved"} · Changing the dates or venue of a published event sends it back to a pastor.</p>
+          <p className="hidden flex-1 text-[13px] text-muted sm:block">
+            {onAutosave ? (savedAt ? <span className="inline-flex items-center gap-1.5"><Check size={13} className="text-good" /> {published ? "Changes saved as a draft. Press Update page to make them live." : "Saved"}</span> : published ? "Changes save as a draft until you press Update page." : "Saves as you type.")
+              : changed ? "Unsaved changes" : "All saved"}
+            {published && " · Changing the dates or venue sends it back to a pastor."}
+          </p>
+          {onDiscard && <Button variant="ghost" onClick={onDiscard}>Discard changes</Button>}
           {onDelete && <Button variant="ghost" className="text-alert" onClick={onDelete}><Trash2 size={15} /> Delete</Button>}
-          <Button onClick={() => onPreview(withDayPlan(e, plan))}><Eye size={15} /> Preview</Button>
-          <Button variant="primary" className="flex-1 sm:flex-none" onClick={save}><Check size={16} /> Save event</Button>
+          <Button onClick={() => onPreview(finish(e))}><Eye size={15} /> Preview</Button>
+          <Button variant="primary" className="flex-1 sm:flex-none" onClick={save}><Check size={16} /> {published ? "Update page" : "Done"}</Button>
         </div>
       </div>
     </div>
   );
 }
 
-function Section({ k, open, setOpen, children }: { k: Sec; open: Sec; setOpen: (s: Sec) => void; children: ReactNode }) {
-  const s = SECTIONS.find((x) => x.k === k)!;
+function Section({ k, open, setOpen, onRemove, children }: { k: Sec; open: Sec; setOpen: (s: Sec) => void; onRemove?: () => void; children: ReactNode }) {
+  const I = iconOf(k);
   const isOpen = open === k;
   return (
     <section id={`sec-${k}`} className="card scroll-mt-20 overflow-hidden p-0">
-      <button type="button" onClick={() => setOpen(isOpen ? ("" as Sec) : k)} className="flex w-full items-center gap-3 px-5 py-4 text-left" aria-expanded={isOpen}>
-        <span className={cx("flex size-9 items-center justify-center rounded-xl", isOpen ? "bg-brand text-white" : "bg-page text-ink-soft ring-1 ring-line")}><s.icon size={17} /></span>
-        <span className="flex-1 font-display text-[16.5px] font-semibold">{s.label}</span>
-        <ChevronDown size={18} className={cx("text-muted transition", isOpen && "rotate-180")} />
-      </button>
+      <div className="flex items-center">
+        <button type="button" onClick={() => setOpen(isOpen ? ("" as Sec) : k)} className="flex min-w-0 flex-1 items-center gap-3 px-5 py-4 text-left" aria-expanded={isOpen}>
+          <span className={cx("flex size-9 shrink-0 items-center justify-center rounded-xl", isOpen ? "bg-brand text-white" : "bg-page text-ink-soft ring-1 ring-line")}><I size={17} /></span>
+          <span className="flex-1 font-display text-[16.5px] font-semibold">{labelOf(k)}</span>
+          <ChevronDown size={18} className={cx("text-muted transition", isOpen && "rotate-180")} />
+        </button>
+        {onRemove && <button type="button" onClick={onRemove} className="mr-3 rounded-lg p-2 text-muted hover:bg-alert-soft hover:text-alert" aria-label={`Remove ${labelOf(k)}`}><Trash2 size={15} /></button>}
+      </div>
       {isOpen && <div className="space-y-4 border-t border-line px-5 py-5">{children}</div>}
     </section>
   );
