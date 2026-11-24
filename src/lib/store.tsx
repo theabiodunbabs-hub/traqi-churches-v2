@@ -19,7 +19,7 @@ import type { Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, Follo
  * Demo data layer. Every action here maps to a Supabase call once the
  * database is connected; the shapes match supabase/migrations.
  */
-const DATA_KEY = "traqi-demo-v8";
+const DATA_KEY = "traqi-demo-v9";
 const USER_KEY = "traqi-demo-user";
 
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
