@@ -346,6 +346,23 @@ export async function checkinLive(slug: string, code: string, phone: string) {
   if (error) throw new Error(error.message);
   return data as { status: "ok" | "already" | "not-found" | "bad-code" | "no-meeting" | "no-church"; meeting?: string };
 }
+/** "I'm a member" on the Sunday code: is this Google account in the church yet? */
+export async function sundayMemberStatus(slug: string) {
+  const { data: { session } } = await db().auth.getSession();
+  if (!session) return { signedIn: false, member: false } as SundayStatus;
+  const g = namesFromGoogle(session.user.user_metadata);
+  const { data, error } = await db().rpc("sunday_member_status", { p_slug: slug });
+  if (error) throw new Error(error.message);
+  const d = (data ?? {}) as Partial<SundayStatus>;
+  return { signedIn: true, member: !!d.member, churchId: d.churchId, email: session.user.email ?? d.email, person: d.person, firstName: g.firstName, lastName: g.lastName } as SundayStatus;
+}
+export type SundayStatus = { signedIn: boolean; member: boolean; churchId?: string; email?: string; firstName?: string; lastName?: string; person?: { firstName: string; lastName: string } };
+/** A signed-in member checks in to the service that's on. */
+export async function checkinMember(slug: string, code: string, online: boolean) {
+  const { data, error } = await db().rpc("checkin_member", { p_slug: slug, p_code: code, p_online: online });
+  if (error) throw new Error(error.message);
+  return data as { status: "ok" | "already" | "not-member" | "bad-code" | "no-meeting" | "no-church"; firstName?: string };
+}
 export async function welcomeV2(slug: string, f: { firstName?: string; lastName?: string; gender?: string; phone: string; location?: string; heardFrom?: string; consent?: boolean; feedback?: unknown }) {
   const { data, error } = await db().rpc("welcome_v2", {
     p_slug: slug, p_first: f.firstName ?? "", p_last: f.lastName ?? "", p_gender: f.gender ?? "", p_phone: f.phone,

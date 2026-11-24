@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, Globe, HeartHandshake, MapPin, PartyPopper, UserPlus } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { checkinLive, churchPage, welcomeCustom, welcomeV2, type PublicChurch } from "@/lib/live";
+import { checkinLive, checkinMember, churchPage, eventGoogle, joinChurchLive, sundayMemberStatus, welcomeCustom, welcomeV2, type PublicChurch } from "@/lib/live";
+import { BirthdayPicker } from "./birthday-picker";
+import { P } from "@/lib/seed";
 import { CustomFieldInput } from "./custom-fields";
 import { AboutYou, aboutAnswers, type About } from "./about-you";
 import { usePublicTheme } from "./theme";
@@ -17,7 +19,9 @@ import type { Feedback } from "@/lib/types";
 const HEARD = ["A friend or family member", "Social media", "I walked in", "Outreach", "Online church", "Other"];
 const ENJOYED = ["Worship", "The Word", "Prayer", "The welcome", "Children's church", "The atmosphere", "Other"];
 
-type Step = "phone" | "new" | "done" | "feedback" | "thanks" | "closed";
+type Step = "choose" | "member" | "join-member" | "phone" | "new" | "done" | "feedback" | "thanks" | "closed";
+/** Pretend Google accounts for the demo: two people already in the church, one new to Traqi. */
+const NEW_DEMO = { key: "new:tolu", firstName: "Tolu", lastName: "Bankole", email: "tolu.bankole@gmail.com" };
 type Remembered = { phone: string; name: string }[];
 
 /**
@@ -26,7 +30,7 @@ type Remembered = { phone: string; name: string }[];
  * A phone number never reveals what's stored; this device remembers only what was typed on it.
  */
 export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew?: boolean }) {
-  const { ready, mode, state, findByPhone, addFirstTimer, updatePerson, put, newId, moveCase } = useStore();
+  const { ready, mode, state, findByPhone, addFirstTimer, updatePerson, put, newId, moveCase, joinChurch, signIn } = useStore();
   const [live, setLive] = useState<PublicChurch | null | undefined>(undefined);
   useEffect(() => { if (mode === "live") churchPage(slug).then(setLive).catch(() => setLive(null)); }, [mode, slug]);
 
@@ -40,9 +44,17 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
     setSaved(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* storage unavailable */ }
   };
 
-  const [step, setStep] = useState<Step>(startNew ? "new" : "phone");
-  const [who, setWho] = useState<{ phone: string; name: string } | null>(null);
+  // One code for everyone: first-timers say hello; members continue with Google (or phone/email) and are checked in
   const [code, setCode] = useState("");
+  const [step, setStep] = useState<Step>(startNew ? "new" : "choose");
+  const [member, setMember] = useState<{ churchId?: string; email?: string; firstName: string; lastName: string; phone: string; birthday: string; gender: "" | "M" | "F"; demoKey?: string } | null>(null);
+  const [memberIn, setMemberIn] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get("c")) setCode(q.get("c")!.replace(/\D/g, "").slice(0, 4));
+    if (q.get("m") && mode === "live") void resolveMember();
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [who, setWho] = useState<{ phone: string; name: string } | null>(null);
   const [phone, setPhone] = useState("");
   const [online, setOnline] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,7 +75,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
 
   const checkIn = async () => {
     setErr("");
-    if (digits(activePhone).length < 10) return setErr("Please enter your phone number.");
+    if (digits(activePhone).length < 10 && !activePhone.includes("@")) return setErr("Please enter your phone number or email.");
     if (!startNew && code.trim().length < 4) return setErr("Enter the 4-digit code shown on the screen.");
     setBusy(true);
     try {
@@ -76,7 +88,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
       } else {
         if (!meeting) { setStep("closed"); return; }
         if (meeting.code && meeting.code !== code.trim()) { setErr("That code doesn't match. Check the screen and try again."); return; }
-        const p = findByPhone(activePhone);
+        const p = activePhone.includes("@") ? state.people.find((x) => x.email?.toLowerCase() === activePhone.trim().toLowerCase()) : findByPhone(activePhone);
         if (!p) { setStep("new"); return; }
         if (state.attendance.some((a) => a.meetingId === meeting.id && a.personId === p.id)) setResult("already");
         else {
@@ -122,6 +134,62 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
     finally { setBusy(false); }
   };
 
+  /** Back from Google (or a demo account picked): check in a member, or let a new member join first. */
+  async function resolveMember(demoKey?: string) {
+    setErr(""); setBusy(true);
+    try {
+      if (mode === "live") {
+        const st = await sundayMemberStatus(slug);
+        if (!st.signedIn) { setStep("member"); return; }
+        if (!st.member) { setMember({ churchId: st.churchId, email: st.email, firstName: st.firstName ?? "", lastName: st.lastName ?? "", phone: "", birthday: "", gender: "" }); setStep("join-member"); return; }
+        await finishMember(st.person?.firstName ?? "");
+      } else {
+        const n = demoKey === NEW_DEMO.key ? NEW_DEMO : null;
+        const p = n ? state.people.find((x) => x.email?.toLowerCase() === n.email) : state.people.find((x) => x.id === demoKey);
+        if (!p) { setMember({ email: n!.email, firstName: n!.firstName, lastName: n!.lastName, phone: "", birthday: "", gender: "", demoKey }); setStep("join-member"); return; }
+        await finishMember(p.firstName, p.id);
+      }
+    } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong. Please try again."); setStep("member"); }
+    finally { setBusy(false); }
+  }
+  /** Check the member in to the service that's on. */
+  async function finishMember(firstName: string, demoId?: string) {
+    if (mode === "live") {
+      const r = await checkinMember(slug, code.trim(), online);
+      if (r.status === "no-meeting") { setStep("closed"); return; }
+      if (r.status === "bad-code") { setErr("That code doesn't match. Enter the four numbers on the screen."); setStep("member"); return; }
+      if (r.status === "not-member") { setStep("member"); return; }
+      setResult(r.status === "already" ? "already" : "in");
+    } else {
+      if (!meeting) { setStep("closed"); return; }
+      if (meeting.code && meeting.code !== code.trim()) { setErr("That code doesn't match. Enter the four numbers on the screen."); setStep("member"); return; }
+      if (demoId && state.attendance.some((a) => a.meetingId === meeting.id && a.personId === demoId)) setResult("already");
+      else { if (demoId) put("attendance", record(meeting.id, demoId, online ? "online" : "link", newId("at"))); setResult("in"); }
+      if (demoId) signIn(demoId);
+    }
+    setWho({ phone: "", name: firstName }); setMemberIn(true); setStep("done");
+  }
+  const joinAsMember = async () => {
+    if (!member) return;
+    setErr("");
+    if (!member.firstName.trim() || !member.lastName.trim()) return setErr("Please enter your first and last name.");
+    if (digits(member.phone).length < 10) return setErr("Please enter your phone number, at least 10 digits.");
+    if (!member.birthday) return setErr("Please choose your birthday (day and month).");
+    if (!member.gender) return setErr("Please choose male or female.");
+    setBusy(true);
+    try {
+      const j = { firstName: member.firstName.trim(), lastName: member.lastName.trim(), gender: member.gender as "M" | "F", phone: member.phone.trim(), birthday: member.birthday, email: member.email };
+      if (mode === "live") { await joinChurchLive({ church: member.churchId!, ...j }); await finishMember(j.firstName); }
+      else { const id = await joinChurch({ church: state.church.slug, ...j }); await finishMember(j.firstName, id); }
+    } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong. Please try again."); }
+    finally { setBusy(false); }
+  };
+  const google = async () => {
+    setErr("");
+    if (code.trim().length < 4) return setErr("Enter the four numbers on the screen first.");
+    try { await eventGoogle(`/checkin/${slug}?m=1&c=${code.trim()}`); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't open Google."); }
+  };
+
   const sendFeedback = async () => {
     const feedback: Feedback = { enjoyed: fb.enjoyed, comment: fb.comment.trim() || undefined, wantsVisit: fb.wantsVisit, prayer: fb.prayer.trim() || undefined, meetingId: meeting?.id, at: new Date().toISOString() };
     setBusy(true);
@@ -154,6 +222,79 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
         </Card>
       )}
 
+      {step === "choose" && (
+        <Card>
+          <p className="text-[13px] font-medium uppercase tracking-wider text-muted">{meeting ? `${meeting.name} · ${timeOf(meeting.start)}` : "Welcome"}</p>
+          <h1 className="mt-1 font-display text-[30px] font-semibold leading-tight tracking-tight">Welcome to {church.name}!</h1>
+          <div className="mt-6 grid gap-3">
+            <button type="button" onClick={() => setStep("new")} className="flex items-center gap-4 rounded-2xl p-5 text-left text-white shadow-lg transition active:scale-[.99]" style={{ background: `linear-gradient(135deg, ${color}, #f59e0b)` }}>
+              <UserPlus size={26} className="shrink-0" /><span><b className="block font-display text-[19px]">First time here?</b><span className="text-[14px] text-white/85">Say hello. It takes 30 seconds.</span></span>
+            </button>
+            <button type="button" onClick={() => setStep("member")} className="flex items-center gap-4 rounded-2xl bg-page p-5 text-left ring-1 ring-line transition hover:ring-brand/40 active:scale-[.99]">
+              <Check size={26} className="shrink-0 text-brand" /><span><b className="block font-display text-[19px]">I&apos;m a member</b><span className="text-[14px] text-ink-soft">Check in to today&apos;s service.</span></span>
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {step === "member" && (
+        <Card>
+          <p className="text-[13px] font-medium uppercase tracking-wider text-muted">{meeting ? `${meeting.name} · ${timeOf(meeting.start)}` : "Check in"}</p>
+          <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight tracking-tight">Check in as a member</h1>
+          <div className="mt-5 space-y-4">
+            {!(new URLSearchParams(typeof location !== "undefined" ? location.search : "").get("c")) && (
+              <Field label="Service code" hint="The four numbers on the screen.">
+                <input className={cx(inputCls, "num h-14 text-center text-[28px] font-semibold tracking-[.4em]")} inputMode="numeric" maxLength={4} value={code} onChange={(e) => { setCode(e.target.value.replace(/\D/g, "")); setErr(""); }} placeholder="0000" />
+              </Field>
+            )}
+            {(!meeting || meeting.mode !== "physical") && (
+              <label className="flex items-center gap-3 rounded-2xl bg-page px-4 py-3 text-sm ring-1 ring-line">
+                <input type="checkbox" checked={online} onChange={(e) => setOnline(e.target.checked)} className="size-5 accent-brand" /><Globe size={16} className="text-muted" /> I&apos;m joining online
+              </label>
+            )}
+            {mode === "live" ? (
+              <Button variant="primary" disabled={busy} className="w-full py-3.5 text-[16px]" onClick={() => void google()}><GoogleG /> {busy ? "Checking…" : "Continue with Google"}</Button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[13px] text-muted">Demo: choose a Google account</p>
+                {[...[P.member, P.worker].map((x) => state.people.find((p) => p.id === x.id)).filter(Boolean).map((p) => ({ key: p!.id, name: `${p!.firstName} ${p!.lastName}`, note: `Already in ${church.name}` })),
+                  { key: NEW_DEMO.key, name: `${NEW_DEMO.firstName} ${NEW_DEMO.lastName}`, note: "New to Traqi" }].map((a) => (
+                  <button type="button" key={a.key} disabled={busy} onClick={() => { if (code.trim().length < 4) return setErr("Enter the four numbers on the screen first."); void resolveMember(a.key); }} className="flex w-full items-center gap-3 rounded-2xl bg-page px-4 py-3 text-left ring-1 ring-line hover:ring-brand/40">
+                    <GoogleG /><span className="flex-1"><b className="block text-[14.5px]">{a.name}</b><span className="text-[12.5px] text-muted">{a.note}</span></span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {err && <p className="text-sm text-alert" role="alert">{err}</p>}
+          </div>
+          <button type="button" onClick={() => { setErr(""); setStep("phone"); }} className="mt-4 w-full rounded-2xl p-3 text-center text-[14.5px] text-ink-soft hover:bg-page">No Google account? <b className="text-brand">Use your phone number or email</b></button>
+          <button type="button" onClick={() => setStep("choose")} className="w-full p-2 text-center text-sm text-muted">Back</button>
+        </Card>
+      )}
+
+      {step === "join-member" && member && (
+        <Card>
+          <h1 className="font-display text-[26px] font-semibold leading-tight tracking-tight">Welcome to {church.name} on Traqi</h1>
+          <p className="mt-1.5 text-ink-soft">A few details to set up your account. You&apos;ll be checked in straight after.</p>
+          <form className="mt-5 space-y-4" onSubmit={(e) => { e.preventDefault(); void joinAsMember(); }}>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="First name"><input className={inputCls} value={member.firstName} onChange={(e) => setMember({ ...member, firstName: e.target.value })} /></Field>
+              <Field label="Last name"><input className={inputCls} value={member.lastName} onChange={(e) => setMember({ ...member, lastName: e.target.value })} /></Field>
+            </div>
+            {member.email && <Field label="Email"><input className={cx(inputCls, "text-muted")} value={member.email} readOnly /></Field>}
+            <Field label="Phone number (your WhatsApp number)"><input className={inputCls} inputMode="tel" autoComplete="tel" value={member.phone} onChange={(e) => setMember({ ...member, phone: e.target.value })} placeholder="0803 123 4567" /></Field>
+            <Field label="Birthday (day-month only)"><BirthdayPicker value={member.birthday} onChange={(v) => setMember({ ...member, birthday: v })} /></Field>
+            <Field label="I am">
+              <div className="grid grid-cols-2 gap-2">{(["F", "M"] as const).map((g) => (
+                <button type="button" key={g} onClick={() => setMember({ ...member, gender: g })} className={cx("h-12 rounded-xl text-[15px] ring-1 transition", member.gender === g ? "bg-brand-soft font-medium text-brand ring-brand" : "bg-page ring-line")}>{g === "F" ? "Female" : "Male"}</button>
+              ))}</div>
+            </Field>
+            {err && <p className="text-sm text-alert" role="alert">{err}</p>}
+            <Button variant="primary" type="submit" disabled={busy} className="w-full py-3.5 text-[16px]">{busy ? "Setting up…" : "Join and check in"}</Button>
+          </form>
+        </Card>
+      )}
+
       {step === "phone" && (
         <Card>
           <p className="text-[13px] font-medium uppercase tracking-wider text-muted">{meeting ? `${meeting.name} · ${timeOf(meeting.start)}` : "Check in"}</p>
@@ -168,7 +309,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
                 <button type="button" onClick={() => setWho(null)} className="font-medium text-brand">Not you?</button>
               </div>
             ) : (
-              <Field label="Your phone number"><input className={inputCls} inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setErr(""); }} placeholder="0803 123 4567" /></Field>
+              <Field label="Your phone number or email"><input className={inputCls} inputMode="email" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setErr(""); }} placeholder="0803 123 4567 or you@email.com" /></Field>
             )}
             {saved.length > 1 && !who && (
               <div className="flex flex-wrap gap-1.5">{saved.map((s) => <button type="button" key={s.phone} onClick={() => setWho(s)} className="rounded-full bg-page px-3 py-1.5 text-[13px] ring-1 ring-line">{s.name || `…${digits(s.phone).slice(-4)}`}</button>)}</div>
@@ -222,6 +363,7 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
           </p>
           <div className="mt-6 space-y-2">
             {isNewcomer && <Button variant="primary" className="w-full py-3.5" onClick={() => setStep("feedback")}>Tell us about today <ArrowRight size={16} /></Button>}
+            {memberIn && <Button variant="primary" className="w-full py-3.5" onClick={() => { location.href = "/today"; }}>Open my Traqi <ArrowRight size={16} /></Button>}
             <Button className="w-full" onClick={() => reset(true)}><UserPlus size={16} /> Check in someone else on this phone</Button>
             <a href={`/join?church=${church.slug}`} className="block rounded-xl p-2.5 text-center text-[13.5px] text-ink-soft hover:bg-page">Get the {church.name} app on Traqi: classes, events and more</a>
           </div>
@@ -288,4 +430,9 @@ export function Frame({ children, color, church }: { children: React.ReactNode; 
       <p className="pb-8 text-center text-xs text-muted">Powered by <b className="font-semibold text-ink-soft">Traqi</b> for Churches</p>
     </div>
   );
+}
+
+/** Google's "G", for the Continue with Google button. */
+function GoogleG() {
+  return <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden className="shrink-0 rounded-full bg-white p-0.5"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>;
 }
