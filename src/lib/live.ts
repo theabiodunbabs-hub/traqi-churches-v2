@@ -450,6 +450,12 @@ export async function isOwnerLive() {
   const { data } = await db().rpc("is_owner");
   return data === true;
 }
+/** The first-timer form: do we already have this number? (yes or no only) */
+export async function welcomeKnown(slug: string, phone: string) {
+  const { data, error } = await db().rpc("welcome_known", { p_slug: slug, p_phone: phone });
+  if (error) throw new Error(error.message);
+  return !!data;
+}
 export async function welcomeCustom(slug: string, phone: string, answers: Record<string, string>) {
   const { error } = await db().rpc("welcome_custom", { p_slug: slug, p_phone: phone, p_answers: answers });
   if (error) throw new Error(error.message);

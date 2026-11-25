@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, Globe, HeartHandshake, MapPin, PartyPopper, UserPlus } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { checkinLive, checkinMember, churchPage, eventGoogle, joinChurchLive, sundayMemberStatus, welcomeCustom, welcomeV2, type PublicChurch } from "@/lib/live";
+import { checkinLive, checkinMember, churchPage, eventGoogle, joinChurchLive, sundayMemberStatus, welcomeCustom, welcomeKnown, welcomeV2, type PublicChurch } from "@/lib/live";
 import { BirthdayPicker } from "./birthday-picker";
 import { P } from "@/lib/seed";
 import { CustomFieldInput } from "./custom-fields";
@@ -19,7 +19,7 @@ import type { Feedback } from "@/lib/types";
 const HEARD = ["A friend or family member", "Social media", "I walked in", "Outreach", "Online church", "Other"];
 const ENJOYED = ["Worship", "The Word", "Prayer", "The welcome", "Children's church", "The atmosphere", "Other"];
 
-type Step = "choose" | "member" | "join-member" | "phone" | "new" | "done" | "feedback" | "thanks" | "closed";
+type Step = "again" | "choose" | "member" | "join-member" | "phone" | "new" | "done" | "feedback" | "thanks" | "closed";
 /** Pretend Google accounts for the demo: two people already in the church, one new to Traqi. */
 const NEW_DEMO = { key: "new:tolu", firstName: "Tolu", lastName: "Bankole", email: "tolu.bankole@gmail.com" };
 type Remembered = { phone: string; name: string }[];
@@ -64,10 +64,35 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
   const [agree, setAgree] = useState(false);
   const [fb, setFb] = useState({ location: "", heard: "", enjoyed: [] as string[], comment: "", wantsVisit: false, prayer: "" });
   const [about, setAbout] = useState<About>({});
+  // The first-timer form after service: this phone remembers who checked in on it today (only what was typed here)
+  const ftKey = `traqi-firsttimer-${slug || "demo"}`;
+  const [earlier, setEarlier] = useState<{ phone: string; name: string; at: string } | null>(null);
+  useEffect(() => {
+    if (!startNew) return;
+    try {
+      const v = JSON.parse(localStorage.getItem(ftKey) || "null") as { phone: string; name: string; at: string } | null;
+      if (v && Date.now() - Date.parse(v.at) < 36 * 36e5) { setEarlier(v); setStep("again"); }
+    } catch { /* storage unavailable */ }
+  }, [ftKey, startNew]);
+  const rememberFirstTimer = (phone: string, name: string) => { try { localStorage.setItem(ftKey, JSON.stringify({ phone, name, at: new Date().toISOString() })); } catch { /* storage unavailable */ } };
+  const forgetFirstTimer = () => { try { localStorage.removeItem(ftKey); } catch { /* storage unavailable */ } };
+  // A number we already have: don't ask again for what we know (never shows what's stored)
+  const [known, setKnown] = useState(false);
   const [extra, setExtra] = useState<Record<string, string>>({});
 
   useEffect(() => { if (saved[0] && !who && !startNew) setWho(saved[0]); }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
   const activePhone = who?.phone ?? phone;
+  useEffect(() => {
+    if (step !== "new" || digits(activePhone).length < 10) { setKnown(false); return; }
+    let stop = false;
+    const t = setTimeout(async () => {
+      try {
+        const k = mode === "live" ? await welcomeKnown(slug, activePhone) : !!findByPhone(activePhone);
+        if (!stop) setKnown(k);
+      } catch { /* ask for everything */ }
+    }, 400);
+    return () => { stop = true; clearTimeout(t); };
+  }, [activePhone, step, mode, slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const color = church?.profile?.color ?? "#4f46e5";
 
   if (!ready || (mode === "live" && live === undefined)) return <Frame color={color}><div className="skeleton h-80 rounded-3xl" /></Frame>;
@@ -109,6 +134,21 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
 
   const join = async () => {
     setErr("");
+    if (known) {
+      // We already have their details: just link today's visit and carry on to the rest of the form
+      if (digits(activePhone).length < 10) return setErr("Please enter your phone number, at least 10 digits.");
+      setBusy(true);
+      try {
+        const st = mode === "live" ? (await welcomeV2(slug, { phone: activePhone })).status : "updated";
+        const name = saved.find((x) => digits(x.phone) === digits(activePhone))?.name ?? "";
+        setResult(st === "back" ? "back" : startNew ? "new" : "in");
+        setWho({ phone: activePhone, name });
+        remember(activePhone, name);
+        setStep(startNew ? "feedback" : "done");
+      } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong. Please try again."); }
+      finally { setBusy(false); }
+      return;
+    }
     if (!f.firstName.trim() || !f.lastName.trim()) return setErr("Please enter your first and last name.");
     if (!f.gender) return setErr("Please choose male or female.");
     if (digits(activePhone).length < 10) return setErr("Please enter your phone number, at least 10 digits.");
@@ -128,8 +168,9 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
         }
       }
       remember(activePhone, f.firstName.trim());
+      rememberFirstTimer(activePhone, f.firstName.trim());
       setWho({ phone: activePhone, name: f.firstName.trim() });
-      setStep("done");
+      setStep(startNew ? "feedback" : "done");
     } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong. Please try again."); }
     finally { setBusy(false); }
   };
@@ -326,12 +367,26 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
         </Card>
       )}
 
+      {step === "again" && earlier && (
+        <Card>
+          <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">Welcome once again, {earlier.name || "friend"}.</h1>
+          <p className="mt-2 text-ink-soft">Kindly continue filling out your form. Your details from check-in are already saved.</p>
+          <Button variant="primary" className="mt-6 w-full py-3.5 text-[16px]" onClick={() => { setWho({ phone: earlier.phone, name: earlier.name }); setResult("new"); setStep("feedback"); }}>Continue my form <ArrowRight size={16} /></Button>
+          <button type="button" onClick={() => { forgetFirstTimer(); setEarlier(null); setWho(null); setPhone(""); setStep("new"); }} className="mt-3 w-full rounded-xl p-3 text-center text-[14px] text-ink-soft hover:bg-page">
+            If you are not {earlier.name || "this person"}, <b className="text-brand">you can start a new application</b>.
+          </button>
+        </Card>
+      )}
+
       {step === "new" && (
         <Card>
           <h1 className="font-display text-[28px] font-semibold leading-tight tracking-tight">Welcome! We&apos;re so glad you came.</h1>
           <p className="mt-1.5 text-ink-soft">Just your name and number for now. It takes 30 seconds.</p>
           <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); void join(); }}>
             <Field label="Phone number" hint="For a call or WhatsApp message from us."><input className={inputCls} autoFocus={!activePhone} inputMode="tel" autoComplete="tel" value={activePhone} onChange={(e) => { setPhone(e.target.value); setWho(null); setErr(""); }} placeholder="0803 123 4567" /></Field>
+            {known ? (
+              <p className="rounded-2xl bg-good-soft px-4 py-3 text-[14.5px] text-good">We already have your details. {startNew ? "Tap Continue to fill in the rest of your form." : "Tap Continue."}</p>
+            ) : <>
             <div className="grid grid-cols-2 gap-3">
               <Field label="First name"><input className={inputCls} autoComplete="given-name" value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} placeholder="Adaeze" /></Field>
               <Field label="Last name"><input className={inputCls} autoComplete="family-name" value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} placeholder="Okeke" /></Field>
@@ -342,8 +397,9 @@ export function CheckinFlow({ slug, startNew = false }: { slug: string; startNew
               ))}</div>
             </Field>
             <Consent church={church.name} checked={agree} onChange={setAgree} />
+            </>}
             {err && <p className="text-sm text-alert" role="alert">{err}</p>}
-            <Button variant="primary" type="submit" disabled={busy} className="w-full py-3.5 text-[16px]">{busy ? "Saving…" : "Say hello"}</Button>
+            <Button variant="primary" type="submit" disabled={busy} className="w-full py-3.5 text-[16px]">{busy ? "Saving…" : known ? "Continue" : "Say hello"}</Button>
           </form>
           {!startNew && <button type="button" onClick={() => setStep("phone")} className="mt-3 w-full p-2 text-center text-sm text-muted">I&apos;ve been here before</button>}
         </Card>
