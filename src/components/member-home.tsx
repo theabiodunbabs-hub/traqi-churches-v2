@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { EventDuties } from "./event-duties";
 import { MyEvents } from "./my-events";
-import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart, Check } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Clock, ExternalLink, Film, FolderOpen, Globe, HandHeart, HeartHandshake, Mic, Phone, Send, Sparkles, Ticket, Trophy, UserRound, Users, Mail, MessageCircleHeart, Check } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Avatar, Button, Sheet, cx, toast } from "./ui";
 import { kindOf } from "@/lib/journey";
@@ -17,7 +17,7 @@ import { TodayService } from "./rollcall";
 import { COVERS } from "./brand";
 import { eventWhen } from "./event-page";
 import { useWords } from "./theme";
-import { isLimited, isUnconfirmed, nextMeeting, openMeeting, progress } from "@/lib/domain";
+import { isUnconfirmed, nextMeeting, openMeeting, progress } from "@/lib/domain";
 import { nextStepFor } from "@/lib/journey-engine";
 import { daysToBirthday, fullName, greeting, shortDate, stageInfo, timeOf, todayLong } from "@/lib/format";
 import type { Resource } from "@/lib/types";
@@ -49,7 +49,7 @@ export function MemberHome() {
   const openAsks = myPlacements.filter((x) => x.status === "open");
   const recentNo = myPlacements.filter((x) => x.status === "declined" && Date.now() - Date.parse(x.decidedAt ?? x.at) < 14 * 864e5);
   // Members not yet serving anywhere get asked whether they're a worker
-  const askWorker = kindOf(me.stage) === "member" && !serving.length && !openAsks.length;
+  const askWorker = (kindOf(me.stage) === "member" || (me.joinedVia === "search" && kindOf(me.stage) === "visitor")) && !serving.length && !openAsks.length;
   const enrolments = state.enrolments.filter((e) => e.personId === me.id && e.status === "active");
   const myRegs = state.registrations.filter((r) => r.personId === me.id && r.status === "confirmed");
   const events = state.events.filter((e) => e.status === "published" && Date.parse(e.end) > now).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 3);
@@ -99,10 +99,15 @@ export function MemberHome() {
 
       <EventDuties className="mt-4" />
 
-      {unconfirmed && (
-        <div className={cx("mt-4 flex items-start gap-3 rounded-2xl p-4 text-[14px] ring-1", isLimited(me) ? "bg-alert-soft text-alert ring-alert/20" : "bg-brand-soft text-brand ring-brand/20")}>
-          <Clock size={18} className="mt-0.5 shrink-0" />
-          <span>{isLimited(me) ? <><b>Your account is paused.</b> Ask your church admin to confirm you; everything comes back as soon as they do.</> : <><b>Welcome!</b> You can use Traqi as a {w.member.toLowerCase()} now. {state.church.name} will confirm you soon.</>}</span>
+      {me.notConfirmed && (
+        <div className="mt-4 rounded-2xl bg-glow-soft p-4 text-[14px] text-glow-ink ring-1 ring-glow/20">
+          <p className="flex items-start gap-3"><Clock size={18} className="mt-0.5 shrink-0" /><span>Your membership status needs one more step. Kindly contact Admin.</span></p>
+          {(profile?.phone || profile?.whatsapp) && (
+            <div className="mt-3 flex flex-wrap gap-2 pl-[30px]">
+              {profile?.phone && <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3.5 py-2 text-[13.5px] font-semibold text-ink ring-1 ring-line"><Phone size={15} /> Call</a>}
+              {(profile?.whatsapp || profile?.phone) && <a href={/^https?:/.test(profile?.whatsapp ?? "") ? profile!.whatsapp! : `https://wa.me/${(profile?.whatsapp ?? profile?.phone ?? "").replace(/\D/g, "").replace(/^0/, "234")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#25d366] px-3.5 py-2 text-[13.5px] font-semibold text-white"><WhatsAppIcon size={15} /> WhatsApp</a>}
+            </div>
+          )}
         </div>
       )}
 

@@ -5,10 +5,10 @@ import { copyText } from "@/lib/share";
 import { AboutYou, BORN_AGAIN, MARITAL, aboutAnswers, aboutOf } from "@/components/about-you";
 import { kindOf } from "@/lib/journey";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useRef } from "react";
-import { ArrowLeft, Camera, Check, Copy, Crown, Lock, MoreHorizontal, Pencil, Plane, Share2, UserMinus, UserPlus, Undo2 } from "lucide-react";
+import { ArrowLeft, Camera, Check, Copy, Crown, Lock, MoreHorizontal, Pencil, Plane, Share2, Trash2, UserMinus, UserPlus, Undo2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useWords } from "@/components/theme";
 import { Avatar, Badge, Button, Empty, Field, FieldGroup, JourneyTrack, Panel, Sheet, Toggle, cx, inputCls, toast, confirmAsk } from "@/components/ui";
@@ -25,12 +25,16 @@ import { escalation, holdersOf } from "@/lib/metrics";
 import { AssignPicker } from "@/components/assign";
 import { PERMISSIONS, PERMISSION_SAYS, accessFor, scopeLabel } from "@/lib/access";
 import { branchName } from "@/lib/branches";
+import { RemoveEntrySheet } from "@/components/remove-entry";
+import { isUnconfirmed } from "@/lib/domain";
 
 export default function Profile() {
   const w = useWords();
   const { id } = useParams<{ id: string }>();
-  const { me, access, state, person, addNote, shareNote, updatePerson } = useStore();
+  const { me, access, state, person, addNote, shareNote, updatePerson, confirmPeople } = useStore();
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [more, setMore] = useState(false);
   const photo = useRef<HTMLInputElement>(null);
   const p = person(id);
@@ -72,6 +76,8 @@ export default function Profile() {
                 {p.isLeader && <Badge tone="brand"><Crown size={11} /> Leader</Badge>}
                 {p.probation && <Badge tone="glow">On probation until {shortDate(p.probation.until)}</Badge>}
                 {p.awaitingStage && <Badge tone="brand">Waiting to be confirmed</Badge>}
+                {isUnconfirmed(p) && <Badge tone="glow">Joined by themselves · not yet confirmed</Badge>}
+                {p.notConfirmed && <Badge tone="alert">Not confirmed</Badge>}
                 {p.inactive && <Badge tone="neutral">{p.inactive.reason === "moved" ? "Moved away" : p.inactive.reason === "other church" ? "Joined another church" : "Inactive"}</Badge>}
                 {isAway(state, p.id) && <Badge tone="glow"><Plane size={11} /> Away until {shortDate(isAway(state, p.id)!.to)}</Badge>}
               </div>
@@ -80,6 +86,8 @@ export default function Profile() {
             <div className="flex gap-2">
               {p.id !== me.id && !p.isChild && <ReachOut person={p} message={fcase?.stage === "new" ? messages.welcome(p, state.church.name) : `Hello ${p.firstName}, `} canContact={contacts} />}
               {canEdit && <Button onClick={() => setEditing(true)}><Pencil size={15} /> Edit</Button>}
+              {(isUnconfirmed(p) || p.notConfirmed) && access.confirmsJoiners && <Button onClick={() => { confirmPeople([p.id]); toast(`${p.firstName} confirmed`); }}><Check size={15} /> Confirm</Button>}
+              {p.id !== me.id && access.removesEntries && kindOf(p.stage) === "visitor" && <Button variant="ghost" className="text-alert" onClick={() => setRemoving(true)} aria-label="Remove this entry"><Trash2 size={16} /></Button>}
               {(canEdit || access.isPastoral) && <Button variant="ghost" onClick={() => setMore(true)} aria-label="More"><MoreHorizontal size={18} /></Button>}
             </div>
           </div>
@@ -188,6 +196,7 @@ export default function Profile() {
       </div>
 
       {canEdit && <EditPerson open={editing} onClose={() => setEditing(false)} person={p} />}
+      <RemoveEntrySheet person={p} open={removing} onClose={() => setRemoving(false)} onRemoved={() => router.push("/people")} />
       <Sheet open={more} onClose={() => setMore(false)} title={p.id === me.id ? "Your settings" : `More for ${p.firstName}`}><MoreActions person={p} onDone={() => setMore(false)} /></Sheet>
     </div>
   );

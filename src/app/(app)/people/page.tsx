@@ -4,8 +4,9 @@ import { copyText } from "@/lib/share";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy as CopyIcon, Link2, Search, Upload, UserMinus, UserPlus, Users, X } from "lucide-react";
+import { Check, Copy as CopyIcon, Link2, Search, Trash2, Upload, UserMinus, UserPlus, Users, X } from "lucide-react";
 import { JoinersSheet } from "@/components/joiners";
+import { RemovedSheet } from "@/components/remove-entry";
 import { isUnconfirmed } from "@/lib/domain";
 import { useStore } from "@/lib/store";
 import { Avatar, Button, Empty, PageHeader, Sheet, StageChip, cx, inputCls, toast } from "@/components/ui";
@@ -16,12 +17,13 @@ import { STAGES_NOW, digits, fullName, shortDate, stageInfo } from "@/lib/format
 import type { Person, Stage } from "@/lib/types";
 
 export default function People() {
-  const { access, state, updatePerson, addToGroup, put } = useStore();
+  const { access, state, updatePerson, addToGroup, put, removedPeople } = useStore();
   const [showInactive, setShowInactive] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkDept, setBulkDept] = useState(false);
   const [dupes, setDupes] = useState(false);
   const [joiners, setJoiners] = useState(false);
+  const [removedOpen, setRemovedOpen] = useState(false);
   useEffect(() => { if (new URLSearchParams(location.search).get("joined")) setJoiners(true); }, []);
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<Stage | "all">("all");
@@ -89,9 +91,15 @@ export default function People() {
 
       {(canEditAll || access.confirmsJoiners) && everyone.some(isUnconfirmed) && (
         <button type="button" onClick={() => setJoiners(true)} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-brand-soft px-4 py-3 text-left text-[14px] text-brand ring-1 ring-brand/20">
-          <UserPlus size={17} /> <span className="flex-1"><b>{everyone.filter(isUnconfirmed).length} new {everyone.filter(isUnconfirmed).length === 1 ? "person" : "people"}</b> joined from Traqi search and {everyone.filter(isUnconfirmed).length === 1 ? "is" : "are"} waiting to be confirmed.</span><span className="font-semibold">Review</span>
+          <UserPlus size={17} /> <span className="flex-1"><b>{everyone.filter(isUnconfirmed).length} new {everyone.filter(isUnconfirmed).length === 1 ? "person" : "people"}</b> joined by themselves. They can already use Traqi; confirm them to add them to your records.</span><span className="font-semibold">Review</span>
         </button>
       )}
+      {access.removesEntries && removedPeople.length > 0 && (
+        <button type="button" onClick={() => setRemovedOpen(true)} className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-page px-4 py-3 text-left text-[14px] text-ink-soft ring-1 ring-line">
+          <Trash2 size={17} /> <span className="flex-1"><b className="text-ink">{removedPeople.length} removed</b> in the last 30 days. See why, or restore.</span><span className="font-semibold text-brand">Removed</span>
+        </button>
+      )}
+      <RemovedSheet open={removedOpen} onClose={() => setRemovedOpen(false)} />
       {canEditAll && dupGroups.length > 0 && (
         <button type="button" onClick={() => setDupes(true)} className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-glow-soft px-4 py-3 text-left text-[14px] text-glow-ink">
           <CopyIcon size={17} /> <span className="flex-1"><b>{dupGroups.length} possible duplicate{dupGroups.length > 1 ? "s" : ""}</b>: people sharing a phone number. Check and merge.</span><span className="font-semibold">Review</span>

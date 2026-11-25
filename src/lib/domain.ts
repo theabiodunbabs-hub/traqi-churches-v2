@@ -364,10 +364,12 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
 }
 
 // ---------- People who joined from search ----------
-export const isUnconfirmed = (p: Person) => p.joinedVia === "search" && !p.confirmedAt;
+/** Joined by themselves (search, an event, Sunday check-in, the church page) and waiting for the church to recognise them. They are members already. */
+export const isUnconfirmed = (p: Person) => p.joinedVia === "search" && !p.confirmedAt && !p.notConfirmed && !p.removed;
 export const daysSinceJoined = (p: Person) => Math.floor((Date.now() - Date.parse(`${p.firstVisit}T12:00:00Z`)) / 864e5);
 /** After 90 days without confirmation, member features pause until the admin confirms them. */
-export const isLimited = (p: Person) => isUnconfirmed(p) && daysSinceJoined(p) >= 90;
+/** No pause any more: people who joined keep member access whether or not they are confirmed. */
+export const isLimited = (_p: Person) => false;
 
 // ---------- Course words and certificate signers ----------
 export const courseWords = (p?: Pick<Programme, "words">) => ({ course: p?.words?.course || "Course", part: p?.words?.part || "Lesson" });

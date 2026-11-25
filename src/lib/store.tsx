@@ -40,6 +40,11 @@ type Store = {
   signInGoogle: (returnTo: string) => Promise<string | null>;
   reload: () => void;
   state: SeedState;
+  /** Entries removed in the last 30 days (with the reason), so they can be restored. */
+  removedPeople: Person[];
+  /** Remove an entry (e.g. a test or double entry); the reason is kept. */
+  removePerson: (id: string, reason: string, note?: string) => void;
+  restorePerson: (id: string) => void;
   me: Person | null;
   access: Access | null;
   signIn: (id: string) => void;
@@ -250,7 +255,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }), []);
 
   const api = useMemo<Store>(() => {
-    const me = state.people.find((p) => p.id === meId) ?? null;
+    // Removed entries (test or double entries) are hidden everywhere; they stay in the data for 30 days so they can be restored
+    const removedPeople = state.people.filter((p) => p.removed);
+    const shown: SeedState = removedPeople.length ? { ...state, people: state.people.filter((p) => !p.removed), cases: state.cases.filter((c) => !removedPeople.some((p) => p.id === c.personId)) } : state;
+    const me = shown.people.find((p) => p.id === meId) ?? null;
     const actor = meId ?? "system";
 
     /** Shared by staff entry, the public welcome form and import. */
@@ -269,7 +277,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const contactCase = (s: SeedState, personId: string) => s.cases.find((c) => c.personId === personId && !["member", "unreachable"].includes(c.stage));
 
     return {
-      ready, state, me,
+      ready, state: shown, me, removedPeople,
+      removePerson: (id, reason, note) => setState((s) => log({ ...s, people: s.people.map((p) => (p.id === id ? { ...p, removed: { reason, note: note || undefined, byId: meId ?? undefined, at: new Date().toISOString() } } : p)) },
+        actor, `removed ${nameOf(s, id)}: ${reason}${note ? ` (${note})` : ""}`)),
+      restorePerson: (id) => setState((s) => log({ ...s, people: s.people.map((p) => (p.id === id ? { ...p, removed: undefined } : p)) }, actor, `restored ${nameOf(s, id)}`)),
       mode: LIVE ? "live" : "demo", authStatus, authEmail, saving, syncError,
       reload: () => { setSyncError(null); void refresh(); },
       signInEmail: async (email, password) => {
@@ -289,15 +300,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase!.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}${returnTo}` } });
         return error ? error.message : null;
       },
-      access: me ? accessFor(state, me.id) : null,
+      access: me ? accessFor(shown, me.id) : null,
       signIn: (id) => { setMeId(id); try { localStorage.setItem(USER_KEY, id); } catch {} },
       signOut: () => {
         if (LIVE) { void supabase!.auth.signOut(); return; }
         setMeId(null); try { localStorage.removeItem(USER_KEY); } catch {}
       },
       resetDemo: () => { setState(fresh()); },
-      person: (id) => state.people.find((p) => p.id === id),
-      findByPhone: (phone) => state.people.find((p) => digits(p.phone) === digits(phone) && digits(phone).length >= 10),
+      person: (id) => shown.people.find((p) => p.id === id),
+      findByPhone: (phone) => shown.people.find((p) => digits(p.phone) === digits(phone) && digits(phone).length >= 10),
 
       addFirstTimer: (p) => {
         const id = nid("p");
@@ -664,7 +675,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         try { localStorage.setItem(USER_KEY, id); } catch {}
         return id;
       },
-      confirmPeople: (ids) => setState((s) => log({ ...s, people: s.people.map((p) => (ids.includes(p.id) ? { ...p, confirmedAt: new Date().toISOString(), possibleMatchId: undefined } : p)) }, actor,
+      confirmPeople: (ids) => setState((s) => log({ ...s, people: s.people.map((p) => (ids.includes(p.id) ? { ...p, notConfirmed: undefined, confirmedAt: new Date().toISOString(), possibleMatchId: undefined } : p)) }, actor,
         `confirmed ${ids.length === 1 ? fullName(s.people.find((p) => p.id === ids[0])!) : `${ids.length} new people`}`)),
       mergeJoiner: async (newId, keepId) => {
         if (LIVE) {

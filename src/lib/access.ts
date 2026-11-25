@@ -265,6 +265,8 @@ export function accessFor(state: SeedState, personId: string) {
     leadsFamilyLife: headsTag(["family"], true),
     /** New joiners are confirmed by the admin, Follow-up or Membership (leads and assistants), not the admin alone. */
     confirmsJoiners: perms.has("people.edit") || headsTag(["followup", "membership"], true),
+    /** Remove a first-timer entry (with a reason): the admin and the Follow-up head. */
+    removesEntries: isAdmin || perms.get("people.edit") === "church" || headsTag(["followup"]),
     /** Prayer requests: the lead pastor, pastors, Membership Ministry leaders, and anyone the lead pastor added. */
     seesPrayers: isPastoral || state.groups.some((g) => g.tags?.includes("membership") && g.leaderIds.includes(personId))
       || (state.church.profile?.prayerViewers ?? []).includes(personId),

@@ -10,7 +10,7 @@ import { fullName, shortDate } from "@/lib/format";
 
 /** The admin's list of people who joined from search: confirm, merge with an existing record, or remove. */
 export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { state, access, confirmPeople, mergeJoiner, updatePerson } = useStore();
+  const { state, access, me, confirmPeople, mergeJoiner, updatePerson } = useStore();
   // Follow-up and Membership can confirm; merging records and removing people stay with the admin
   const admin = !!access?.can("people.edit");
   const [busy, setBusy] = useState<string | null>(null);
@@ -19,7 +19,7 @@ export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => 
     <Sheet open={open} onClose={onClose} title="New people who joined">
       {list.length === 0 ? <p className="py-8 text-center text-ink-soft">Everyone is confirmed.</p> : (
         <>
-          <p className="mb-4 text-[14px] text-ink-soft">They joined from Traqi search and can already use Traqi as members. Confirm the people you know; merge anyone you already had on record.</p>
+          <p className="mb-4 text-[14px] text-ink-soft">They joined by themselves (an event, Sunday check-in, the church page or Traqi search) and can already use Traqi as members. Confirming adds them to your membership records. Merge anyone you already had on record.</p>
           <Button variant="primary" className="mb-4 w-full" onClick={() => { confirmPeople(list.filter((p) => !p.possibleMatchId).map((p) => p.id)); toast("Confirmed"); }}><Check size={15} /> Confirm everyone without a possible match</Button>
           <ul className="space-y-2.5">
             {list.map((p) => {
@@ -33,7 +33,7 @@ export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => 
                       <Link href={`/people/${p.id}`} className="block font-medium hover:text-brand">{fullName(p)}</Link>
                       <span className="text-[12.5px] text-muted">{p.phone} · joined {shortDate(p.firstVisit)}</span>
                     </span>
-                    {days >= 60 && <Badge tone={days >= 90 ? "alert" : "glow"}>{days >= 90 ? "Paused" : `${days} days`}</Badge>}
+                    {days >= 14 && <Badge tone="glow">{days} days</Badge>}
                   </div>
                   {match && (
                     <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-glow-soft p-2.5 text-[13px] text-glow-ink">
@@ -43,7 +43,7 @@ export function JoinersSheet({ open, onClose }: { open: boolean; onClose: () => 
                   )}
                   <div className="mt-2.5 flex gap-2">
                     <Button onClick={() => { confirmPeople([p.id]); toast(`${p.firstName} confirmed`); }}><Check size={15} /> {match ? "Different person: confirm" : "Confirm"}</Button>
-                    {admin && <Button variant="ghost" className="text-alert" onClick={() => { updatePerson(p.id, { inactive: { reason: "other", note: "Not recognised by the church", at: new Date().toISOString() } }); toast(`${p.firstName} removed`); }}><UserX size={15} /> Not ours</Button>}
+                    {admin && <Button variant="ghost" className="text-alert" onClick={() => { updatePerson(p.id, { notConfirmed: { at: new Date().toISOString(), byId: me?.id } }); toast(`${p.firstName} will see: “Your membership status needs one more step. Kindly contact Admin.”`); }}><UserX size={15} /> Not confirmed</Button>}
                   </div>
                 </li>
               );

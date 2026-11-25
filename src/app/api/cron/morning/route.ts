@@ -31,5 +31,7 @@ export async function GET(req: Request) {
   // Event videos and pictures, 14 days after the event
   let mediaCleared = 0;
   try { mediaCleared = await clearEventMedia(db); } catch { /* try again tomorrow */ }
+  // Entries removed more than 30 days ago are erased (the reason stays in the activity log)
+  try { await db.rpc("purge_removed_people"); } catch { /* try again tomorrow */ }
   return NextResponse.json({ ok: true, mediaCleared, at: now, tally });
 }

@@ -35,6 +35,10 @@ export type Person = {
   joinedVia?: "search" | "invite" | "welcome" | "staff" | "import";
   /** Set when someone stops being a department head, so the admin can keep or change their Leader stage. */
   formerHead?: { groupId: string; at: string };
+  /** The church didn't confirm this person yet: they keep member access and see "Your membership status needs one more step". */
+  notConfirmed?: { at: string; byId?: string };
+  /** Removed (e.g. a test or double entry): hidden everywhere, kept 30 days so it can be undone. */
+  removed?: { reason: string; note?: string; byId?: string; at: string };
   confirmedAt?: string;
   /** An existing record with the same phone, for the admin to merge. Never shown to the person. */
   possibleMatchId?: string;
