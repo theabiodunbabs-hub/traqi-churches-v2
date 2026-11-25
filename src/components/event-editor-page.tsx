@@ -5,7 +5,7 @@ import { AlertTriangle, Check, ChevronDown, Copy, FileImage, Film, Pipette, Spar
 import { Field, Toggle, cx, inputCls, toast } from "./ui";
 import { uploadEventFile } from "@/lib/upload";
 import { copyText } from "@/lib/share";
-import { LOOKS, MAX_EXTRAS, ticketColorOf, MAX_VIDEO_MB, PALETTES, colorsFromImage, colorsOf, contrastWarnings, lookOf, newToken, parseColor, textOn } from "@/lib/event-page";
+import { EXPERIENCE_IDEAS, LOOKS, MAX_EXTRAS, paletteFrom, templateOf, ticketColorOf, MAX_VIDEO_MB, PALETTES, colorsFromImage, colorsOf, contrastWarnings, lookOf, newToken, parseColor, textOn } from "@/lib/event-page";
 import type { ChurchEvent, EventColors, EventLook, EventPage, EventQuestion, TicketCategory } from "@/lib/types";
 
 const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
@@ -279,12 +279,17 @@ export function ExperienceEditor({ e, setPage }: { e: ChurchEvent; setPage: (p: 
   const ideas = [["Powerful worship", "Hours of worship that lift you."], ["The Word", "Teaching you can live on Monday."], ["Real connection", "Meet people who will walk with you."]];
   const set = (i: number, patch: Partial<{ title: string; body: string }>) => setPage({ experience: items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   return (
+    <div className="space-y-3">
+    <div className="flex flex-wrap items-center gap-1.5"><span className="text-[13px] text-muted">Use our words for:</span>
+      {EXPERIENCE_IDEAS.map((x) => <button key={x.kind} type="button" onClick={() => setPage({ experience: x.cards })} className="rounded-full bg-page px-3 py-1 text-[12.5px] ring-1 ring-line hover:ring-brand/40">{x.kind}</button>)}
+    </div>
     <div className="grid gap-2 md:grid-cols-3">{items.map((x, i) => (
       <div key={i} className="space-y-2 rounded-2xl bg-page p-3 ring-1 ring-line">
         <input className={cx(inputCls, "bg-surface font-medium")} value={x.title} onChange={(v) => set(i, { title: v.target.value })} placeholder={ideas[i][0]} />
         <textarea rows={3} className={cx(inputCls, "bg-surface")} value={x.body} onChange={(v) => set(i, { body: v.target.value })} placeholder={ideas[i][1]} />
       </div>
     ))}</div>
+    </div>
   );
 }
 
@@ -355,3 +360,29 @@ export function InviteEditor({ e, setPage }: { e: ChurchEvent; setPage: (p: Part
   );
 }
 
+
+/** The three looks, each drawn in this event's colours, so people choose by seeing. */
+export function LookPicker({ e, churchColor, onPick }: { e: ChurchEvent; churchColor: string; onPick: (template: NonNullable<ChurchEvent["template"]>) => void }) {
+  const cur = lookOf(e);
+  const main = e.page?.main ?? churchColor;
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium">Look</span>
+      <div className="grid gap-2 sm:grid-cols-3">{LOOKS.map((l) => {
+        const c = paletteFrom(main, l.k);
+        const on = cur === l.k;
+        return (
+          <button key={l.k} type="button" onClick={() => onPick(templateOf(l.k))} aria-pressed={on} className={cx("overflow-hidden rounded-2xl text-left ring-1 transition", on ? "ring-2 ring-brand" : "ring-line hover:ring-ink/25")}>
+            <span className="relative block h-28 overflow-hidden p-3" style={{ background: l.k === "bold" ? c.section : c.bg, color: textOn(l.k === "bold" ? c.section : c.bg) }}>
+              {l.k === "cinematic" && <span aria-hidden className="absolute -left-6 -top-8 size-28 rounded-full opacity-60 blur-2xl" style={{ background: c.button }} />}
+              <span className="relative block text-[9px] font-semibold uppercase tracking-[.25em] opacity-70">{e.title ? e.title.split(":")[0].slice(0, 18) : "Your event"}</span>
+              <span className="relative mt-1 block leading-[.9]" style={l.k === "editorial" ? { fontFamily: '"Fraunces Variable", serif', fontWeight: 300, fontSize: 34 } : l.k === "bold" ? { fontFamily: '"Archivo Variable"', fontStretch: "125%", fontWeight: 900, fontSize: 26, textTransform: "uppercase" } : { fontFamily: '"Inter Tight Variable"', fontWeight: 800, fontSize: 30, letterSpacing: "-.04em" }}>Rise.</span>
+              <span className="relative mt-2 inline-block rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: l.k === "bold" ? "#111" : c.button, color: l.k === "bold" ? c.section : textOn(c.button) }}>Register</span>
+            </span>
+            <span className="block p-3"><b className="flex items-center justify-between text-[14.5px]">{l.name}{on && <Check size={15} className="text-brand" />}</b><span className="text-[12.5px] leading-snug text-muted">{l.says}</span></span>
+          </button>
+        );
+      })}</div>
+    </div>
+  );
+}

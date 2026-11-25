@@ -11,8 +11,8 @@ import { COVERS } from "./brand";
 import { uploadImage } from "@/lib/upload";
 import { ticketPrefix } from "@/lib/event-mgmt";
 import { PERSON_LABELS, cleanOptions, daysOf, isRequired, isShirtSize, optionalByDefault, showsDropdown, peopleOf, slugify, suggestQuestions, themeOf, withDayPlan } from "@/lib/events";
-import { CategoriesEditor, ColorsEditor, ExperienceEditor, ExtrasEditor, HeadlineEditor, HostEditor, InviteEditor, OnlineEditor, TestimonialsEditor } from "./event-editor-page";
-import { OPTIONAL_SECTIONS, sectionFilled, type OptionalKey } from "@/lib/event-page";
+import { CategoriesEditor, ColorsEditor, LookPicker, ExperienceEditor, ExtrasEditor, HeadlineEditor, HostEditor, InviteEditor, OnlineEditor, TestimonialsEditor } from "./event-editor-page";
+import { OPTIONAL_SECTIONS, sectionFilled, suggestedFaq, type OptionalKey } from "@/lib/event-page";
 import type { ChurchEvent, EventDay, EventPage, EventPerson, EventQuestion, EventVenue, QuestionType } from "@/lib/types";
 
 const TYPES: { k: QuestionType; label: string }[] = [
@@ -128,7 +128,8 @@ export function EventEditor({ e: initial, onSave, onAutosave, onDiscard, publish
     ),
     online: <OnlineEditor e={e} setPage={setPage} />,
     testimonials: <TestimonialsEditor e={e} setPage={setPage} />,
-    faq: <><PairList title="Frequently asked questions" items={(e.faq ?? []).map((f) => [f.q, f.a])} labels={["Question", "Answer"]} long onChange={(v) => set("faq", v.length ? v.map(([q, a]) => ({ q, a })) : undefined)}
+    faq: <><button type="button" onClick={() => { const have = new Set((e.faq ?? []).map((f) => f.q.trim().toLowerCase())); const add = suggestedFaq(e).filter((f) => !have.has(f.q.toLowerCase())); set("faq", [...(e.faq ?? []), ...add]); toast(add.length ? `Added ${add.length} suggested question${add.length > 1 ? "s" : ""}. Edit or delete any.` : "You have all the suggested questions"); }} className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3.5 py-1.5 text-[13px] font-medium text-brand"><Sparkles size={14} /> Add suggested questions</button>
+      <PairList title="Frequently asked questions" items={(e.faq ?? []).map((f) => [f.q, f.a])} labels={["Question", "Answer"]} long onChange={(v) => set("faq", v.length ? v.map(([q, a]) => ({ q, a })) : undefined)}
             ideas={[["Is it free?", "Yes. Registration is free."], ["Can I bring my children?", ""], ["Is there parking?", ""], ["Will it be streamed online?", ""], ["What should I wear?", ""]]} /></>,
     extras: <ExtrasEditor e={e} setPage={setPage} />,
     share: <p className="text-[13.5px] text-muted">“Know someone who should be here?” with WhatsApp, Copy link and a picture to share. On by default; remove this section to hide it.</p>,
@@ -203,6 +204,8 @@ export function EventEditor({ e: initial, onSave, onAutosave, onDiscard, publish
           </div>
         </>)}
         {sec("look", <>
+          <LookPicker e={e} churchColor={state.church.profile?.color ?? "#4f46e5"} onPick={(t) => setE((x) => ({ ...x, template: t, page: { ...x.page, colors: undefined, main: x.page?.main ?? (x.page?.colors ? x.page.colors.button : undefined) } }))} />
+          <div className="border-t border-line pt-4" />
           <HeadlineEditor e={e} setPage={setPage} flyerPick={<>
             <ImagePick label={e.page?.media?.kind === "picture" ? "Picture" : e.page?.media?.kind === "video" ? "Still picture (shown while the video loads)" : "Flyer"} hint={e.page?.media?.kind === "picture" ? "A wide, sharp photo. Landscape works best." : "Your designed flyer. Portrait works best."} value={e.flyer} kind="flyer" size={1800} onChange={(v) => set("flyer", v)} />
           {!e.flyer && (
@@ -213,17 +216,6 @@ export function EventEditor({ e: initial, onSave, onAutosave, onDiscard, publish
           )}
           </>} />
           <div className="border-t border-line pt-4"><ColorsEditor e={e} churchColor={state.church.profile?.color ?? "#4f46e5"} setPage={setPage} /></div>
-          <div className="space-y-2 border-t border-line pt-4">
-            <span className="block text-sm font-medium">Heading style</span>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {([["flyer", "Flyer", "Your flyer front and centre, details beside it"], ["bold", "Bold", "Night-of-worship feel: dark, big type, the line-up"], ["elegant", "Elegant", "Calm and warm, for conventions, carols, dinners"]] as const).map(([k, n, d]) => (
-              <button key={k} type="button" onClick={() => set("template", k)} className={cx("overflow-hidden rounded-2xl text-left ring-1 transition", (e.template ?? "flyer") === k ? "ring-2 ring-brand" : "ring-line hover:ring-ink/20")}>
-                <TemplateThumb k={k} e={e} />
-                <span className="block p-3"><b className="flex items-center justify-between text-[14.5px]">{n}{(e.template ?? "flyer") === k && <Check size={15} className="text-brand" />}</b><span className="text-[12.5px] text-muted">{d}</span></span>
-              </button>
-            ))}
-          </div>
-          </div>
         </>)}
         {sec("registration", <>
           <label className="flex items-center justify-between gap-3 rounded-xl bg-page p-3 text-sm ring-1 ring-line">People need to register<Toggle label="People need to register" on={e.registration !== false} onChange={(v) => set("registration", v)} /></label>
@@ -353,13 +345,6 @@ function Section({ k, open, setOpen, onRemove, children }: { k: Sec; open: Sec; 
       {isOpen && <div className="space-y-4 border-t border-line px-5 py-5">{children}</div>}
     </section>
   );
-}
-
-function TemplateThumb({ k, e }: { k: "flyer" | "bold" | "elegant"; e: ChurchEvent }) {
-  const bg = COVERS[e.cover % COVERS.length];
-  if (k === "bold") return <div className="flex h-24 flex-col justify-end bg-[#0b0a12] p-3" style={{ backgroundImage: "radial-gradient(120px 80px at 90% 0%, var(--color-brand), transparent 70%)" }}><span className="h-2 w-3/4 rounded bg-white" /><span className="mt-1 h-2 w-1/2 rounded bg-white/70" /><span className="mt-2 flex gap-1">{[0, 1, 2].map((i) => <span key={i} className="size-3 rounded-full bg-white/50" />)}</span></div>;
-  if (k === "elegant") return <div className="flex h-24 flex-col items-center justify-center bg-[#fbf8f2]"><span className="h-px w-8 bg-brand/50" /><span className="mt-2 h-2.5 w-24 rounded bg-[#1f1a14]" /><span className="mt-1.5 h-1.5 w-16 rounded bg-[#1f1a14]/40" /><span className="mt-2 h-px w-8 bg-brand/50" /></div>;
-  return <div className="flex h-24 items-center gap-2 bg-[#f7f6fb] p-3"><span className="h-full w-14 -rotate-2 rounded-md shadow" style={e.flyer ? { background: `url(${e.flyer}) center/cover` } : { background: bg }} /><span className="flex-1 space-y-1.5"><span className="block h-2 w-full rounded bg-[#17151f]" /><span className="block h-1.5 w-2/3 rounded bg-[#17151f]/40" /><span className="block h-3 w-12 rounded-full bg-brand" /></span></div>;
 }
 
 function ImagePick({ label, hint, value, kind, size, onChange, round }: { label: string; hint?: string; value?: string; kind: "flyer" | "speaker" | "logo"; size: number; onChange: (v?: string) => void; round?: boolean }) {

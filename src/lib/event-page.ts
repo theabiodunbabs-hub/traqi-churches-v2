@@ -225,3 +225,31 @@ export function maskName(name: string) {
   return last ? `${first} ${last[0]}${"•".repeat(Math.min(4, Math.max(2, last.length - 1)))}` : `${first.slice(0, 2)}${"•".repeat(3)}`;
 }
 export const venuePath = (churchSlug: string, e: Pick<ChurchEvent, "slug">, code: string) => `/${churchSlug}/${e.slug}/here?k=${encodeURIComponent(code)}`;
+
+// ---------------- Suggested words (the organiser can change or delete any) ----------------
+/** Questions people usually ask, answered from the event's own settings. */
+export function suggestedFaq(e: ChurchEvent): { q: string; a: string }[] {
+  const d = daysOf(e)[0];
+  const [h, m] = (d?.start ?? "10:00").split(":").map(Number);
+  const early = ((h * 60 + m - 30) + 1440) % 1440;
+  const t = (x: number) => { const hh = Math.floor(x / 60), mm = x % 60; return `${((hh + 11) % 12) + 1}${mm ? `:${String(mm).padStart(2, "0")}` : ""} ${hh < 12 ? "AM" : "PM"}`; };
+  const out = [
+    { q: `Is ${e.title.split(":")[0].trim()} free?`, a: e.registration === false ? "Yes. It's free, and you don't need to register. Just come." : "Yes. It's free. Please register so we can prepare for you." },
+    { q: "Who can come?", a: "Everyone is welcome, from any church. Bring a friend." },
+  ];
+  if (e.registration !== false) out.push({ q: "Can I register my friends?", a: "Yes. After you register, tap “Register someone else”. Everyone gets their own ticket." });
+  if (e.mode !== "virtual") out.push({ q: "What time should I arrive?", a: `Doors open at ${t(early)}, 30 minutes before we start. Come early for a good seat.` });
+  if (e.mode !== "physical") out.push({ q: "Will it be streamed?", a: e.mode === "virtual" ? "Yes. It's online only. Register and we'll send you the link and reminders." : "Yes. Register as Online and we'll send you the link and reminders." });
+  return out;
+}
+
+/** "The experience": three cards for common kinds of event, to use as they are or edit. */
+export const EXPERIENCE_IDEAS: { kind: string; cards: { title: string; body: string }[] }[] = [
+  { kind: "Youth conference", cards: [{ title: "Worship that lifts you", body: "Nights in God's presence with the worship team and friends." }, { title: "Teaching you can use", body: "Purpose, career and relationships: real talk for real life." }, { title: "Friends for the journey", body: "Meet people who will pray with you long after it ends." }] },
+  { kind: "Worship night", cards: [{ title: "Hours of worship", body: "No rush. Just worship, as long as the Spirit leads." }, { title: "Prayer and ministry", body: "Time to pray for one another and receive." }, { title: "Bring someone", body: "Come with a friend who needs a touch from God." }] },
+  { kind: "Women's meeting", cards: [{ title: "Refreshing", body: "Worship, rest and time with God, away from the rush." }, { title: "Wisdom for life", body: "Honest teaching on faith, family, work and calling." }, { title: "Sisterhood", body: "Women who will stand with you and pray for you." }] },
+  { kind: "Men's meeting", cards: [{ title: "Stand firm", body: "Straight talk on faith, leadership and responsibility." }, { title: "Brotherhood", body: "Men who will sharpen you and stand with you." }, { title: "Real questions", body: "Open conversations on work, money, family and purpose." }] },
+  { kind: "Couples' night", cards: [{ title: "Time together", body: "An evening set apart for the two of you." }, { title: "Wisdom for marriage", body: "Practical teaching from couples who have walked the road." }, { title: "Laughter and good food", body: "Relax, enjoy, and leave closer than you came." }] },
+  { kind: "Leadership summit", cards: [{ title: "Leading with character", body: "Teaching on integrity, vision and serving well." }, { title: "Practical sessions", body: "Workshops you can take back to your team on Monday." }, { title: "A network", body: "Meet leaders across churches and fields." }] },
+  { kind: "Crusade or outreach", cards: [{ title: "The good news", body: "A clear message of hope in Jesus for everyone." }, { title: "Prayer for the sick", body: "We'll pray for healing, freedom and breakthrough." }, { title: "A new beginning", body: "Find a church family that will walk with you." }] },
+];
