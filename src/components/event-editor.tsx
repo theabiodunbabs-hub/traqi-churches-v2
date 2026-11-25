@@ -204,7 +204,7 @@ export function EventEditor({ e: initial, onSave, onAutosave, onDiscard, publish
         </>)}
         {sec("look", <>
           <HeadlineEditor e={e} setPage={setPage} flyerPick={<>
-            <ImagePick label="Flyer" hint="Your designed flyer. Portrait works best." value={e.flyer} kind="flyer" size={1600} onChange={(v) => set("flyer", v)} />
+            <ImagePick label={e.page?.media?.kind === "picture" ? "Picture" : e.page?.media?.kind === "video" ? "Still picture (shown while the video loads)" : "Flyer"} hint={e.page?.media?.kind === "picture" ? "A wide, sharp photo. Landscape works best." : "Your designed flyer. Portrait works best."} value={e.flyer} kind="flyer" size={1800} onChange={(v) => set("flyer", v)} />
           {!e.flyer && (
             <div>
               <span className="mb-1.5 block text-sm font-medium">No flyer yet? Pick colours</span>

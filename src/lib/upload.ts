@@ -21,7 +21,7 @@ const blobToDataUrl = (b: Blob) => new Promise<string>((res) => { const r = new 
 export async function uploadEventFile(file: File, eventId: string): Promise<string> {
   const video = file.type.startsWith("video/");
   if (!video && !file.type.startsWith("image/")) throw new Error("Choose a picture or a video");
-  if (video && file.size > 10 * 1024 * 1024) throw new Error(`That video is ${(file.size / 1048576).toFixed(1)} MB. The most is 10 MB: try a shorter clip.`);
+  if (video && file.size > 15 * 1024 * 1024) throw new Error(`That video is ${(file.size / 1048576).toFixed(1)} MB. The most is 15 MB: try a shorter clip.`);
   if (!LIVE) return video ? URL.createObjectURL(file) : blobToDataUrl(await shrinkToBlob(file, 1400, false));
   if (video) return uploadEventMediaLive(file, eventId, (file.name.split(".").pop() || "mp4").toLowerCase());
   return uploadEventMediaLive(await shrinkToBlob(file, 1800, false), eventId, "webp");

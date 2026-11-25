@@ -7,10 +7,10 @@ import { eventPage, registerEvent, venueCheckin, venueFind } from "@/lib/live";
 import { ChurchMark, COVERS } from "./brand";
 import { Confetti, cx } from "./ui";
 import { usePublicTheme } from "./theme";
-import { RegisterPanel, TicketCard, eventVars, evCard, whenLine, type MemberFlow, type RegInput, type RegResult, type RegTicket } from "./event-landing";
+import { EV_CSS, RegisterPanel, TicketCard, eventVars, evCard, whenLine, type MemberFlow, type RegInput, type RegResult, type RegTicket } from "./event-landing";
 import { useDemoRegister } from "./event-page";
 import { useMemberFlow } from "./public-event";
-import { codeOk, headline, maskName } from "@/lib/event-page";
+import { codeOk, headline, lookOf, maskName } from "@/lib/event-page";
 import { digits, todayLagos } from "@/lib/format";
 import type { ChurchEvent, ChurchProfile } from "@/lib/types";
 
@@ -124,12 +124,13 @@ export function VenueCheckin({ church, event }: { church: string; event: string 
   const { church: c, event: e } = data;
   const m = headline(e);
   const pic = m.kind === "carousel" ? m.slides[0] : m.kind === "video" ? m.poster : m.src;
-  const H = "font-[family-name:var(--ev-heading)] tracking-tight";
+  const H = "ev-d";
   const url = typeof window !== "undefined" ? `${location.origin}/${c.slug}/${e.slug}` : "";
   const first = (n: string) => n.split(" ")[0];
 
   return (
-    <div className="min-h-screen bg-[var(--ev-page)] text-[var(--ev-fg)]" style={eventVars(e, c.profile.color ?? "#4f46e5")}>
+    <div className="ev min-h-screen bg-[var(--ev-page)] text-[var(--ev-fg)]" data-look={lookOf(e)} style={eventVars(e, c.profile.color ?? "#4f46e5")}>
+      <style>{EV_CSS}</style>
       <header className="mx-auto flex max-w-xl items-center gap-3 px-4 py-4">
         <ChurchMark church={{ name: c.name, profile: c.profile as ChurchProfile }} size={36} />
         <span className="min-w-0 truncate font-semibold">{c.name}</span>

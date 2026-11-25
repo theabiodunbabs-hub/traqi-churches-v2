@@ -336,10 +336,16 @@ export type TicketCategory = {
   /** Extra questions for this category only. */
   questions?: EventQuestion[];
 };
-export type EventColors = { bg: string; section: string; button: string; icon: string };
+export type EventColors = { bg: string; section: string; button: string; icon: string;
+  /** The ticket colour; the button colour when empty. Each ticket type can still have its own. */ ticket?: string };
+/** The page's look: Cinematic (dark, full-screen), Editorial (light, magazine) or Bold (big type, colour blocks). Stored in `template`: flyer, elegant, bold. */
+export type EventLook = "cinematic" | "editorial" | "bold";
 export type EventPage = {
-  media?: { kind: "flyer" | "video" | "carousel"; video?: string; slides?: string[] };
+  /** picture: one photo behind the title (stored in `flyer`); flyer: a designed flyer beside the title. */
+  media?: { kind: "flyer" | "picture" | "video" | "carousel"; video?: string; slides?: string[] };
   colors?: EventColors;
+  /** The one colour the rest is made from (when not set by hand). */
+  main?: string;
   /** The closing invitation near the bottom. */
   invite?: { title?: string; body?: string };
   host?: { name?: string; role?: string; letter: string; photos?: string[]; video?: string };

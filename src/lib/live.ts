@@ -69,12 +69,12 @@ const isUuid = (s?: string) => !!s && /^[0-9a-f-]{36}$/i.test(s);
 
 let currentChurch: string | null = null;
 
-/** Videos and pictures for one event page (up to 10 MB), removed 14 days after the event. */
+/** Videos and pictures for one event page (up to 15 MB), removed 14 days after the event. */
 export async function uploadEventMediaLive(blob: Blob, eventId: string, ext: string) {
   if (!currentChurch) throw new Error("Sign in to your church first");
   const path = `${currentChurch}/event-${eventId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await db().storage.from("event-media").upload(path, blob, { contentType: blob.type, cacheControl: "31536000", upsert: false });
-  if (error) throw new Error(/exceed|size/i.test(error.message) ? "That file is over 10 MB. Try a shorter or smaller video." : error.message);
+  if (error) throw new Error(/exceed|size/i.test(error.message) ? "That file is over 15 MB. Try a shorter or smaller video." : error.message);
   return db().storage.from("event-media").getPublicUrl(path).data.publicUrl;
 }
 export type VenueFind = { status: "found" | "not-found" | "bad-code" | "closed" | "no-event"; name?: string };

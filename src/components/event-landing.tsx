@@ -4,10 +4,10 @@ import { copyText, savePicture } from "@/lib/share";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
-  ArrowLeft, ArrowRight, BadgeCheck, BedDouble, CalendarPlus, Check, ChevronDown, Clock, Copy, Download, Gift, Image as ImageIcon, Lock, Mail, MapPin, Navigation,
-  Heart, Phone, Plus, Quote, Radio, Share2, Sparkles, Ticket, UserRound, Users, Wifi, X,
+  ArrowLeft, ArrowRight, BadgeCheck, BedDouble, CalendarPlus, Check,  Copy, Download, Gift, Image as ImageIcon, Lock, Mail, MapPin, Navigation,
+  Phone, Plus, Radio, Share2, Ticket, UserRound, Wifi, X,
 } from "lucide-react";
-import { MAX_EXTRAS, categoriesFor, categoryColor, colorsOf, headline, isDark, sectionFilled, textOn, type OptionalKey } from "@/lib/event-page";
+import { MAX_EXTRAS, categoriesFor, categoryColor, colorsOf, headline, isDark, lookOf, sectionFilled, textOn, type OptionalKey } from "@/lib/event-page";
 import { Confetti, cx } from "./ui";
 import { COVERS, ChurchMark } from "./brand";
 import { QR } from "./public";
@@ -52,17 +52,40 @@ export function icsFile(e: ChurchEvent, church: string, url: string) {
   saveBlob(new Blob([["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Traqi//Events//EN", ...ev, "END:VCALENDAR"].join("\r\n")], { type: "text/calendar" }), `${e.slug}.ics`);
 }
 
-/** Heading type for each look (the colours are the organiser's). */
-const HEADING = {
-  flyer: "var(--font-display)",
-  bold: '"Archivo Variable", ui-sans-serif, system-ui',
-  elegant: '"Fraunces Variable", Georgia, serif',
-} as const;
+/** Type and shape for each look; the colours are the organiser's. */
+export const EV_CSS = `
+.ev{--ev-radius:26px;--ev-body:"Figtree Variable",ui-sans-serif,system-ui;font-family:var(--ev-body);-webkit-font-smoothing:antialiased}
+.ev[data-look=editorial]{--ev-radius:2px;--ev-body:"Instrument Sans Variable",ui-sans-serif,system-ui}
+.ev[data-look=bold]{--ev-radius:22px}
+.ev-d{font-family:"Inter Tight Variable",ui-sans-serif,system-ui;font-weight:800;letter-spacing:-.045em;line-height:.92}
+.ev[data-look=editorial] .ev-d{font-family:"Fraunces Variable",Georgia,serif;font-weight:300;letter-spacing:-.035em;line-height:.95}
+.ev[data-look=bold] .ev-d{font-family:"Archivo Variable",ui-sans-serif,system-ui;font-stretch:125%;font-weight:900;letter-spacing:-.02em;line-height:.9;text-transform:uppercase}
+.ev-s{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;letter-spacing:0;text-transform:none}
+.ev[data-look=editorial] .ev-s{font-family:"Fraunces Variable",Georgia,serif;font-weight:300}
+.ev[data-look=bold] .ev-s{font-family:"Archivo Variable",ui-sans-serif;font-stretch:125%;font-style:normal;font-weight:900;text-transform:uppercase;color:var(--ev-icon)}
+.ev-k{font-size:12.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:var(--ev-icon)}
+.ev main{counter-reset:evs}
+.ev-num::before{counter-increment:evs;content:counter(evs,decimal-leading-zero) " — "}
+.ev[data-look=editorial] .ev-num::before{content:counter(evs,upper-roman) ". "}
+.ev[data-look=bold] .ev-num::before{content:"(" counter(evs,decimal-leading-zero) ") "}
+.ev-r{opacity:0;transform:translateY(26px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+.ev-r.in{opacity:1;transform:none}
+.ev-mq{display:flex;gap:3rem;width:max-content;animation:evmq 32s linear infinite}
+@keyframes evmq{to{transform:translateX(-50%)}}
+.ev-btn{transition:transform .25s ease,box-shadow .25s ease}.ev-btn:hover{transform:translateY(-2px)}.ev-btn svg{transition:transform .25s ease}.ev-btn:hover svg{transform:translateX(3px)}
+.ev-duo{background:var(--ev-card)}.ev-duo img{filter:grayscale(1) contrast(1.06) brightness(.92);transition:filter .6s,transform .8s cubic-bezier(.2,.7,.2,1)}.ev-duo:hover img{filter:none}.ev-duo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(0,0,0,.45))}
+.ev[data-look=editorial] .ev-duo::after{display:none}
+.ev[data-look=bold] .ev-duo img{filter:none}.ev[data-look=bold] .ev-duo::after{display:none}
+.ev-zoom img{transition:transform .8s cubic-bezier(.2,.7,.2,1)}.ev-zoom:hover img{transform:scale(1.045)}
+.ev-ul{background:linear-gradient(currentColor,currentColor) 0 100%/0 1px no-repeat;transition:background-size .35s}.ev-ul:hover{background-size:100% 1px}
+.ev-noscroll{scrollbar-width:none}.ev-noscroll::-webkit-scrollbar{display:none}
+@media (prefers-reduced-motion:reduce){.ev-r{opacity:1;transform:none;transition:none}.ev-mq{animation:none}.ev-btn,.ev-btn svg,.ev-zoom img{transition:none}}
+`;
 
 /**
- * The public event page (round 8): six core sections (top bar, headline with countdown, when and where, about,
- * closing invitation, footer) and ten optional ones that only appear when filled in.
- * Register opens a full-screen registration page; on phones the Register button stays pinned to the bottom.
+ * The public event page (round 9): one of three professionally designed looks (Cinematic, Editorial, Bold),
+ * in the organiser's colours. Core sections always show; optional ones only when filled in.
+ * Register opens the full-screen registration page; on phones the Register button stays pinned to the bottom.
  */
 export function EventLanding({ e, church, registered, recent = [], onRegister, onFeedback, member, preview }: {
   e: ChurchEvent; church: ChurchInfo; registered: number; recent?: string[];
@@ -73,10 +96,13 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
   usePublicTheme(church.profile);
   const churchColor = church.profile?.color ?? "#4f46e5";
   const col = colorsOf(e, churchColor);
+  const look = lookOf(e);
+  const root = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState("");
   const [now, setNow] = useState(Date.now());
   const [regOpen, setRegOpen] = useState(false);
   const [catToken, setCatToken] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   useEffect(() => { setUrl(`${location.origin}${eventPath(church.slug, e)}`); }, [church.slug, e]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
   // Back from Google, from Home's "Register now", a private category link or #register: open the registration page
@@ -93,6 +119,15 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
     document.documentElement.style.overflow = "hidden";
     return () => { window.removeEventListener("popstate", close); document.documentElement.style.overflow = ""; };
   }, [regOpen]);
+  // Sections rise into view as you scroll; a thin line under the top bar shows how far down you are
+  useEffect(() => {
+    const els = root.current?.querySelectorAll(".ev-r") ?? [];
+    const io = new IntersectionObserver((xs) => xs.forEach((x) => { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); } }), { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    els.forEach((x) => io.observe(x));
+    const onScroll = () => { const h = document.documentElement; setProgress(Math.min(1, h.scrollTop / Math.max(1, h.scrollHeight - h.clientHeight))); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { io.disconnect(); window.removeEventListener("scroll", onScroll); };
+  }, [look, e.id]);
   const openReg = () => { if (!preview && location.hash !== "#register") history.pushState(null, "", "#register"); setRegOpen(true); };
   const closeReg = () => { if (location.hash === "#register") history.back(); else setRegOpen(false); };
 
@@ -105,71 +140,73 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
   const full = !!e.capacity && registered >= e.capacity;
   const theme = themeOf(e);
   const filled = (k: OptionalKey) => sectionFilled(e, k);
-  const vars = eventVars(e, churchColor);
-  const H = "font-[family-name:var(--ev-heading)] tracking-tight";
   const nav = [
-    { id: "when", label: "When and where", show: true },
     { id: "about", label: "About", show: true },
     { id: "people", label: "Speakers", show: filled("speakers") },
     { id: "programme", label: "Programme", show: filled("programme") },
+    { id: "when", label: "Venue", show: true },
     { id: "faq", label: "FAQ", show: filled("faq") },
   ].filter((x) => x.show);
   const share = `*${e.title}*${theme ? `\n${theme}` : ""}\n${whenLine(e)}${e.venue && e.mode !== "virtual" ? `\n${e.venue}` : ""}\n\nRegister free: ${url}`;
-  const regLabel = full ? "Join the waiting list" : e.needsApproval ? "Request a place" : "Register";
+  const regLabel = full ? "Join the waiting list" : e.needsApproval ? "Request a place" : "Register free";
+  const H = "ev-d";
+  const reg = { closed: !showReg, regOn, label: regLabel, onRegister: openReg };
+  const dark = isDark(col.bg);
 
   return (
-    <div className={cx("min-h-screen text-[var(--ev-fg)]", isDark(col.bg) && "dark-tpl")} style={{ ...vars, background: "var(--ev-page)" }}>
-      {/* 1. Top bar */}
-      <nav className="sticky top-0 z-40 border-b border-[var(--ev-line)] backdrop-blur-xl" style={{ background: `color-mix(in oklab, ${col.bg} 84%, transparent)` }}>
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-          <ChurchMark church={{ name: church.name, profile: church.profile as ChurchProfile }} size={34} />
-          <span className="min-w-0 truncate font-semibold">{church.name}</span>
+    <div ref={root} className="ev min-h-screen text-[var(--ev-fg)]" data-look={look} style={{ ...eventVars(e, churchColor), background: "var(--ev-page)" }}>
+      <style>{EV_CSS}</style>
+      {/* Top bar: see-through over the headline, frosted as you scroll */}
+      <nav className="sticky top-0 z-40 border-b border-[var(--ev-line)] backdrop-blur-xl" style={{ background: `color-mix(in oklab, ${col.bg} ${progress > 0.01 ? 82 : 55}%, transparent)` }}>
+        <div className="mx-auto flex h-16 max-w-[1240px] items-center gap-3 px-5 md:h-[72px] md:px-10">
+          <a href="#top" className="flex min-w-0 items-center gap-2.5">
+            <ChurchMark church={{ name: church.name, profile: church.profile as ChurchProfile }} size={34} />
+            <span className={cx("truncate font-semibold", look === "editorial" && "ev-s text-[19px] not-italic")}>{church.name}</span>
+          </a>
           {preview && <span className="rounded-full bg-[var(--ev-accent)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--ev-on-accent)]">Preview</span>}
-          <div className="ml-auto hidden items-center gap-1 md:flex">
-            {nav.map((x) => <a key={x.id} href={`#${x.id}`} className="rounded-full px-3 py-1.5 text-[14px] text-[var(--ev-muted)] hover:text-[var(--ev-fg)]">{x.label}</a>)}
+          <div className="ml-auto hidden items-center gap-7 text-[14px] md:flex">
+            {nav.map((x) => <a key={x.id} href={`#${x.id}`} className="ev-ul text-[var(--ev-muted)] hover:text-[var(--ev-fg)]">{x.label}</a>)}
           </div>
-          {showReg && <button type="button" onClick={openReg} className="ml-auto rounded-full bg-[var(--ev-accent)] px-4 py-2 text-[14px] font-semibold text-[var(--ev-on-accent)] shadow-lg shadow-black/10 md:ml-2">{regLabel}</button>}
+          {showReg && <button type="button" onClick={openReg} className={cx("ev-btn ml-auto whitespace-nowrap px-4 py-2.5 text-[14px] font-semibold md:ml-3", look === "editorial" ? "rounded-full" : look === "bold" ? "rounded-xl uppercase tracking-wide" : "rounded-full", "bg-[var(--ev-accent)] text-[var(--ev-on-accent)]")}>{regLabel}</button>}
         </div>
+        <div className="h-[2px] bg-[var(--ev-accent)] transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
       </nav>
 
       {live && !ended && <LiveBar e={e} live={live} people={people} />}
 
-      {/* 2. Headline with countdown and Register */}
-      <Headline e={e} church={church} registered={registered} recent={recent} H={H} closed={!showReg} regOn={regOn} label={regLabel} onRegister={openReg} />
+      {look === "editorial" ? <EditorialHero e={e} church={church} registered={registered} recent={recent} {...reg} />
+        : look === "bold" ? <BoldHero e={e} church={church} registered={registered} recent={recent} {...reg} />
+        : <CinematicHero e={e} church={church} registered={registered} recent={recent} {...reg} />}
 
-      <main className="mx-auto max-w-6xl space-y-20 px-4 pb-28 pt-14 md:space-y-28 md:pt-20">
-        {/* 3. When and where */}
-        <WhenWhere e={e} H={H} />
-        {/* 4. About */}
+      {look !== "editorial" && <Marquee e={e} bold={look === "bold"} />}
+
+      <main className="mx-auto max-w-[1240px] space-y-28 px-5 pb-28 pt-24 md:space-y-40 md:px-10 md:pt-36">
         <About e={e} H={H} registered={registered} full={full} />
-
-        {/* Optional sections: only the ones filled in */}
-        {filled("host") && <HostWelcome e={e} H={H} />}
+        {look === "editorial" && e.verse?.text && <VerseBand e={e} />}
+        {filled("host") && <div className="ev-r"><HostWelcome e={e} H={H} /></div>}
         {filled("experience") && <Experience e={e} H={H} />}
         {filled("speakers") && <PeopleGrid e={e} people={people} H={H} />}
         {filled("programme") && <Programme e={e} people={people} H={H} now={now} />}
-        {filled("online") && <JoinOnline e={e} H={H} />}
+        <WhenWhere e={e} H={H} dark={dark} />
+        {filled("online") && <div className="ev-r"><JoinOnline e={e} H={H} /></div>}
         {filled("testimonials") && <Testimonials e={e} H={H} />}
-        {!!e.gallery?.length && <Gallery images={e.gallery} H={H} />}
-        {(e.page?.extras ?? []).filter((x) => x.title.trim()).slice(0, MAX_EXTRAS).map((x) => <ExtraSection key={x.id} x={x} H={H} />)}
-        {!!e.stay?.length && <Stay items={e.stay} H={H} />}
+        {!!e.gallery?.length && <div className="ev-r"><Gallery images={e.gallery} H={H} /></div>}
+        {(e.page?.extras ?? []).filter((x) => x.title.trim()).slice(0, MAX_EXTRAS).map((x) => <div key={x.id} className="ev-r"><ExtraSection x={x} H={H} /></div>)}
+        {!!e.stay?.length && <div className="ev-r"><Stay items={e.stay} H={H} /></div>}
         {filled("faq") && <Faq items={e.faq!.filter((f) => f.q.trim())} H={H} />}
-        {e.give && (e.give.url || e.give.account) && <Give give={e.give} H={H} />}
-        {filled("partners") && <Partners items={e.partners!} H={H} />}
+        {e.give && (e.give.url || e.give.account) && <div className="ev-r"><Give give={e.give} H={H} /></div>}
+        {filled("partners") && <div className="ev-r"><Partners items={e.partners!} H={H} /></div>}
         {ended && e.feedback?.on && onFeedback && <FeedbackForm e={e} H={H} onSend={onFeedback} />}
-
-        {/* 5. Closing invitation */}
-        <Invitation e={e} H={H} closed={!showReg} regOn={regOn} label={regLabel} onRegister={openReg} />
-        {filled("share") && url && <ShareBlock e={e} church={church} url={url} share={share} H={H} />}
       </main>
 
-      {/* 6. Footer */}
-      <Footer e={e} church={church} url={url} share={share} />
+      <Invitation e={e} H={H} {...reg} />
+      {filled("share") && url && <div className="mx-auto max-w-[1240px] px-5 pt-20 md:px-10"><ShareBlock e={e} church={church} url={url} share={share} H={H} /></div>}
+      <Footer e={e} church={church} url={url} share={share} nav={nav} />
 
       {showReg && !regOpen && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--ev-line)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden" style={{ background: `color-mix(in oklab, ${col.bg} 88%, transparent)` }}>
-          <button type="button" onClick={openReg} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--ev-accent)] py-3.5 font-semibold text-[var(--ev-on-accent)] shadow-lg">
-            <Ticket size={18} /> {regLabel}
+          <button type="button" onClick={openReg} className={cx("flex w-full items-center justify-center gap-2 py-3.5 font-semibold shadow-lg", look === "editorial" ? "rounded-full" : "rounded-2xl", look === "bold" && "uppercase tracking-wide", "bg-[var(--ev-accent)] text-[var(--ev-on-accent)]")}>
+            <Ticket size={18} /> {regLabel} · {shortWhen(e)}
           </button>
         </div>
       )}
@@ -177,7 +214,7 @@ export function EventLanding({ e, church, registered, recent = [], onRegister, o
       {regOpen && (
         <RegisterScreen e={e} church={church} url={url} H={H} onClose={closeReg}>
           {regOn ? <RegisterPanel e={e} church={church} url={url} closed={closed} full={full} onRegister={onRegister} member={preview ? undefined : member} H={H} catToken={catToken} />
-            : <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px] font-semibold")}>No registration needed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Just come. Everyone is welcome.</p></div>}
+            : <div className={cx(card, "p-6 text-center")}><p className={cx(H, "text-[22px]")}>No registration needed</p><p className="mt-1 text-[14px] text-[var(--ev-muted)]">Just come. Everyone is welcome.</p></div>}
         </RegisterScreen>
       )}
     </div>
@@ -189,25 +226,53 @@ export function eventVars(e: ChurchEvent, churchColor: string): CSSProperties {
   const col = colorsOf(e, churchColor);
   return {
     "--ev-page": col.bg, "--ev-card": col.section, "--ev-fg": textOn(col.bg), "--ev-card-fg": textOn(col.section), "--ev-accent": col.button, "--ev-on-accent": textOn(col.button), "--ev-icon": col.icon,
-    "--ev-muted": "color-mix(in oklab, currentColor 68%, transparent)", "--ev-line": "color-mix(in oklab, currentColor 12%, transparent)",
-    "--ev-heading": HEADING[e.template ?? "flyer"],
+    "--ev-muted": "color-mix(in oklab, currentColor 66%, transparent)", "--ev-line": "color-mix(in oklab, currentColor 13%, transparent)",
+    "--ev-heading": '"Inter Tight Variable", ui-sans-serif',
   } as CSSProperties;
 }
-export const evCard = "rounded-3xl bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
+export const evCard = "rounded-[var(--ev-radius)] bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
+/** "18–20 Dec", for the pinned button. */
+const shortWhen = (e: ChurchEvent) => {
+  const d = daysOf(e);
+  const a = new Date(`${d[0].date}T12:00:00Z`), b = new Date(`${d[d.length - 1].date}T12:00:00Z`);
+  const m = (x: Date) => x.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  return d.length === 1 || d[0].date === d[d.length - 1].date ? `${a.getUTCDate()} ${m(a)}` : m(a) === m(b) ? `${a.getUTCDate()}–${b.getUTCDate()} ${m(b)}` : `${a.getUTCDate()} ${m(a)}–${b.getUTCDate()} ${m(b)}`;
+};
+const placeOf = (e: ChurchEvent) => (e.mode === "virtual" ? "Online" : e.venues?.[0]?.name ?? e.venue ?? "Venue to be announced");
 
-// ---------------- Headline ----------------
-function Countdown({ to, big }: { to: string; big?: boolean }) {
+// ---------------- Headline pieces ----------------
+function useTicker() {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  if (now === null) return <div className="h-[78px]" />;
-  const ms = Date.parse(to) - now;
-  if (ms <= 0) return null;
-  const parts = [[Math.floor(ms / 864e5), "Days"], [Math.floor(ms / 36e5) % 24, "Hours"], [Math.floor(ms / 6e4) % 60, "Minutes"], [Math.floor(ms / 1e3) % 60, "Seconds"]] as const;
+  return now;
+}
+function parts(to: string, now: number) {
+  const ms = Math.max(0, Date.parse(to) - now);
+  return [[Math.floor(ms / 864e5), "Days"], [Math.floor(ms / 36e5) % 24, "Hours"], [Math.floor(ms / 6e4) % 60, "Minutes"], [Math.floor(ms / 1e3) % 60, "Seconds"]] as const;
+}
+/** The countdown, drawn for each look. */
+function Countdown({ to, variant = "glass" }: { to: string; variant?: "glass" | "serif" | "block" }) {
+  const now = useTicker();
+  if (now === null) return <div className="h-[84px]" />;
+  if (Date.parse(to) <= now) return null;
+  const p = parts(to, now);
+  if (variant === "serif") return (
+    <div className="grid grid-cols-4 border-t border-[var(--ev-fg)] pt-3" role="timer" aria-label="Time until it starts">{p.map(([n, l]) => (
+      <div key={l}><b className="ev-d block text-[44px] tabular-nums md:text-[56px]">{String(n).padStart(2, "0")}</b><span className="text-[12px] text-[var(--ev-muted)]">{l}</span></div>
+    ))}</div>
+  );
+  if (variant === "block") return (
+    <div className="grid grid-cols-4 gap-2" role="timer" aria-label="Time until it starts">{p.map(([n, l]) => (
+      <div key={l} className="min-w-0 rounded-2xl bg-[var(--ev-fg)] px-1 py-3 text-center text-[var(--ev-page)]">
+        <b className="ev-d block text-[30px] tabular-nums sm:text-[40px] md:text-[48px]">{String(n).padStart(2, "0")}</b><span className="text-[10px] font-bold uppercase tracking-[.12em] opacity-70">{l}</span>
+      </div>
+    ))}</div>
+  );
   return (
-    <div className="flex gap-2 sm:gap-3" role="timer" aria-label="Time until it starts">{parts.map(([n, l]) => (
-      <div key={l} className={cx("rounded-2xl bg-[var(--ev-card)] text-center text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]", big ? "min-w-[74px] px-3 py-3 sm:min-w-[88px]" : "min-w-[64px] px-3 py-2.5")}>
-        <p className={cx("num font-semibold leading-none tabular-nums", big ? "text-[30px] sm:text-[38px]" : "text-[26px]")}>{String(n).padStart(2, "0")}</p>
-        <p className="mt-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--ev-muted)]">{l}</p>
+    <div className="flex gap-2 md:gap-3" role="timer" aria-label="Time until it starts">{p.map(([n, l]) => (
+      <div key={l} className="min-w-0 flex-1 rounded-2xl border border-white/12 bg-white/[.07] px-3 py-3 backdrop-blur-md md:min-w-[92px] md:flex-none md:px-4">
+        <b className="ev-d block text-[30px] font-bold tabular-nums md:text-[40px]" style={{ letterSpacing: "-.03em" }}>{String(n).padStart(2, "0")}</b>
+        <span className="text-[10.5px] font-medium uppercase tracking-[.18em] opacity-60">{l}</span>
       </div>
     ))}</div>
   );
@@ -218,111 +283,228 @@ function Proof({ registered, recent }: { registered: number; recent: string[] })
   const tones = ["#f59e0b", "#10b981", "#ec4899", "#38bdf8", "#a78bfa"];
   return (
     <div className="flex items-center gap-3">
-      <span className="flex -space-x-2">{(recent.length ? recent : ["A", "B", "C", "D"]).slice(0, 4).map((n, i) => (
-        <span key={i} className="flex size-8 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-[var(--ev-page)]" style={{ background: tones[i % tones.length] }}>{initials(n) || "•"}</span>
+      <span className="flex -space-x-2.5">{(recent.length ? recent : ["A", "B", "C", "D"]).slice(0, 4).map((n, i) => (
+        <span key={i} className="flex size-9 items-center justify-center rounded-full text-[10.5px] font-bold text-white ring-2 ring-[var(--ev-page)]" style={{ background: tones[i % tones.length] }}>{initials(n) || "•"}</span>
       ))}</span>
-      <span className="text-[14px] text-[var(--ev-muted)]"><b className="text-[var(--ev-fg)]">{registered.toLocaleString()}</b> people registered</span>
+      <span className="text-[14px] opacity-80"><b className="opacity-100">{registered.toLocaleString()}</b> registered</span>
     </div>
   );
 }
 
-function Chips({ e }: { e: ChurchEvent }) {
-  const d = daysOf(e);
-  const chip = "inline-flex items-center gap-2 rounded-full bg-[var(--ev-card)] px-3.5 py-2 text-[14px] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
-  return (
-    <div className="flex flex-wrap gap-2">
-      <span className={chip}><CalendarPlus size={15} className="text-[var(--ev-icon)]" /> {whenLine(e)}</span>
-      <span className={chip}><Clock size={15} className="text-[var(--ev-icon)]" /> {d.length === 1 ? `${t12(d[0].start)} to ${t12(d[0].end)}` : d.every((x) => x.start === d[0].start) ? `${t12(d[0].start)} daily` : `Starts ${t12(d[0].start)}`}</span>
-      <span className={chip}>{e.mode === "virtual" ? <><Wifi size={15} className="text-[var(--ev-icon)]" /> Online</> : <><MapPin size={15} className="text-[var(--ev-icon)]" /> {e.venues?.[0]?.name ?? e.venue ?? "Venue to be announced"}{e.mode === "hybrid" ? " · and online" : ""}</>}</span>
-    </div>
-  );
+const Arrow = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
+
+function RegButton({ closed, regOn, label, onClick, className }: { closed: boolean; regOn: boolean; label: string; onClick: () => void; className?: string }) {
+  if (!regOn) return <span className={cx("inline-flex items-center justify-center px-6 py-4 font-semibold ring-1 ring-current/20", className)}>No registration needed. Just come!</span>;
+  if (closed) return <span className={cx("inline-flex items-center justify-center px-6 py-4 font-semibold opacity-80 ring-1 ring-current/20", className)}>Registration has closed</span>;
+  return <button type="button" onClick={onClick} className={cx("ev-btn inline-flex items-center justify-center gap-3 bg-[var(--ev-accent)] px-7 py-4 text-[16.5px] font-semibold text-[var(--ev-on-accent)] shadow-xl shadow-black/15", className)}>{label} <Arrow /></button>;
 }
 
-function RegButton({ closed, regOn, label, onClick, big }: { closed: boolean; regOn: boolean; label: string; onClick: () => void; big?: boolean }) {
-  if (!regOn) return <span className="inline-flex rounded-2xl bg-[var(--ev-card)] px-5 py-3.5 font-semibold text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]">No registration needed. Just come!</span>;
-  if (closed) return <span className="inline-flex rounded-2xl bg-[var(--ev-card)] px-5 py-3.5 font-semibold text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]">Registration has closed</span>;
-  return (
-    <button type="button" onClick={onClick} className={cx("inline-flex items-center gap-2 rounded-2xl bg-[var(--ev-accent)] font-semibold text-[var(--ev-on-accent)] shadow-xl shadow-black/15 transition hover:-translate-y-0.5", big ? "px-8 py-4 text-[17px]" : "px-6 py-3.5 text-[16px]")}>
-      <Ticket size={18} /> {label} <ArrowRight size={17} />
-    </button>
-  );
-}
-
-function Poster({ e, church, className }: { e: ChurchEvent; church: ChurchInfo; className?: string }) {
-  if (e.flyer) return <img src={e.flyer} alt={`${e.title} flyer`} className={cx("w-full rounded-[28px] object-cover shadow-2xl shadow-black/25", className)} />;
-  return (
-    <div className={cx("relative flex aspect-[4/5] w-full flex-col justify-between overflow-hidden rounded-[28px] p-8 text-white shadow-2xl shadow-black/25", className)} style={{ background: COVERS[e.cover % COVERS.length] }}>
-      <div aria-hidden className="absolute -right-20 -top-20 size-80 rounded-full bg-white/15 blur-3xl" />
-      <p className="relative text-[13px] font-semibold uppercase tracking-[.25em] text-white/80">{church.name}</p>
-      <div className="relative">
-        {themeOf(e) && <p className="mb-3 text-[15px] italic text-white/85">“{themeOf(e)}”</p>}
-        <p className="font-display text-[44px] font-bold leading-[.95] tracking-tight">{e.title}</p>
-        <p className="mt-5 text-[15px] font-medium">{whenLine(e)}</p>
-      </div>
-    </div>
-  );
-}
-
-/** A self-scrolling carousel: one picture at a time, sliding every few seconds; swipe or tap the dots. */
-function Carousel({ slides, className }: { slides: string[]; className?: string }) {
+/** Pictures that fade into each other by themselves (behind a headline, or inside a frame). */
+function Fader({ slides, className, imgClass }: { slides: string[]; className?: string; imgClass?: string }) {
   const [i, setI] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const x0 = useRef<number | null>(null);
   useEffect(() => {
-    if (paused || slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 4200);
+    if (slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 4500);
     return () => clearInterval(t);
-  }, [paused, slides.length]);
+  }, [slides.length]);
   return (
-    <div className={cx("relative overflow-hidden rounded-[28px] shadow-2xl shadow-black/25", className)} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-      onTouchStart={(t) => { x0.current = t.touches[0].clientX; setPaused(true); }}
-      onTouchEnd={(t) => { const d = (x0.current ?? 0) - t.changedTouches[0].clientX; if (Math.abs(d) > 40) setI((n) => (n + (d > 0 ? 1 : slides.length - 1)) % slides.length); x0.current = null; setPaused(false); }}>
-      <div className="flex transition-transform duration-700 ease-out" style={{ transform: `translateX(-${i * 100}%)` }}>
-        {slides.map((s, k) => <img key={k} src={s} alt="" className="aspect-[4/5] w-full shrink-0 object-cover" loading={k ? "lazy" : "eager"} />)}
-      </div>
-      {slides.length > 1 && (
-        <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5">{slides.map((_, k) => (
-          <button key={k} type="button" onClick={() => setI(k)} aria-label={`Picture ${k + 1}`} className={cx("h-1.5 rounded-full bg-white transition-all", k === i ? "w-6" : "w-1.5 opacity-60")} />
-        ))}</div>
-      )}
+    <div className={cx("relative overflow-hidden", className)}>
+      {slides.map((s, k) => <img key={k} src={s} alt="" loading={k ? "lazy" : "eager"} className={cx("absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[1600ms] ease-out", k === i ? "scale-100 opacity-100" : "scale-[1.04] opacity-0", imgClass)} />)}
+      {slides.length > 1 && <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center gap-1.5">{slides.map((_, k) => <button key={k} type="button" onClick={() => setI(k)} aria-label={`Picture ${k + 1}`} className={cx("h-1.5 rounded-full bg-white transition-all", k === i ? "w-7" : "w-1.5 opacity-50")} />)}</div>}
     </div>
   );
 }
 
-type HeadProps = { e: ChurchEvent; church: ChurchInfo; registered: number; recent: string[]; H: string; closed: boolean; regOn: boolean; label: string; onRegister: () => void };
+/** Background art for a look when there is no picture: shapes and light in the page's colours. */
+function Art({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cx("absolute inset-0 overflow-hidden", className)}>
+      <div className="absolute -left-[10%] top-[-20%] h-[80%] w-[60%] rounded-full opacity-60 blur-[90px]" style={{ background: "var(--ev-accent)" }} />
+      <div className="absolute bottom-[-25%] right-[-10%] h-[80%] w-[55%] rounded-full opacity-45 blur-[100px]" style={{ background: "var(--ev-icon)" }} />
+      <div className="absolute inset-0 opacity-[.07]" style={{ backgroundImage: "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
+    </div>
+  );
+}
 
-/** The headline: a flyer, a short video or a carousel, with the title, the countdown and Register. */
-function Headline({ e, church, registered, recent, H, closed, regOn, label, onRegister }: HeadProps) {
+/** The headline picture for a frame: the carousel, the video (silent loop; tap for sound), the picture or flyer. */
+function MediaFrame({ e, className, cover = true }: { e: ChurchEvent; className?: string; cover?: boolean }) {
   const m = headline(e);
+  const [sound, setSound] = useState(false);
+  if (m.kind === "carousel") return <Fader slides={m.slides} className={className} />;
+  if (m.kind === "video") return (
+    <div className={cx("relative overflow-hidden bg-black", className)}>
+      <video src={m.src} poster={m.poster} autoPlay muted={!sound} loop playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" />
+      <button type="button" onClick={() => setSound(!sound)} className="absolute bottom-3 right-3 rounded-full bg-black/55 px-3 py-1.5 text-[12px] font-semibold text-white backdrop-blur">{sound ? "Sound off" : "Tap for sound"}</button>
+    </div>
+  );
+  if (m.src) return <div className={cx("relative overflow-hidden", className)}><img src={m.src} alt={`${e.title}`} className={cx("absolute inset-0 h-full w-full", cover ? "object-cover" : "object-contain")} /></div>;
+  return <div className={cx("relative overflow-hidden bg-[var(--ev-card)]", className)}><Art /></div>;
+}
+/** A flyer has its own words on it: it sits beside the title, never behind it. */
+const isFlyer = (e: ChurchEvent) => headline(e).kind === "flyer" && !!e.flyer;
+
+type HeroProps = { e: ChurchEvent; church: ChurchInfo; registered: number; recent: string[]; closed: boolean; regOn: boolean; label: string; onRegister: () => void };
+
+// ---------------- Cinematic: dark, full-screen, dramatic ----------------
+function CinematicHero({ e, church, registered, recent, closed, regOn, label, onRegister }: HeroProps) {
+  const m = headline(e);
+  const flyer = isFlyer(e);
+  const theme = themeOf(e);
   const text = (
     <div className="min-w-0">
-      {themeOf(e) && <p className="text-[13.5px] font-semibold uppercase tracking-[.2em] text-[var(--ev-icon)]">{themeOf(e)}</p>}
-      <h1 className={cx(H, "mt-3 break-words text-[clamp(38px,9vw,76px)] font-bold leading-[1]")}>{e.title}</h1>
-      {e.verse?.text && <p className="mt-4 max-w-xl text-[16px] italic text-[var(--ev-muted)]">“{e.verse.text}” <span className="not-italic font-medium">{e.verse.ref}</span></p>}
-      <div className="mt-6"><Chips e={e} /></div>
-      <div className="mt-7"><Countdown to={e.start} big /></div>
-      <div className="mt-7 flex flex-wrap items-center gap-5"><RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} big /><Proof registered={registered} recent={recent} /></div>
+      <p className="ev-k" style={{ letterSpacing: ".3em" }}>{church.name} presents</p>
+      <h1 className={cx("ev-d mt-5 break-words", e.title.length > 18 ? "text-[clamp(46px,8.4vw,128px)]" : "text-[clamp(56px,12vw,176px)]")}>{e.title}</h1>
+      {theme && <p className="ev-s mt-5 max-w-3xl text-[clamp(24px,3.6vw,44px)] leading-[1.08] opacity-95">{theme}</p>}
+      <p className="mt-6 flex flex-wrap gap-x-6 gap-y-1 text-[15.5px] opacity-80"><span>{whenLine(e)}</span><span>{placeOf(e)}</span>{e.mode === "hybrid" && <span>and online</span>}</p>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} className="rounded-full" />
+        <a href="#about" className="ev-btn inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 text-[15.5px] font-semibold ring-1 ring-white/25 backdrop-blur hover:bg-white/10">Learn more</a>
+      </div>
     </div>
   );
-  if (m.kind === "video") {
-    return (
-      <header className="relative overflow-hidden">
-        <video src={m.src} poster={m.poster} autoPlay muted loop playsInline aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-        <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(to top, var(--ev-page) 4%, color-mix(in oklab, var(--ev-page) 72%, transparent) 45%, color-mix(in oklab, var(--ev-page) 35%, transparent))" }} />
-        <div className="relative mx-auto flex min-h-[86svh] max-w-6xl items-end px-4 pb-14 pt-24 md:pb-20">{text}</div>
-      </header>
-    );
-  }
-  return (
-    <header className="relative overflow-hidden">
-      <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(800px 520px at 85% -10%, color-mix(in oklab, var(--ev-accent) 28%, transparent), transparent 70%), radial-gradient(600px 400px at 0% 100%, color-mix(in oklab, var(--ev-icon) 16%, transparent), transparent 70%)" }} />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] md:py-20">
-        <div className="order-2 md:order-1">{text}</div>
-        <div className="order-1 mx-auto w-full max-w-[440px] md:order-2">
-          {m.kind === "carousel" ? <Carousel slides={m.slides} /> : <Poster e={e} church={church} className="md:rotate-1" />}
+  const strip = (
+    <div className="mt-12 flex flex-col gap-5 border-t border-white/15 pt-7 md:flex-row md:items-center md:justify-between">
+      <Countdown to={e.start} />
+      <Proof registered={registered} recent={recent} />
+    </div>
+  );
+  if (flyer) return (
+    <header id="top" className="relative overflow-hidden text-white">
+      <img src={e.flyer} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-35 blur-3xl" />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in oklab, var(--ev-page) 55%, transparent), var(--ev-page))" }} />
+      <div className="relative mx-auto grid max-w-[1240px] items-center gap-12 px-5 pb-16 pt-12 md:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] md:px-10 md:pb-24 md:pt-20">
+        <div className="order-2 md:order-1">{text}{strip}</div>
+        <div className="order-1 mx-auto w-full max-w-[420px] md:order-2">
+          <div className="relative">
+            <div aria-hidden className="absolute -inset-6 rounded-[40px] opacity-60 blur-3xl" style={{ background: "var(--ev-accent)" }} />
+            <img src={e.flyer} alt={`${e.title} flyer`} className="relative w-full rounded-[22px] shadow-2xl ring-1 ring-white/15 md:rotate-[1.5deg]" />
+          </div>
         </div>
       </div>
     </header>
+  );
+  return (
+    <header id="top" className="relative flex min-h-[92svh] items-end overflow-hidden text-white md:min-h-[880px]">
+      {m.kind === "carousel" ? <Fader slides={m.slides} className="absolute inset-0" />
+        : m.kind === "video" ? <video src={m.src} poster={m.poster} autoPlay muted loop playsInline preload="metadata" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+        : m.src ? <img src={m.src} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-[var(--ev-page)]"><Art /></div>}
+      <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,.1) 32%, color-mix(in oklab, var(--ev-page) 86%, transparent) 76%, var(--ev-page) 100%)" }} />
+      <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(900px 520px at 12% 92%, color-mix(in oklab, var(--ev-icon) 30%, transparent), transparent 70%)" }} />
+      <div className="relative mx-auto w-full max-w-[1240px] px-5 pb-12 pt-28 md:px-10 md:pb-16">{text}{strip}</div>
+    </header>
+  );
+}
+
+// ---------------- Editorial: light, magazine-like ----------------
+function EditorialHero({ e, church, registered, recent, closed, regOn, label, onRegister }: HeroProps) {
+  const theme = themeOf(e);
+  const flyer = isFlyer(e);
+  const side = e.gallery?.[0] ?? e.page?.host?.photos?.[0];
+  const kind = e.mode === "virtual" ? "Online" : e.venues?.[0]?.name ?? e.venue ?? "";
+  return (
+    <header id="top" className="pt-10 md:pt-14">
+      <div className="mx-auto max-w-[1240px] px-5 md:px-10">
+        <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-[var(--ev-fg)] pb-3 text-[12px] font-semibold uppercase tracking-[.22em]">
+          <span>{church.name}</span><span className="hidden md:inline">{kind}</span><span>{whenLine(e)}</span>
+        </div>
+        <div className="mt-8 grid gap-8 md:grid-cols-12 md:items-end">
+          <h1 className={cx("ev-d break-words md:col-span-8", e.title.length > 18 ? "text-[clamp(52px,9vw,140px)]" : "text-[clamp(64px,13vw,210px)]")}>{e.title}<span className="text-[var(--ev-accent)]">.</span></h1>
+          <div className="md:col-span-4 md:pb-6">
+            {theme && <p className="ev-s text-[30px] leading-[1.1] md:text-[34px]">{theme}</p>}
+            {(e.tagline || e.description) && <p className="mt-3 text-[16.5px] leading-relaxed text-[var(--ev-muted)]">{(e.tagline || e.description || "").split(/(?<=\.)\s/)[0]}</p>}
+            <div className="mt-6"><RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} className="w-full rounded-full sm:w-auto" /></div>
+            <div className="mt-5"><Proof registered={registered} recent={recent} /></div>
+          </div>
+        </div>
+        <div className="mt-10 grid gap-8 md:grid-cols-12">
+          {flyer ? (
+            <>
+              <div className="flex flex-col justify-end gap-8 md:col-span-7">
+                {e.verse?.text && <p className="ev-s text-[26px] leading-snug md:text-[34px]">“{e.verse.text}” <span className="text-[14px] not-italic tracking-wide text-[var(--ev-muted)]">{e.verse.ref}</span></p>}
+                <div><p className="ev-k mb-3 text-[var(--ev-muted)]">Starts in</p><Countdown to={e.start} variant="serif" /></div>
+              </div>
+              <figure className="md:col-span-5"><img src={e.flyer} alt={`${e.title} flyer`} className="w-full shadow-[0_30px_80px_-30px_rgba(0,0,0,.45)]" /></figure>
+            </>
+          ) : (
+            <>
+              <figure className="md:col-span-8">
+                <MediaFrame e={e} className="h-[420px] w-full md:h-[600px]" />
+                <figcaption className="mt-2.5 text-[13px] text-[var(--ev-muted)]">{whenLine(e)}{kind ? ` · ${kind}` : ""}</figcaption>
+              </figure>
+              <div className="flex flex-col justify-between gap-8 md:col-span-4">
+                {side ? <img src={side} alt="" className="hidden h-[340px] w-full object-cover md:block" /> : <div className="hidden md:block" />}
+                <div><p className="ev-k mb-3 text-[var(--ev-muted)]">Starts in</p><Countdown to={e.start} variant="serif" /></div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/** Editorial: the verse as a full-width band in the main colour. */
+function VerseBand({ e }: { e: ChurchEvent }) {
+  return (
+    <section className="ev-r -mx-5 bg-[var(--ev-accent)] px-5 py-24 text-center text-[var(--ev-on-accent)] md:-mx-10 md:py-32" style={{ marginLeft: "calc(50% - 50vw)", marginRight: "calc(50% - 50vw)" }}>
+      <p className="ev-s mx-auto max-w-5xl text-[clamp(30px,4.6vw,60px)] leading-[1.12]">“{e.verse!.text}”</p>
+      <p className="mt-7 text-[12.5px] font-semibold uppercase tracking-[.24em] opacity-75">{e.verse!.ref}</p>
+    </section>
+  );
+}
+
+// ---------------- Bold: huge type, colour blocks ----------------
+function BoldHero({ e, church, registered, recent, closed, regOn, label, onRegister }: HeroProps) {
+  const theme = themeOf(e);
+  const flyer = isFlyer(e);
+  return (
+    <header id="top" className="relative overflow-hidden">
+      <div className="bg-[var(--ev-card)] text-[var(--ev-card-fg)]">
+        <div className="mx-auto max-w-[1240px] px-5 pb-16 pt-10 md:px-10 md:pb-20 md:pt-16">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-[var(--ev-card-fg)] px-4 py-1.5 text-[12.5px] font-bold uppercase tracking-[.14em] text-[var(--ev-card)]">{church.name}</span>
+            {theme && <span className="-rotate-2 rounded-lg bg-[var(--ev-page)] px-4 py-1.5 text-[14px] font-bold text-[var(--ev-fg)] shadow-lg">{theme}</span>}
+          </div>
+          <h1 className={cx("ev-d mt-7 break-words", e.title.length > 18 ? "text-[clamp(32px,8.8vw,132px)]" : "text-[clamp(44px,12vw,190px)]")}>{e.title}</h1>
+          <div className="mt-8 grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="space-y-1 text-[clamp(20px,2.4vw,30px)] font-extrabold uppercase leading-tight tracking-tight" style={{ fontFamily: '"Archivo Variable"' }}>
+              <p>{whenLine(e)}</p><p className="opacity-70">{placeOf(e)}{e.mode === "hybrid" ? " + online" : ""}</p>
+            </div>
+            <RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} className="rounded-2xl !bg-[var(--ev-card-fg)] !text-[var(--ev-card)] text-[17px] uppercase tracking-wide" />
+          </div>
+        </div>
+      </div>
+      <div className="mx-auto grid max-w-[1240px] gap-10 px-5 py-12 md:grid-cols-12 md:items-center md:px-10 md:py-16">
+        <div className="md:col-span-7">
+          {flyer ? <img src={e.flyer} alt={`${e.title} flyer`} className="mx-auto w-full max-w-[460px] -rotate-2 rounded-[22px] shadow-2xl ring-4 ring-[var(--ev-fg)]" />
+            : <MediaFrame e={e} className="h-[340px] w-full -rotate-1 rounded-[22px] shadow-2xl ring-4 ring-[var(--ev-fg)] md:h-[520px]" />}
+        </div>
+        <div className="space-y-7 md:col-span-5">
+          <p className="ev-k" style={{ color: "var(--ev-fg)" }}>Starts in</p>
+          <Countdown to={e.start} variant="block" />
+          <Proof registered={registered} recent={recent} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/** A slow band of words from the theme (Cinematic: outlined; Bold: solid on black). */
+function Marquee({ e, bold }: { e: ChurchEvent; bold: boolean }) {
+  const stop = new Set(["and", "the", "for", "with", "our", "your", "you", "from", "into", "unto", "this", "that", "are", "all", "of", "in", "to", "a"]);
+  const words = [...new Set([...(themeOf(e) || e.title).split(/[^\p{L}\p{N}']+/u).filter((w) => w.length > 2 && !stop.has(w.toLowerCase())), e.title.split(/[:–-]/)[0].trim()])].slice(0, 5);
+  const row = [...words, ...words];
+  return (
+    <div aria-hidden className={cx("overflow-hidden py-6 md:py-7", bold ? "bg-[var(--ev-fg)] text-[var(--ev-page)]" : "border-y border-[var(--ev-line)]")}>
+      <div className="ev-mq">{[0, 1].map((k) => (
+        <div key={k} className="flex shrink-0 items-center gap-12">{row.map((w, i) => (
+          <span key={i} className="flex items-center gap-12">
+            <span className="ev-d whitespace-nowrap text-[44px] md:text-[60px]" style={!bold && i % 2 === 0 ? { color: "transparent", WebkitTextStroke: "1.2px var(--ev-fg)", opacity: 0.5 } : undefined}>{w}</span>
+            <span className="text-[28px]" style={{ color: bold ? "var(--ev-card)" : "var(--ev-accent)" }}>✦</span>
+          </span>
+        ))}</div>
+      ))}</div>
+    </div>
   );
 }
 
@@ -341,88 +523,117 @@ function LiveBar({ e, live, people }: { e: ChurchEvent; live: NonNullable<Return
 }
 
 // ---------------- Sections ----------------
-function SectionTitle({ id, kicker, title, H }: { id: string; kicker?: string; title: string; H: string }) {
+/** Every section opens the same way: a numbered label (01 —, I., (01)) and a big title. */
+function SectionTitle({ id, kicker, title, H, side }: { id: string; kicker?: string; title: ReactNode; H: string; side?: ReactNode }) {
   return (
-    <div id={id} className="mb-6 scroll-mt-24">
-      {kicker && <p className="text-[12.5px] font-semibold uppercase tracking-[.2em] text-[var(--ev-icon)]">{kicker}</p>}
-      <h2 className={cx(H, "mt-1.5 text-[30px] font-semibold leading-tight md:text-[36px]")}>{title}</h2>
+    <div id={id} className="mb-10 scroll-mt-28 md:mb-14">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          {kicker && <p className="ev-k ev-num">{kicker}</p>}
+          <h2 className={cx(H, "mt-4 max-w-4xl text-[clamp(38px,6vw,72px)]")}>{title}</h2>
+        </div>
+        {side}
+      </div>
     </div>
   );
 }
 
-const card = "rounded-3xl bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
+const card = "rounded-[var(--ev-radius)] bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]";
 
 function About({ e, H, registered, full }: { e: ChurchEvent; H: string; registered: number; full: boolean }) {
-  const tiles = [
-    { icon: Users, k: "Who", v: "Everyone is welcome", s: registered >= 5 ? `${registered.toLocaleString()} registered so far` : undefined },
-    { icon: Ticket, k: "Cost", v: "Free", s: e.capacity ? (full ? "Fully booked: join the waiting list" : `${Math.max(0, e.capacity - registered)} places left`) : undefined },
+  const lead = e.tagline?.trim() || themeOf(e) || e.title;
+  // Editorial already shows the first gallery picture in the headline
+  const pics = [...(e.page?.media?.kind === "carousel" ? e.page.media.slides ?? [] : []), ...(e.gallery ?? []), ...(e.page?.host?.photos ?? [])].slice(lookOf(e) === "editorial" ? 1 : 0).slice(0, 2);
+  const facts = [
+    { k: "Who", v: "Everyone is welcome" },
+    { k: "Cost", v: full ? "Free · waiting list" : e.capacity ? `Free · ${Math.max(0, e.capacity - registered)} places left` : "Free" },
+    { k: "Where", v: e.mode === "virtual" ? "Online" : `${placeOf(e)}${e.mode === "hybrid" ? " and online" : ""}` },
   ];
   return (
-    <section className="grid gap-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,.7fr)] md:items-start">
-      <div>
-        <SectionTitle id="about" kicker="About" title={themeOf(e) || e.title} H={H} />
-        {e.description && <p className="whitespace-pre-line text-[17px] leading-relaxed text-[var(--ev-muted)]">{e.description}</p>}
-        {e.verse?.text && (
-          <figure className={cx(card, "mt-6 flex gap-4 p-6")}>
-            <Quote size={26} className="shrink-0 text-[var(--ev-icon)]" />
-            <blockquote><p className={cx(H, "text-[20px] font-medium leading-snug")}>{e.verse.text}</p><figcaption className="mt-2 text-[13px] font-semibold uppercase tracking-[.15em] text-[var(--ev-muted)]">{e.verse.ref}</figcaption></blockquote>
-          </figure>
-        )}
-      </div>
-      <div className="grid gap-3 md:pt-16">
-        {tiles.map((t) => (
-          <div key={t.k} className={cx(card, "flex gap-4 p-5")}>
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl" style={{ background: "color-mix(in oklab, var(--ev-icon) 18%, transparent)", color: "var(--ev-icon)" }}><t.icon size={19} /></span>
-            <span className="min-w-0"><span className="block text-[12px] font-semibold uppercase tracking-wider text-[var(--ev-muted)]">{t.k}</span><span className="block text-[16px] font-semibold">{t.v}</span>{t.s && <span className="block text-[13.5px] text-[var(--ev-muted)]">{t.s}</span>}</span>
+    <section className="ev-r">
+      <div className={cx("grid gap-12", pics.length > 0 && "md:grid-cols-12")}>
+        <div className={pics.length ? "md:col-span-7" : ""}>
+          <p id="about" className="ev-k ev-num scroll-mt-28">About</p>
+          <h2 className={cx(H, "mt-5 max-w-4xl text-[clamp(34px,5vw,64px)]")} style={{ lineHeight: 1.02 }}>{lead}</h2>
+          {e.description && <p className="mt-8 max-w-2xl whitespace-pre-line text-[18px] leading-[1.75] text-[var(--ev-muted)]">{e.description}</p>}
+          {e.verse?.text && lookOf(e) !== "editorial" && (
+            <figure className="mt-10 border-l-2 border-[var(--ev-accent)] pl-6">
+              <blockquote className="ev-s text-[26px] leading-snug md:text-[30px]">“{e.verse.text}”</blockquote>
+              <figcaption className="mt-3 text-[12px] font-semibold uppercase tracking-[.2em] text-[var(--ev-muted)]">{e.verse.ref}</figcaption>
+            </figure>
+          )}
+          <dl className="mt-10 grid max-w-2xl grid-cols-1 gap-px overflow-hidden rounded-[var(--ev-radius)] bg-[var(--ev-line)] sm:grid-cols-3">
+            {facts.map((f) => <div key={f.k} className="bg-[var(--ev-page)] p-4"><dt className="text-[11.5px] font-semibold uppercase tracking-[.18em] text-[var(--ev-muted)]">{f.k}</dt><dd className="mt-1 text-[15px] font-semibold">{f.v}</dd></div>)}
+          </dl>
+        </div>
+        {pics.length > 0 && (
+          <div className="relative min-h-[420px] md:col-span-5 md:min-h-[560px]">
+            <img src={pics[0]} alt="" className="absolute right-0 top-0 h-[78%] w-[80%] rounded-[var(--ev-radius)] object-cover" />
+            {pics[1] && <img src={pics[1]} alt="" className="absolute bottom-0 left-0 h-[44%] w-[62%] rounded-[var(--ev-radius)] object-cover ring-[6px] ring-[var(--ev-page)]" />}
           </div>
-        ))}
+        )}
       </div>
     </section>
   );
 }
 
 function Face({ p, size, ring = "" }: { p: EventPerson; size: number; ring?: string }) {
-  const tones = ["#4f46e5", "#db2777", "#0f766e", "#ea580c", "#0284c7", "#7c3aed"];
-  const tone = tones[(p.name.charCodeAt(0) + p.name.length) % tones.length];
   return p.photo
     ? <img src={p.photo} alt="" className={cx("shrink-0 rounded-full object-cover", ring)} style={{ width: size, height: size }} />
-    : <span className={cx("flex shrink-0 items-center justify-center rounded-full font-bold text-white", ring)} style={{ width: size, height: size, background: tone, fontSize: size * 0.36 }}>{initials(p.name)}</span>;
+    : <span className={cx("flex shrink-0 items-center justify-center rounded-full font-semibold text-[var(--ev-on-accent)]", ring)} style={{ width: size, height: size, fontSize: size * 0.36, background: "var(--ev-accent)" }}>{initials(p.name)}</span>;
 }
 
-/** Speakers: sliding cards; tap one for the bio. */
+/** No photo: a neat silhouette in the page's colours, never coloured squares with initials. */
+function Silhouette() {
+  return (
+    <svg viewBox="0 0 100 125" className="absolute inset-0 h-full w-full" aria-hidden preserveAspectRatio="xMidYMax slice">
+      <rect width="100" height="125" fill="var(--ev-card)" />
+      <circle cx="50" cy="48" r="19" fill="currentColor" opacity=".18" />
+      <path d="M12 125c2-26 18-40 38-40s36 14 38 40z" fill="currentColor" opacity=".18" />
+    </svg>
+  );
+}
+
+/** Speakers: large portraits in one treatment (tinted, black-and-white or framed), sliding on phones; tap for the bio. */
 function PeopleGrid({ e, people, H }: { e: ChurchEvent; people: EventPerson[]; H: string }) {
   const [open, setOpen] = useState<EventPerson | null>(null);
   const row = useRef<HTMLDivElement>(null);
+  const look = lookOf(e);
   const order = ["Speaker", "Minister", "Music minister", "Host", "Special guest"];
   const sorted = [...people].sort((a, b) => (order.indexOf(a.label) + 1 || 9) - (order.indexOf(b.label) + 1 || 9));
-  const slide = (d: number) => row.current?.scrollBy({ left: d * Math.min(320, row.current.clientWidth * 0.8), behavior: "smooth" });
+  const slide = (d: number) => row.current?.scrollBy({ left: d * Math.min(340, row.current.clientWidth * 0.8), behavior: "smooth" });
   return (
-    <section>
-      <div className="flex items-end justify-between gap-3">
-        <SectionTitle id="people" kicker="On the programme" title={people.every((p) => p.label === "Speaker") ? "Speakers" : "Ministering"} H={H} />
-        {sorted.length > 2 && <div className="mb-6 hidden gap-2 md:flex">
-          <button type="button" onClick={() => slide(-1)} aria-label="Previous" className="flex size-10 items-center justify-center rounded-full ring-1 ring-[var(--ev-line)] hover:bg-[var(--ev-card)]"><ArrowLeft size={17} /></button>
-          <button type="button" onClick={() => slide(1)} aria-label="Next" className="flex size-10 items-center justify-center rounded-full ring-1 ring-[var(--ev-line)] hover:bg-[var(--ev-card)]"><ArrowRight size={17} /></button>
-        </div>}
-      </div>
-      <div ref={row} className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-        {sorted.map((p) => (
-          <button type="button" key={p.id} onClick={() => setOpen(p)} className={cx(card, "group w-[72%] max-w-[290px] shrink-0 snap-start overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-xl sm:w-[260px]")}>
-            <div className="relative aspect-[4/5] overflow-hidden">
-              {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                : <div className="flex h-full items-center justify-center" style={{ background: COVERS[(p.name.length + (e.cover ?? 0)) % COVERS.length] }}><span className="font-display text-[56px] font-bold text-white/90">{initials(p.name)}</span></div>}
-              <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11.5px] font-semibold text-white backdrop-blur">{p.label}</span>
+    <section className="ev-r">
+      <SectionTitle id="people" kicker="Ministering" title={people.every((p) => p.label === "Speaker") ? "Speakers" : "The voices"} H={H}
+        side={sorted.length > 3 ? (
+          <div className="hidden gap-2 md:flex">
+            <button type="button" onClick={() => slide(-1)} aria-label="Previous" className="flex size-12 items-center justify-center rounded-full ring-1 ring-[var(--ev-line)] hover:bg-[var(--ev-card)]"><ArrowLeft size={18} /></button>
+            <button type="button" onClick={() => slide(1)} aria-label="Next" className="flex size-12 items-center justify-center rounded-full ring-1 ring-[var(--ev-line)] hover:bg-[var(--ev-card)]"><ArrowRight size={18} /></button>
+          </div>
+        ) : undefined} />
+      <div ref={row} className="ev-noscroll -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 md:mx-0 md:gap-6 md:px-0">
+        {sorted.map((p, i) => (
+          <button type="button" key={p.id} onClick={() => setOpen(p)} className={cx("ev-zoom group flex w-[70%] flex-col self-start max-w-[300px] shrink-0 snap-start text-left sm:w-[270px]", look === "bold" && (i % 2 ? "md:rotate-1" : "md:-rotate-1"))}>
+            <div className={cx("ev-duo relative aspect-[4/5] overflow-hidden rounded-[var(--ev-radius)]", look === "bold" && "ring-4 ring-[var(--ev-fg)]")}>
+              {p.photo ? <img src={p.photo} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <Silhouette />}
+              <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[.12em] text-white backdrop-blur">{p.label}</span>
             </div>
-            <div className="p-4"><p className="font-semibold leading-tight">{p.name}</p>{(p.from || p.bio) && <p className="mt-1 line-clamp-2 text-[13px] text-[var(--ev-muted)]">{p.from ?? p.bio}</p>}{p.bio && <p className="mt-2 text-[12.5px] font-semibold text-[var(--ev-icon)]">Read bio</p>}</div>
+            <p className={cx("mt-4 text-[20px] leading-tight", look === "editorial" ? "ev-s not-italic" : "font-bold tracking-tight")}>{p.name}</p>
+            {(p.from || p.bio) && <p className="mt-1 line-clamp-1 text-[14px] text-[var(--ev-muted)]">{p.from ?? p.bio}</p>}
           </button>
         ))}
       </div>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 backdrop-blur-sm md:items-center" onClick={() => setOpen(null)} role="dialog" aria-modal aria-label={open.name}>
-          <div className={cx(card, "pop relative max-h-[85vh] w-full max-w-md overflow-y-auto p-6")} onClick={(x) => x.stopPropagation()}>
-            <button type="button" onClick={() => setOpen(null)} className="absolute right-4 top-4 rounded-full p-1.5 text-[var(--ev-muted)] hover:bg-black/5" aria-label="Close"><X size={18} /></button>
-            <div className="flex items-center gap-4"><Face p={open} size={72} /><div><p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--ev-icon)]">{open.label}</p><p className={cx(H, "text-[22px] font-semibold leading-tight")}>{open.name}</p>{open.from && <p className="text-[13.5px] text-[var(--ev-muted)]">{open.from}</p>}</div></div>
-            {open.bio && <p className="mt-5 whitespace-pre-line text-[15.5px] leading-relaxed text-[var(--ev-muted)]">{open.bio}</p>}
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center" onClick={() => setOpen(null)} role="dialog" aria-modal aria-label={open.name}>
+          <div className={cx(card, "relative max-h-[86vh] w-full max-w-lg overflow-y-auto")} onClick={(x) => x.stopPropagation()}>
+            {open.photo && <img src={open.photo} alt="" className="h-64 w-full object-cover" />}
+            <button type="button" onClick={() => setOpen(null)} className="absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white backdrop-blur" aria-label="Close"><X size={18} /></button>
+            <div className="p-6">
+              <p className="ev-k">{open.label}</p>
+              <p className={cx(H, "mt-2 text-[30px]")}>{open.name}</p>
+              {open.from && <p className="mt-1 text-[14.5px] text-[var(--ev-muted)]">{open.from}</p>}
+              {open.bio && <p className="mt-5 whitespace-pre-line text-[16px] leading-relaxed text-[var(--ev-muted)]">{open.bio}</p>}
+            </div>
           </div>
         </div>
       )}
@@ -430,85 +641,108 @@ function PeopleGrid({ e, people, H }: { e: ChurchEvent; people: EventPerson[]; H
   );
 }
 
+/** Programme: day tabs, then the sessions with the time in its own column. */
 function Programme({ e, people, H, now }: { e: ChurchEvent; people: EventPerson[]; H: string; now: number }) {
   const days = daysOf(e);
   const live = happeningNow(e, now);
   const [d, setD] = useState(live?.dayIndex ?? 0);
   const day = days[d] ?? days[0];
+  const look = lookOf(e);
   const sessions = day.sessions?.length ? [...day.sessions].sort((a, b) => a.start.localeCompare(b.start)) : e.schedule.map((s, i) => ({ id: `o${i}`, start: "", title: s.item, label: s.time }));
   return (
-    <section>
-      <SectionTitle id="programme" kicker="Programme" title={days.length > 1 ? `${days.length} days` : "On the day"} H={H} />
-      {days.length > 1 && (
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{days.map((x, i) => (
-          <button type="button" key={x.date} onClick={() => setD(i)} className={cx("shrink-0 rounded-2xl px-4 py-2.5 text-left ring-1 transition", i === d ? "bg-[var(--ev-accent)] text-[var(--ev-on-accent)] ring-transparent" : "bg-[var(--ev-card)] ring-[var(--ev-line)]")}>
-            <span className="block text-[12px] font-semibold uppercase tracking-wider opacity-80">Day {i + 1}{live?.dayIndex === i ? " · Today" : ""}</span>
-            <span className="block text-[14.5px] font-semibold">{fmtDay(x.date, { weekday: "short", day: "numeric", month: "short" })}</span>
-          </button>
-        ))}</div>
-      )}
-      <div className={cx(card, "p-5 md:p-6")}>
-        <p className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><span className="font-semibold">{day.title ?? fmtDay(day.date)}</span><span className="text-[13.5px] text-[var(--ev-muted)]">{t12(day.start)} to {t12(day.end)}</span></p>
-        <ol className="relative space-y-1 border-l-2 border-[var(--ev-line)] pl-5">
-          {sessions.map((s) => {
-            const isNow = live?.dayIndex === d && live.session?.id === s.id;
-            const who = "personIds" in s ? (s.personIds ?? []).map((id) => people.find((p) => p.id === id)).filter(Boolean) as EventPerson[] : [];
-            const venue = "venueId" in s && s.venueId ? e.venues?.find((v) => v.id === s.venueId) : undefined;
+    <section className="ev-r grid gap-10 md:grid-cols-12">
+      <div className="md:col-span-4">
+        <p id="programme" className="ev-k ev-num scroll-mt-28">Programme</p>
+        <h2 className={cx(H, "mt-4 text-[clamp(38px,5vw,64px)]")}>{days.length > 1 ? <>{days.length} days, <span className="ev-s">hour by hour</span></> : <>On the <span className="ev-s">day</span></>}</h2>
+        {days.length > 1 && (
+          <div className="ev-noscroll mt-8 flex gap-2 overflow-x-auto md:flex-col">{days.map((x, i) => {
+            const on = i === d;
             return (
-              <li key={s.id} className={cx("relative rounded-2xl px-3 py-3", isNow && "bg-[color-mix(in_oklab,var(--ev-accent)_12%,transparent)]")}>
-                <span className={cx("absolute -left-[27px] top-4 size-3.5 rounded-full ring-4 ring-[var(--ev-card)]", isNow ? "bg-[#e11d48]" : "bg-[var(--ev-accent)]")} />
-                <p className="text-[13px] font-semibold text-[var(--ev-accent)]">{"label" in s ? s.label : `${t12(s.start)}${"end" in s && s.end ? ` to ${t12(s.end)}` : ""}`}{isNow && <span className="ml-2 rounded-md bg-[#e11d48] px-1.5 py-0.5 text-[10.5px] font-bold uppercase text-white">Now</span>}</p>
-                <p className="text-[16px] font-semibold">{s.title}</p>
+              <button type="button" key={x.date} onClick={() => setD(i)} aria-pressed={on}
+                className={cx("shrink-0 px-5 py-4 text-left transition md:w-full",
+                  look === "editorial" ? cx("border-b border-[var(--ev-line)]", on ? "border-l-[3px] border-l-[var(--ev-accent)] pl-4 text-[var(--ev-accent)]" : "") : cx("rounded-2xl", on ? "bg-[var(--ev-accent)] text-[var(--ev-on-accent)]" : "bg-[var(--ev-card)] text-[var(--ev-card-fg)] ring-1 ring-[var(--ev-line)]"))}>
+                <span className="block text-[12px] font-semibold uppercase tracking-[.16em] opacity-75">Day {i + 1}{live?.dayIndex === i ? " · Today" : ""}</span>
+                <span className="mt-0.5 block text-[17px] font-bold">{fmtDay(x.date, { weekday: "short", day: "numeric", month: "short" })}{x.title ? <span className="font-normal opacity-80"> · {x.title}</span> : null}</span>
+              </button>
+            );
+          })}</div>
+        )}
+      </div>
+      <ol className="md:col-span-7 md:col-start-6">
+        {sessions.map((s) => {
+          const isNow = live?.dayIndex === d && live.session?.id === s.id;
+          const who = "personIds" in s ? (s.personIds ?? []).map((id) => people.find((p) => p.id === id)).filter(Boolean) as EventPerson[] : [];
+          const venue = "venueId" in s && s.venueId ? e.venues?.find((v) => v.id === s.venueId) : undefined;
+          return (
+            <li key={s.id} className={cx("grid grid-cols-[88px_1fr] gap-5 border-b border-[var(--ev-line)] py-6 md:grid-cols-[120px_1fr]", isNow && "relative")}>
+              <span className="pt-1 text-[14.5px] font-semibold tabular-nums text-[var(--ev-icon)]">{"label" in s ? s.label : t12(s.start)}</span>
+              <div>
+                <p className={cx("text-[21px] leading-snug md:text-[24px]", look === "editorial" ? "ev-s not-italic" : "font-bold tracking-tight")}>{s.title}
+                  {isNow && <span className="ml-3 inline-flex translate-y-[-3px] items-center gap-1.5 rounded-full bg-[#e11d48] px-2.5 py-1 align-middle text-[11px] font-bold uppercase tracking-wider text-white">● Now</span>}</p>
                 {(who.length > 0 || venue) && (
-                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--ev-muted)]">
-                    {who.length > 0 && <span className="flex items-center gap-1.5"><span className="flex -space-x-1.5">{who.map((p) => <Face key={p.id} p={p} size={22} ring="ring-2 ring-[var(--ev-card)]" />)}</span>{who.map((p) => p.name).join(", ")}</span>}
-                    {venue && <span className="flex items-center gap-1"><MapPin size={12} />{venue.name}</span>}
+                  <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] text-[var(--ev-muted)]">
+                    {who.length > 0 && <span className="flex items-center gap-2"><span className="flex -space-x-2">{who.map((p) => <Face key={p.id} p={p} size={26} ring="ring-2 ring-[var(--ev-page)]" />)}</span>{who.map((p) => p.name).join(", ")}</span>}
+                    {venue && <span className="flex items-center gap-1"><MapPin size={13} />{venue.name}</span>}
                   </p>
                 )}
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }
 
-/** When and where: each day, then the venues (or the online card). */
-function WhenWhere({ e, H }: { e: ChurchEvent; H: string }) {
+/** When and where: the days, the venue with a real map, and the online card. */
+function WhenWhere({ e, H, dark }: { e: ChurchEvent; H: string; dark: boolean }) {
   const days = daysOf(e);
   const venues = e.mode === "virtual" ? [] : e.venues?.length ? e.venues : e.venue ? [{ id: "v", name: e.venue }] : [];
+  const main = venues[0];
+  const addr = main && (("address" in main && main.address) || main.name);
+  const maps = main && (("mapUrl" in main && main.mapUrl) || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(String(addr))}`);
   return (
-    <section>
-      <SectionTitle id="when" kicker="When and where" title={days.length > 1 ? `${days.length} days` : fmtDay(days[0].date, { weekday: "long", day: "numeric", month: "long" })} H={H} />
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className={cx(card, "p-5")}>
-          <p className="flex items-center gap-2 font-semibold"><CalendarPlus size={17} className="text-[var(--ev-icon)]" /> {days.length > 1 ? "The days" : "The day"}</p>
-          <ul className="mt-3 divide-y divide-[var(--ev-line)]">{days.map((d, i) => (
-            <li key={d.date} className="flex items-baseline justify-between gap-3 py-2.5 text-[15px]">
-              <span><b className="font-semibold">{days.length > 1 ? `Day ${i + 1}: ` : ""}{fmtDay(d.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b>{d.title && <span className="block text-[13px] text-[var(--ev-muted)]">{d.title}</span>}</span>
-              <span className="shrink-0 text-[14px] text-[var(--ev-muted)]">{t12(d.start)} to {t12(d.end)}</span>
-            </li>
-          ))}</ul>
-        </div>
-        {venues.map((v) => {
-          const maps = ("mapUrl" in v && v.mapUrl) || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(("address" in v && v.address) || v.name)}`;
-          return (
-            <div key={v.id} className={cx(card, "flex flex-col p-5")}>
-              <p className="flex items-center gap-2 font-semibold"><MapPin size={17} className="text-[var(--ev-icon)]" /> {v.name}{"overflow" in v && v.overflow && <span className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-[var(--ev-muted)] ring-1 ring-[var(--ev-line)]">Overflow</span>}</p>
-              {"address" in v && v.address && <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{v.address}</p>}
-              {"directions" in v && v.directions && <p className="mt-2 text-[14px] leading-relaxed">{v.directions}</p>}
-              {"note" in v && v.note && <p className="mt-2 text-[13px] text-[var(--ev-muted)]">{v.note}</p>}
-              <a href={maps} target="_blank" rel="noreferrer" className="mt-auto inline-flex w-fit items-center gap-2 rounded-xl bg-[var(--ev-accent)] px-3.5 py-2 text-[14px] font-semibold text-[var(--ev-on-accent)] [margin-top:1rem]"><Navigation size={15} /> Get directions</a>
+    <section className="ev-r">
+      <SectionTitle id="when" kicker="When and where" title={<>{e.mode === "virtual" ? "Join from " : "Come and "}<span className="ev-s">{e.mode === "virtual" ? "anywhere" : "find us"}</span></>} H={H} />
+      <div className="grid gap-4 md:grid-cols-12">
+        {main && (
+          <div className={cx(card, "relative min-h-[380px] overflow-hidden md:col-span-7 md:min-h-[460px]")}>
+            <iframe title={`Map: ${main.name}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="absolute inset-0 h-full w-full border-0"
+              style={{ filter: dark ? "invert(.92) hue-rotate(180deg) saturate(.35) brightness(.9)" : "grayscale(.6) contrast(1.05)" }}
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(String(addr))}&z=15&output=embed`} />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40" style={{ background: "linear-gradient(transparent, var(--ev-card))" }} />
+            <div className="absolute inset-x-5 bottom-5 flex flex-wrap items-end justify-between gap-4">
+              <div className="min-w-0"><p className="text-[22px] font-bold tracking-tight">{main.name}</p>{"address" in main && main.address && <p className="mt-0.5 text-[14px] text-[var(--ev-muted)]">{main.address}</p>}</div>
+              <a href={maps} target="_blank" rel="noreferrer" className="ev-btn inline-flex items-center gap-2 rounded-full bg-[var(--ev-accent)] px-5 py-3 text-[14px] font-semibold text-[var(--ev-on-accent)]"><Navigation size={15} /> Get directions</a>
             </div>
-          );
-        })}
-        {e.mode !== "physical" && (
-          <div className={cx(card, "p-5")}>
-            <p className="flex items-center gap-2 font-semibold"><Wifi size={17} className="text-[var(--ev-icon)]" /> Online</p>
-            <p className="mt-1 text-[14px] text-[var(--ev-muted)]">{e.mode === "virtual" ? "Join from anywhere." : "Can't come in person? Join online."} Register and we&apos;ll send you the link and reminders.</p>
           </div>
         )}
+        <div className={cx("flex flex-col gap-4", main ? "md:col-span-5" : "md:col-span-12")}>
+          <div className={cx(card, "p-6")}>
+            <p className="ev-k mb-4">{days.length > 1 ? "The days" : "The day"}</p>
+            <ul className="divide-y divide-[var(--ev-line)]">{days.map((d, i) => (
+              <li key={d.date} className="grid grid-cols-[auto_1fr_auto] items-baseline gap-4 py-3 text-[15px]">
+                <span className="text-[13px] font-bold uppercase tracking-wider text-[var(--ev-icon)]">{fmtDay(d.date, { weekday: "short", day: "numeric" })}</span>
+                <span className="min-w-0 truncate">{d.title || (days.length > 1 ? `Day ${i + 1}` : fmtDay(d.date, { month: "long" }))}</span>
+                <span className="text-[14px] text-[var(--ev-muted)]">{t12(d.start)} – {t12(d.end)}</span>
+              </li>
+            ))}</ul>
+            {main && "directions" in main && main.directions && <p className="mt-4 border-t border-[var(--ev-line)] pt-4 text-[14px] leading-relaxed text-[var(--ev-muted)]">{main.directions}</p>}
+          </div>
+          {venues.slice(1).map((v) => (
+            <div key={v.id} className={cx(card, "flex items-center gap-3 p-5")}>
+              <MapPin size={18} className="shrink-0 text-[var(--ev-icon)]" />
+              <span className="min-w-0 flex-1"><b className="block font-semibold">{v.name}</b><span className="text-[13.5px] text-[var(--ev-muted)]">{("address" in v && v.address) || ("note" in v && v.note) || ""}</span></span>
+            </div>
+          ))}
+          {e.mode !== "physical" && (
+            <div className="flex-1 rounded-[var(--ev-radius)] p-6 text-white" style={{ background: "linear-gradient(135deg, color-mix(in oklab, var(--ev-icon) 55%, #000), color-mix(in oklab, var(--ev-accent) 45%, #000))" }}>
+              <p className="text-[12px] font-semibold uppercase tracking-[.2em] opacity-80">{e.mode === "virtual" ? "Online" : "Can't make it in person?"}</p>
+              <p className="mt-2 text-[22px] font-bold tracking-tight">Join online, live.</p>
+              <p className="mt-1.5 text-[14px] leading-relaxed opacity-80">Register{e.mode === "hybrid" ? " as Online" : ""} and we&apos;ll send you the link and reminders.</p>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -517,19 +751,162 @@ function WhenWhere({ e, H }: { e: ChurchEvent; H: string }) {
 function Faq({ items, H }: { items: { q: string; a: string }[]; H: string }) {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <section>
-      <SectionTitle id="faq" kicker="Questions" title="Good to know" H={H} />
-      <ul className={cx(card, "divide-y divide-[var(--ev-line)]")}>
+    <section className="ev-r grid gap-10 md:grid-cols-12">
+      <div className="md:col-span-4">
+        <p id="faq" className="ev-k ev-num scroll-mt-28">Questions</p>
+        <h2 className={cx(H, "mt-4 text-[clamp(38px,5vw,64px)]")}>Good to <span className="ev-s">know</span></h2>
+      </div>
+      <ul className="border-t border-[var(--ev-line)] md:col-span-7 md:col-start-6">
         {items.map((f, i) => (
-          <li key={i}>
-            <button type="button" onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-center gap-3 px-5 py-4 text-left" aria-expanded={open === i}>
-              <span className="flex-1 text-[16px] font-semibold">{f.q}</span><ChevronDown size={18} className={cx("shrink-0 transition", open === i && "rotate-180")} />
+          <li key={i} className="border-b border-[var(--ev-line)]">
+            <button type="button" onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-center gap-4 py-6 text-left" aria-expanded={open === i}>
+              <span className="flex-1 text-[19px] font-semibold leading-snug md:text-[21px]">{f.q}</span>
+              <span className={cx("flex size-9 shrink-0 items-center justify-center rounded-full ring-1 ring-[var(--ev-line)] transition", open === i && "rotate-45 bg-[var(--ev-accent)] text-[var(--ev-on-accent)] ring-transparent")}><Plus size={17} /></span>
             </button>
-            {open === i && <p className="-mt-1 px-5 pb-5 text-[15px] leading-relaxed text-[var(--ev-muted)]">{f.a}</p>}
+            <div className={cx("grid transition-[grid-template-rows] duration-300", open === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+              <p className="overflow-hidden pr-12 text-[16px] leading-relaxed text-[var(--ev-muted)]"><span className="block pb-6">{f.a}</span></p>
+            </div>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** The experience: three cards (Cinematic: pictures; Editorial: numbered columns; Bold: colour blocks). */
+function Experience({ e, H }: { e: ChurchEvent; H: string }) {
+  const items = (e.page?.experience ?? []).filter((x) => x.title.trim()).slice(0, 3);
+  const look = lookOf(e);
+  // Different pictures from the About section where there are enough
+  const all = [...(e.page?.media?.kind === "carousel" ? e.page.media.slides ?? [] : []), ...(e.gallery ?? [])];
+  const pics = all.length >= 5 ? all.slice(2) : [...all].reverse();
+  const numerals = ["I", "II", "III"];
+  return (
+    <section className="ev-r">
+      <SectionTitle id="experience" kicker="What to expect" title={<>The <span className="ev-s">experience</span></>} H={H} />
+      <div className="grid gap-4 md:grid-cols-3 md:gap-5">{items.map((x, i) => {
+        if (look === "editorial") return (
+          <div key={i} className="border-t border-[var(--ev-fg)] pt-6">
+            <p className="ev-d text-[64px] text-[var(--ev-accent)]">{String(i + 1).padStart(2, "0")}</p>
+            <h3 className="ev-s mt-4 text-[28px] not-italic leading-tight">{x.title}</h3>
+            {x.body && <p className="mt-3 text-[16px] leading-relaxed text-[var(--ev-muted)]">{x.body}</p>}
+          </div>
+        );
+        if (look === "bold") return (
+          <div key={i} className={cx("rounded-[var(--ev-radius)] p-7 md:p-8", i === 1 ? "bg-[var(--ev-fg)] text-[var(--ev-page)]" : "bg-[var(--ev-card)] text-[var(--ev-card-fg)]")}>
+            <p className="ev-d text-[72px] leading-none">{String(i + 1).padStart(2, "0")}</p>
+            <h3 className="mt-8 text-[26px] font-extrabold uppercase leading-tight tracking-tight" style={{ fontFamily: '"Archivo Variable"' }}>{x.title}</h3>
+            {x.body && <p className="mt-3 text-[16px] leading-relaxed opacity-80">{x.body}</p>}
+          </div>
+        );
+        const pic = pics[i];
+        return (
+          <div key={i} className="ev-zoom relative flex h-[420px] items-end overflow-hidden rounded-[var(--ev-radius)] bg-[var(--ev-card)] md:h-[520px]">
+            {pic ? <img src={pic} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <Art />}
+            <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 35%, rgba(0,0,0,.88))" }} />
+            <div className="relative p-7 text-white">
+              <span className="text-[14px] font-semibold" style={{ color: "var(--ev-accent)" }}>{numerals[i]}</span>
+              <h3 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">{x.title}</h3>
+              {x.body && <p className="mt-2 text-[15px] leading-relaxed text-white/75">{x.body}</p>}
+            </div>
+          </div>
+        );
+      })}</div>
+    </section>
+  );
+}
+
+/** Testimonials: one big quote at a time (Cinematic, Bold), or side by side (Editorial). */
+function Testimonials({ e, H }: { e: ChurchEvent; H: string }) {
+  const items = (e.page?.testimonials ?? []).filter((t) => t.quote.trim() && t.name.trim());
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (items.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setI((n) => (n + 1) % items.length), 7000);
+    return () => clearInterval(t);
+  }, [items.length]);
+  if (lookOf(e) === "editorial") return (
+    <section className="ev-r">
+      <SectionTitle id="testimonials" kicker="In their words" title={<>What people <span className="ev-s">said</span></>} H={H} />
+      <div className="grid gap-12 md:grid-cols-2">{items.slice(0, 4).map((t, k) => (
+        <figure key={k}>
+          <p className="ev-d text-[96px] leading-[.5] text-[var(--ev-accent)]">“</p>
+          <blockquote className="ev-s mt-4 text-[28px] not-italic leading-[1.25] md:text-[32px]">{t.quote}</blockquote>
+          <figcaption className="mt-5 text-[14.5px]"><b>{t.name}</b>{t.role && <span className="text-[var(--ev-muted)]"> · {t.role}</span>}</figcaption>
+        </figure>
+      ))}</div>
+    </section>
+  );
+  const t = items[i % items.length];
+  return (
+    <section className="ev-r mx-auto max-w-5xl text-center">
+      <p id="testimonials" className="ev-k ev-num scroll-mt-28">In their words</p>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="var(--ev-accent)" aria-hidden className="mx-auto mt-8"><path d="M7 7h4v4H8c0 2 1 3 3 3v3c-4 0-6-2-6-6V7zm9 0h4v4h-3c0 2 1 3 3 3v3c-4 0-6-2-6-6V7z" /></svg>
+      <blockquote key={i} className="ev-s mt-6 text-[clamp(28px,4.4vw,56px)] leading-[1.15] transition-opacity duration-700">{t.quote}</blockquote>
+      <p className="mt-8 text-[13.5px] font-semibold uppercase tracking-[.18em] text-[var(--ev-muted)]">{t.name}{t.role ? ` · ${t.role}` : ""}</p>
+      {items.length > 1 && <div className="mt-8 flex justify-center gap-2">{items.map((_, k) => <button key={k} type="button" onClick={() => setI(k)} aria-label={`Quote ${k + 1}`} className={cx("h-1.5 rounded-full transition-all", k === i % items.length ? "w-8 bg-[var(--ev-accent)]" : "w-2 bg-[var(--ev-line)]")} />)}</div>}
+    </section>
+  );
+}
+
+/** The closing invitation: the one loud moment of the page. */
+function Invitation({ e, H, closed, regOn, label, onRegister }: { e: ChurchEvent; H: string; closed: boolean; regOn: boolean; label: string; onRegister: () => void }) {
+  const inv = e.page?.invite;
+  const look = lookOf(e);
+  const theme = themeOf(e);
+  const title = inv?.title?.trim() || (theme ? `${theme} with us` : `Don't miss ${e.title}`);
+  const body = inv?.body?.trim() || "Come expectant. Bring someone with you. We can't wait to see you there.";
+  const m = headline(e);
+  const pic = m.kind === "carousel" ? m.slides[m.slides.length - 1] : m.kind === "video" ? m.poster : e.gallery?.[0] ?? (isFlyer(e) ? undefined : m.src);
+  const inner = (light: boolean) => (
+    <div className="relative mx-auto max-w-[1240px] px-5 py-28 text-center md:px-10 md:py-40">
+      <p className="text-[12.5px] font-semibold uppercase tracking-[.3em]" style={{ color: light ? undefined : "var(--ev-accent)", opacity: light ? 0.75 : 1 }}>{whenLine(e)}</p>
+      <h2 className={cx(H, "mx-auto mt-6 max-w-5xl text-[clamp(48px,9vw,128px)]")}>{title}</h2>
+      <p className="mx-auto mt-7 max-w-xl text-[18px] leading-relaxed opacity-80">{body}</p>
+      <div className="mt-10 flex justify-center"><RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} className={cx(look === "editorial" ? "rounded-full" : look === "bold" ? "rounded-2xl uppercase tracking-wide !bg-[var(--ev-card-fg)] !text-[var(--ev-card)]" : "rounded-full", "text-[17px]")} /></div>
+    </div>
+  );
+  if (look === "editorial") return <section className="bg-[var(--ev-fg)] text-[var(--ev-page)]">{inner(true)}</section>;
+  if (look === "bold") return <section className="bg-[var(--ev-card)] text-[var(--ev-card-fg)]">{inner(true)}</section>;
+  return (
+    <section className="relative overflow-hidden text-white">
+      {pic ? <img src={pic} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-[var(--ev-card)]"><Art /></div>}
+      <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in oklab, var(--ev-page) 72%, transparent), color-mix(in oklab, var(--ev-page) 90%, transparent))" }} />
+      {inner(false)}
+    </section>
+  );
+}
+
+function Footer({ e, church, url, share, nav }: { e: ChurchEvent; church: ChurchInfo; url: string; share: string; nav: { id: string; label: string }[] }) {
+  const c = e.contact;
+  const wa = c?.whatsapp ? digits(c.whatsapp).replace(/^0/, "234") : undefined;
+  const p = church.profile;
+  return (
+    <footer className="mt-24 border-t border-[var(--ev-line)] pb-32 pt-16 lg:pb-14">
+      <div className="mx-auto grid max-w-[1240px] gap-10 px-5 md:grid-cols-12 md:px-10">
+        <div className="md:col-span-5">
+          <div className="flex items-center gap-3"><ChurchMark church={{ name: church.name, profile: church.profile as ChurchProfile }} size={42} /><span className="text-[20px] font-bold tracking-tight">{church.name}</span></div>
+          <p className="mt-4 max-w-sm text-[14.5px] leading-relaxed text-[var(--ev-muted)]">{[p?.address, p?.city].filter(Boolean).join(", ") || placeOf(e)}. {c?.name ? `${c.name} will help with anything you need.` : "Questions? We're happy to help."}</p>
+        </div>
+        <div className="md:col-span-3">
+          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[.2em] text-[var(--ev-muted)]">{e.title.split(":")[0]}</p>
+          <ul className="space-y-2 text-[14.5px]">{nav.map((x) => <li key={x.id}><a href={`#${x.id}`} className="ev-ul">{x.label}</a></li>)}</ul>
+        </div>
+        <div className="md:col-span-4">
+          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[.2em] text-[var(--ev-muted)]">Talk to us</p>
+          <ul className="space-y-2 text-[14.5px]">
+            {c?.phone && <li><a href={`tel:${c.phone}`} className="ev-ul inline-flex items-center gap-2"><Phone size={14} /> {c.phone}</a></li>}
+            {wa && <li><a href={`https://wa.me/${wa}?text=${encodeURIComponent(`Hello, I have a question about ${e.title}.`)}`} target="_blank" rel="noreferrer" className="ev-ul inline-flex items-center gap-2"><WhatsAppIcon size={14} /> WhatsApp</a></li>}
+            {c?.email && <li><a href={`mailto:${c.email}`} className="ev-ul inline-flex items-center gap-2"><Mail size={14} /> {c.email}</a></li>}
+            {url && <li><button type="button" onClick={() => icsFile(e, church.name, url)} className="ev-ul inline-flex items-center gap-2"><CalendarPlus size={14} /> Add to calendar</button></li>}
+            {(!e.page || e.page.share === false) && url && <li><a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer" className="ev-ul inline-flex items-center gap-2"><Share2 size={14} /> Invite a friend</a></li>}
+          </ul>
+        </div>
+      </div>
+      <div className="mx-auto mt-14 flex max-w-[1240px] flex-col gap-2 border-t border-[var(--ev-line)] px-5 pt-6 text-[13px] text-[var(--ev-muted)] sm:flex-row sm:justify-between md:px-10">
+        <span>© {new Date(e.start).getFullYear()} {church.name}</span><span>Made with <b className="text-[var(--ev-fg)]">Traqi</b></span><a href="#top" className="ev-ul">Back to top ↑</a>
+      </div>
+    </footer>
   );
 }
 
@@ -615,24 +992,6 @@ function HostWelcome({ e, H }: { e: ChurchEvent; H: string }) {
   );
 }
 
-/** The experience: three cards. */
-function Experience({ e, H }: { e: ChurchEvent; H: string }) {
-  const items = (e.page?.experience ?? []).filter((x) => x.title.trim()).slice(0, 3);
-  const icons = [Sparkles, Heart, Users];
-  return (
-    <section>
-      <SectionTitle id="experience" kicker="What to expect" title="The experience" H={H} />
-      <div className="grid gap-3 md:grid-cols-3">{items.map((x, i) => { const I = icons[i % 3]; return (
-        <div key={i} className={cx(card, "p-6")}>
-          <span className="flex size-12 items-center justify-center rounded-2xl" style={{ background: "color-mix(in oklab, var(--ev-icon) 18%, transparent)", color: "var(--ev-icon)" }}><I size={22} /></span>
-          <p className={cx(H, "mt-5 text-[21px] font-semibold leading-tight")}>{x.title}</p>
-          {x.body && <p className="mt-2 text-[15px] leading-relaxed text-[var(--ev-muted)]">{x.body}</p>}
-        </div>
-      ); })}</div>
-    </section>
-  );
-}
-
 /** Join online: the QR code, the link and the steps. */
 function JoinOnline({ e, H }: { e: ChurchEvent; H: string }) {
   const steps = (e.page?.online?.steps ?? []).filter((x) => x.trim());
@@ -654,25 +1013,6 @@ function JoinOnline({ e, H }: { e: ChurchEvent; H: string }) {
   );
 }
 
-/** Testimonials: real words, with names. */
-function Testimonials({ e, H }: { e: ChurchEvent; H: string }) {
-  const items = (e.page?.testimonials ?? []).filter((t) => t.quote.trim() && t.name.trim());
-  return (
-    <section>
-      <SectionTitle id="testimonials" kicker="In their words" title="What people said" H={H} />
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0">
-        {items.map((t, i) => (
-          <figure key={i} className={cx(card, "w-[82%] shrink-0 snap-start p-6 md:w-auto")}>
-            <Quote size={22} className="text-[var(--ev-icon)]" />
-            <blockquote className="mt-3 text-[16px] leading-relaxed">{t.quote}</blockquote>
-            <figcaption className="mt-4 text-[14px] font-semibold">{t.name}{t.role && <span className="block font-normal text-[var(--ev-muted)]">{t.role}</span>}</figcaption>
-          </figure>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /** One of the organiser's own sections. */
 function ExtraSection({ x, H }: { x: NonNullable<NonNullable<ChurchEvent["page"]>["extras"]>[number]; H: string }) {
   return (
@@ -683,23 +1023,6 @@ function ExtraSection({ x, H }: { x: NonNullable<NonNullable<ChurchEvent["page"]
         {x.button?.url && <a href={x.button.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[var(--ev-accent)] px-4 py-2.5 text-[14.5px] font-semibold text-[var(--ev-on-accent)]">{x.button.label || "Find out more"} <ArrowRight size={15} /></a>}
       </div>
       {x.image && <img src={x.image} alt="" className="w-full rounded-[28px] object-cover shadow-xl" loading="lazy" />}
-    </section>
-  );
-}
-
-/** The closing invitation. */
-function Invitation({ e, H, closed, regOn, label, onRegister }: { e: ChurchEvent; H: string; closed: boolean; regOn: boolean; label: string; onRegister: () => void }) {
-  const inv = e.page?.invite;
-  return (
-    <section className="relative overflow-hidden rounded-[32px] px-6 py-14 text-center md:py-20" style={{ background: "linear-gradient(135deg, color-mix(in oklab, var(--ev-accent) 32%, var(--ev-card)), var(--ev-card))", color: "var(--ev-card-fg)" }}>
-      <div aria-hidden className="absolute -right-24 -top-24 size-80 rounded-full blur-3xl" style={{ background: "color-mix(in oklab, var(--ev-icon) 30%, transparent)" }} />
-      <div className="relative mx-auto max-w-2xl">
-        <p className="text-[13px] font-semibold uppercase tracking-[.22em] text-[var(--ev-icon)]">{whenLine(e)}</p>
-        <h2 className={cx(H, "mt-3 text-[clamp(30px,6vw,52px)] font-bold leading-[1.05]")}>{inv?.title?.trim() || `Don't miss ${e.title}`}</h2>
-        <p className="mx-auto mt-4 max-w-xl text-[17px] leading-relaxed text-[var(--ev-muted)]">{inv?.body?.trim() || "Come expectant. Bring someone with you. We can't wait to see you there."}</p>
-        <div className="mt-8 flex justify-center"><RegButton closed={closed} regOn={regOn} label={label} onClick={onRegister} big /></div>
-        <div className="mt-8 flex justify-center"><Countdown to={e.start} /></div>
-      </div>
     </section>
   );
 }
@@ -721,30 +1044,6 @@ function ShareBlock({ e, church, url, share, H }: { e: ChurchEvent; church: Chur
         <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await savePicture(await shareImage(e, { name: church.name, color: church.profile?.color, logo: church.profile?.logo }, url), `${e.slug}-share.png`, { title: e.title, text: share }); } catch { alert("Couldn't make the picture. Try again."); } setBusy(false); }} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[14.5px] font-semibold ring-1 ring-[var(--ev-line)]"><ImageIcon size={16} /> {busy ? "Making…" : "Picture"}</button>
       </div>
     </section>
-  );
-}
-
-function Footer({ e, church, url, share }: { e: ChurchEvent; church: ChurchInfo; url: string; share: string }) {
-  const c = e.contact;
-  const wa = c?.whatsapp ? digits(c.whatsapp).replace(/^0/, "234") : undefined;
-  const pill = "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[13.5px] font-semibold ring-1 ring-[var(--ev-line)]";
-  return (
-    <footer className="border-t border-[var(--ev-line)] px-4 pb-28 pt-10 lg:pb-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <ChurchMark church={{ name: church.name, profile: church.profile as ChurchProfile }} size={40} />
-          <div><p className="font-semibold">{church.name}</p><p className="text-[13px] text-[var(--ev-muted)]">{c?.name ? `${c.name} will help with anything you need.` : "Questions? We're happy to help."}</p></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {c?.phone && <a href={`tel:${c.phone}`} className={pill}><Phone size={15} /> Call</a>}
-          {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent(`Hello, I have a question about ${e.title}.`)}`} target="_blank" rel="noreferrer" className={pill}><WhatsAppIcon size={15} /> WhatsApp</a>}
-          {c?.email && <a href={`mailto:${c.email}`} className={pill}><Mail size={15} /> Email</a>}
-          {url && <button type="button" onClick={() => icsFile(e, church.name, url)} className={pill}><CalendarPlus size={15} /> Add to calendar</button>}
-          {!e.page || e.page.share === false ? <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noreferrer" className={pill}><Share2 size={15} /> Invite a friend</a> : null}
-        </div>
-      </div>
-      <p className="mx-auto mt-8 max-w-6xl text-[12.5px] text-[var(--ev-muted)]">Powered by <b className="font-semibold">Traqi</b></p>
-    </footer>
   );
 }
 

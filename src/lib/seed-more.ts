@@ -236,10 +236,13 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
   const events: ChurchEvent[] = [
     { id: "ev-youth", slug: "rise-2026", title: "Rise: Youth Conference 2026", tagline: "Three days of worship, the Word and fire for a new generation.", cover: 0,
       theme: "Arise and Shine", verse: { text: "Arise, shine; for your light has come! And the glory of the Lord is risen upon you.", ref: "Isaiah 60:1" },
-      template: "bold",
+      template: "flyer",
+      flyer: "/demo/rise.jpg",
+      gallery: ["/demo/rise-group.jpg", "/demo/rise-friends.jpg", "/demo/rise-hands.jpg", "/demo/rise-stage.jpg"],
       // Round 8: the new page sections, ticket types, accommodation link and check-in at the venue
       page: {
-        colors: { bg: "#120d2e", section: "#1d1648", button: "#f5b544", icon: "#a78bfa" },
+        media: { kind: "picture" },
+        main: "#f5b544",
         experience: [{ title: "Worship that lifts you", body: "Three nights of the presence of God, with the Heirs choir and friends." }, { title: "Teaching you can use", body: "Purpose, career and relationships: real talk for real life." }, { title: "Friends for the journey", body: "Meet young people who will pray with you long after Rise." }],
         testimonials: [{ quote: "I came for my friend and left with a purpose. Rise changed my year.", name: "Tobi A.", role: "Rise 2025" }, { quote: "The prayer night was the best part. I'm bringing my whole class this time.", name: "Chioma E.", role: "Rise 2025" }],
         invite: { title: "Arise and shine with us", body: "Three days. One generation. Bring a friend and come expecting." },
@@ -267,11 +270,11 @@ export function buildMore({ people, groups, P, cases, dayISO, stampISO }: Input)
         ] },
       ],
       people: [
-        { id: "pp1", name: "Pastor Samuel Kayode", label: "Speaker", bio: "Associate pastor at Heirs Church and convener of Rise. Passionate about raising young people who carry God's presence into every field.", from: "Heirs Church" },
+        { id: "pp1", name: "Pastor Samuel Kayode", label: "Speaker", photo: "/demo/sp-samuel.jpg", bio: "Associate pastor at Heirs Church and convener of Rise. Passionate about raising young people who carry God's presence into every field.", from: "Heirs Church" },
         { id: "pp2", name: "Abiodun Babatunde", label: "Speaker", bio: "Head of the Faculty of Training, coach and author on purpose and careers.", from: "BABS with the BABS" },
-        { id: "pp3", name: "Edify Worship", label: "Music minister", bio: "The Heirs Church choir, leading worship across all three days." },
-        { id: "pp4", name: "Tolu Adeyemi", label: "Special guest", bio: "Founder of a Lagos fintech start-up, on building with integrity.", from: "Lagos" },
-        { id: "pp5", name: "Kayode Oluwanifemi", label: "Host" },
+        { id: "pp3", name: "Edify Worship", label: "Music minister", photo: "/demo/sp-edify.jpg", bio: "The Heirs Church choir, leading worship across all three days." },
+        { id: "pp4", name: "Tolu Adeyemi", label: "Special guest", photo: "/demo/sp-tolu.jpg", bio: "Founder of a Lagos fintech start-up, on building with integrity.", from: "Lagos" },
+        { id: "pp5", name: "Kayode Oluwanifemi", label: "Host", photo: "/demo/sp-host.jpg" },
       ],
       venues: [
         { id: "v1", name: "Main auditorium", address: "14 Church Street, Ogba, Ikeja, Lagos", directions: "Enter through Gate B on Church Street. Parking in the school field opposite.", mapUrl: "https://maps.google.com/?q=Ogba+Ikeja+Lagos" },

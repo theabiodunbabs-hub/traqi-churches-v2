@@ -43,3 +43,6 @@ language sql stable security definer set search_path = public as $$
                     and p.extra->'removed' is null)
 $$;
 grant execute on function welcome_known(text, text) to anon, authenticated;
+
+-- ---------- Event videos: up to 15 MB ----------
+update storage.buckets set file_size_limit = 15728640 where id = 'event-media';
