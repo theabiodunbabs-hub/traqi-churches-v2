@@ -49,7 +49,7 @@ export function HeadlineEditor({ e, setPage, flyerPick }: { e: ChurchEvent; setP
     <div className="space-y-3">
       <span className="block text-sm font-medium">Headline</span>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{kinds.map((x) => (
-        <button key={x.k} type="button" onClick={() => setPage({ media: { ...m, kind: x.k } })} className={cx("rounded-2xl p-3 text-left ring-1 transition", m.kind === x.k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
+        <button key={x.k} type="button" onClick={() => setPage({ media: { ...m, kind: x.k } })} className={cx("flex flex-col items-start rounded-2xl p-3 text-left ring-1 transition", m.kind === x.k ? "bg-brand-soft ring-2 ring-brand" : "bg-page ring-line hover:ring-ink/20")}>
           <x.icon size={18} className={m.kind === x.k ? "text-brand" : "text-muted"} />
           <b className="mt-1.5 block text-[14px]">{x.label}</b><span className="text-[12px] text-muted">{x.body}</span>
         </button>
@@ -161,7 +161,7 @@ export function ColorsEditor({ e, churchColor, setPage }: { e: ChurchEvent; chur
         <div className="rounded-2xl bg-page p-3 ring-1 ring-line">
           {!fromPic ? (
             <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { setFromPic(await colorsFromImage(pic)); } catch { toast("Couldn't read the colours from that picture"); } setBusy(false); }} className="flex items-center gap-2 text-[14px] font-medium text-brand">
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Use colours from your {e.page?.media?.kind === "carousel" ? "first picture" : "flyer"}
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Use colours from your {e.page?.media?.kind === "carousel" ? "first picture" : e.page?.media?.kind === "flyer" || !e.page?.media ? "flyer" : "picture"}
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2"><span className="text-[13px] text-muted">From your picture:</span>
@@ -372,7 +372,7 @@ export function LookPicker({ e, churchColor, onPick }: { e: ChurchEvent; churchC
         const c = paletteFrom(main, l.k);
         const on = cur === l.k;
         return (
-          <button key={l.k} type="button" onClick={() => onPick(templateOf(l.k))} aria-pressed={on} className={cx("overflow-hidden rounded-2xl text-left ring-1 transition", on ? "ring-2 ring-brand" : "ring-line hover:ring-ink/25")}>
+          <button key={l.k} type="button" onClick={() => onPick(templateOf(l.k))} aria-pressed={on} className={cx("flex flex-col justify-start overflow-hidden rounded-2xl text-left ring-1 transition", on ? "ring-2 ring-brand" : "ring-line hover:ring-ink/25")}>
             <span className="relative block h-28 overflow-hidden p-3" style={{ background: l.k === "bold" ? c.section : c.bg, color: textOn(l.k === "bold" ? c.section : c.bg) }}>
               {l.k === "cinematic" && <span aria-hidden className="absolute -left-6 -top-8 size-28 rounded-full opacity-60 blur-2xl" style={{ background: c.button }} />}
               <span className="relative block text-[9px] font-semibold uppercase tracking-[.25em] opacity-70">{e.title ? e.title.split(":")[0].slice(0, 18) : "Your event"}</span>
