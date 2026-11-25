@@ -317,6 +317,12 @@ export function notificationsFor(state: SeedState, a: Access, me: Person): Note[
       out.push({ key: `exhead-${p.id}-${p.formerHead!.at}`, title: `${fullName(p)} is no longer head of ${g?.name ?? "a department"}`,
         body: "They're still a Leader. Keep that, or change their stage on their profile.", href: `/people/${p.id}`, tone: "glow", at: p.formerHead!.at });
     });
+    state.people.filter((p) => p.leftAll && Date.now() - Date.parse(p.leftAll.at) < 30 * 864e5 && kindOf(p.stage) === "worker"
+      && !state.groups.some((g) => !g.tags?.includes("family") && g.memberIds.includes(p.id))).forEach((p) => {
+      const g = state.groups.find((x) => x.id === p.leftAll!.groupId);
+      out.push({ key: `leftall-${p.id}-${p.leftAll!.at}`, title: `${fullName(p)} no longer serves in any department`,
+        body: `They left ${g?.name ?? "their last department"} and are still a Worker. Keep that, or change their stage on their profile.`, href: `/people/${p.id}`, tone: "glow", at: p.leftAll!.at });
+    });
   }
   // Event pictures and videos are removed 14 days after the event: a notice first, to whoever made the event and the admin
   state.events.filter((e) => hasUploads(e) && (e.createdById === me.id || a.isAdmin)).forEach((e) => {

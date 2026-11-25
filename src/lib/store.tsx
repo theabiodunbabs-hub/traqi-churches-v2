@@ -13,7 +13,7 @@ import { accessFor, type Access } from "./access";
 import { autoPick } from "./metrics";
 import { DEFAULT_PROFILE, emptyCollections } from "./seed-more";
 import { DEFAULT_TEMPLATES } from "./templates";
-import type { Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, FollowStage, Group, PendingContact, PermissionKey, Person, RoleAssignment } from "./types";
+import type { AssistantPerm, Branch, CareNote, Church, ChurchProfile, Contact, Enrolment, FollowStage, Group, PendingContact, PermissionKey, Person, RoleAssignment } from "./types";
 
 /**
  * Demo data layer. Every action here maps to a Supabase call once the
@@ -23,7 +23,8 @@ const DATA_KEY = "traqi-demo-v9";
 const USER_KEY = "traqi-demo-user";
 
 export type NewPerson = Pick<Person, "firstName" | "lastName" | "gender" | "phone"> & Partial<Person>;
-export type ImportRow = NewPerson & { groupName?: string };
+export type ImportRow = NewPerson & { groupName?: string;
+  /** From the title column: head or assistant of that department (e.g. "Head Usher", "Asst. Choir Lead"). */ position?: "head" | "assistant"; title?: string };
 
 /** "error": signed in, but the church couldn't be loaded and there is no saved copy (usually no network). */
 export type AuthStatus = "loading" | "signed-out" | "no-church" | "ready" | "error";
@@ -502,7 +503,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             return p;
           });
         }
-        return log({ ...s, groups, assignments, people }, actor, `updated ${patch.name && patch.name !== g?.name ? `${g?.name}, now called ${patch.name}` : g?.name}`);
+        // Anyone added to a department or unit is serving: a worker, however they were added
+        let next: SeedState = { ...s, groups, assignments, people };
+        if (g && !g.tags?.includes("family")) {
+          const now = groups.find((x) => x.id === groupId)!;
+          now.memberIds.filter((pid) => !g.memberIds.includes(pid)).forEach((pid) => { next = onPlaced(next, pid, groupId).state; });
+        }
+        return log(next, actor, `updated ${patch.name && patch.name !== g?.name ? `${g?.name}, now called ${patch.name}` : g?.name}`);
       }),
       removeFromGroup: (groupId, personId) => {
         const before = latest.current.groups.filter((x) => x.id === groupId || x.parentId === groupId).map((x) => ({ ...x }));
@@ -510,7 +517,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const g = s.groups.find((x) => x.id === groupId);
           const groups = s.groups.map((x) => (x.id === groupId || x.parentId === groupId
             ? { ...x, memberIds: x.memberIds.filter((id) => id !== personId), leaderIds: x.leaderIds.filter((id) => id !== personId) } : x));
-          return log({ ...s, groups }, actor, `removed ${nameOf(s, personId)} from ${g?.name}`);
+          // Left every department and unit: they stay a worker, and the admin is told
+          const serves = groups.some((x) => !x.tags?.includes("family") && x.memberIds.includes(personId));
+          const people = serves ? s.people : s.people.map((p) => (p.id === personId && kindOf(p.stage) !== "visitor" && kindOf(p.stage) !== "member" ? { ...p, leftAll: { groupId, at: new Date().toISOString() } } : p));
+          return log({ ...s, groups, people }, actor, `removed ${nameOf(s, personId)} from ${g?.name}`);
         });
         return () => setState((s) => {
           const g = s.groups.find((x) => x.id === groupId);
@@ -563,7 +573,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const people = [...s.people];
           let groups = s.groups;
           for (const r of rows) {
-            const { groupName, ...p } = r;
+            const { groupName, position, title, ...p } = r;
             const at = people.findIndex((x) => digits(x.phone) === digits(p.phone));
             let id: string;
             if (at >= 0) {
@@ -576,7 +586,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
             if (groupName) {
               const g = groups.find((x) => x.name.toLowerCase() === groupName.toLowerCase());
-              if (g) groups = groups.map((x) => (x.id === g.id ? { ...x, memberIds: [...new Set([...x.memberIds, id])] } : x));
+              if (g) groups = groups.map((x) => (x.id !== g.id ? x : {
+                ...x, memberIds: [...new Set([...x.memberIds, id])],
+                leaderIds: position === "head" && x.kind === "department" ? [...new Set([...x.leaderIds, id])] : x.leaderIds,
+                assistants: position === "assistant" && !(x.assistants ?? []).some((a) => a.personId === id) ? [...(x.assistants ?? []), { personId: id, title: title || `Assistant, ${x.name}`, perms: ["rollcall", "message"] as AssistantPerm[] }] : x.assistants,
+              }));
+              // Every department member is a worker; every head is a leader
+              const pi = people.findIndex((x) => x.id === id);
+              if (g && pi >= 0 && !g.tags?.includes("family")) {
+                const want = position === "head" && g.kind === "department" ? "leader" : "worker";
+                const to = firstOfKind(want);
+                if (to && !atLeast(people[pi].stage, want)) people[pi] = { ...people[pi], stage: to };
+                if (want === "leader") people[pi] = { ...people[pi], isLeader: true };
+              }
             }
           }
           return log({ ...s, people, groups }, actor, `imported ${added} new and updated ${updated} people from "${fileName}"`);

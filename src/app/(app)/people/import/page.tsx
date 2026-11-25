@@ -5,9 +5,10 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, FileSpreadsheet, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useStore, type ImportRow } from "@/lib/store";
+import { deptFromTitle, readTitle, titleSays } from "@/lib/titles";
 import { Button, Empty, PageHeader, Panel, cx, inputCls } from "@/components/ui";
 
-type FieldKey = "skip" | "fullName" | "firstName" | "lastName" | "gender" | "phone" | "whatsapp" | "email" | "birthday" | "location" | "occupation" | "department";
+type FieldKey = "skip" | "fullName" | "firstName" | "lastName" | "gender" | "phone" | "whatsapp" | "email" | "birthday" | "location" | "occupation" | "department" | "title";
 const FIELDS: { key: FieldKey; label: string; guess: RegExp }[] = [
   { key: "fullName", label: "Full name", guess: /^(full ?name|name|names)$/i },
   { key: "firstName", label: "First name", guess: /first|given|fore/i },
@@ -19,6 +20,7 @@ const FIELDS: { key: FieldKey; label: string; guess: RegExp }[] = [
   { key: "birthday", label: "Birthday", guess: /birth|dob/i },
   { key: "location", label: "Area", guess: /area|address|location|city|lives/i },
   { key: "occupation", label: "Occupation", guess: /occup|job|work|profession/i },
+  { key: "title", label: "Position or title", guess: /position|title|designation|office|role/i },
   { key: "department", label: "Department", guess: /dept|department|unit|ministry/i },
 ];
 
@@ -87,11 +89,18 @@ export default function Import() {
       seen.add(key);
       out.push({
         status: findByPhone(phone) ? "update" : "new",
-        row: { firstName: first, lastName: last ?? "", gender, phone, whatsapp: v.whatsapp, email: v.email, birthday: v.birthday, location: v.location, occupation: v.occupation, groupName: v.department },
+        row: (() => {
+          // "Head Usher", "Ushering Lead", "HOD Ushers" all mean head of Ushering; the department can come from the title
+          const depts = state.groups.filter((x) => x.kind === "department").map((x) => x.name);
+          const t = readTitle(v.title, depts);
+          const groupName = v.department ? (depts.find((d) => d.toLowerCase() === v.department!.toLowerCase()) ?? deptFromTitle(v.department, depts) ?? v.department) : t.dept;
+          return { firstName: first!, lastName: last ?? "", gender, phone, whatsapp: v.whatsapp, email: v.email, birthday: v.birthday, location: v.location, occupation: v.occupation, groupName,
+            position: t.position === "member" ? undefined : t.position, title: v.title };
+        })(),
       });
     });
     return { out, skipped };
-  }, [rows, map, findByPhone]);
+  }, [rows, map, findByPhone, state.groups]);
 
   if (!access) return null;
   if (!access.can("people.edit")) return <Empty title="Not available" body="Ask the admin to import people." />;
@@ -158,7 +167,7 @@ export default function Import() {
                 <li key={row.phone} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2.5">
                   <span className="min-w-40 flex-1 font-medium">{row.firstName} {row.lastName}</span>
                   <span className="text-muted">{row.phone}</span>
-                  {row.groupName && <span className="text-ink-soft">{state.groups.some((g) => g.name.toLowerCase() === row.groupName!.toLowerCase()) ? row.groupName : `${row.groupName} (no such department, skipped)`}</span>}
+                  {row.groupName && <span className="text-ink-soft">{state.groups.some((g) => g.name.toLowerCase() === row.groupName!.toLowerCase()) ? (row.title && row.position ? <>{row.title} <b className="text-ink">→ {titleSays({ position: row.position, dept: row.groupName })}</b></> : row.groupName) : `${row.groupName} (no such department, skipped)`}</span>}
                   <span className={cx("rounded-md px-1.5 py-0.5 text-xs font-medium", status === "new" ? "bg-good-soft text-good" : "bg-brand-soft text-brand")}>{status === "new" ? "New" : "Update"}</span>
                 </li>
               ))}

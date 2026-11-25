@@ -68,7 +68,7 @@ export default function Department() {
           <h1 className="mt-1 font-display text-[32px] font-semibold leading-tight tracking-tight md:text-[38px]">{g.name}</h1>
           <p className="mt-2 text-[16px] text-ink-soft">{g.purpose}</p>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {g.leaderIds.map((l) => <PersonLink key={l} person={person(l)} sub="Leader" size={32} />)}
+            {g.leaderIds.map((l) => <PersonLink key={l} person={person(l)} sub={g.headTitle || "Leader"} size={32} />)}
             {overseer && <PersonLink person={overseer} sub="Overseeing pastor" size={32} />}
             {supervisor && <span className="text-ink-soft">Supervised by <Link className="font-medium text-ink hover:text-brand" href={`/departments/${supervisor.id}`}>{supervisor.name}</Link></span>}
           </div>
@@ -131,7 +131,7 @@ export default function Department() {
                     <PersonLink person={m} sub={[data.unitOf(m.id), contacts ? m.phone : null].filter(Boolean).join(" · ") || m.location} />
                   </div>
                   <div className="hidden items-center gap-2 sm:flex">
-                    {g.leaderIds.includes(m.id) && <ReasonTag tone="brand">{g.kind === "unit" ? "Unit head" : "Department head"}</ReasonTag>}
+                    {g.leaderIds.includes(m.id) && <ReasonTag tone="brand">{g.headTitle || (g.kind === "unit" ? "Unit head" : "Department head")}</ReasonTag>}
                     {m.tracked && m.missedInARow >= 3 && <ReasonTag tone="alert">Missed {m.missedInARow}</ReasonTag>}
                     <StageChip stage={m.stage} />
                   </div>
@@ -215,6 +215,7 @@ function EditGroup({ group, members, onClose }: { group: Group; members: string[
   const [name, setName] = useState(group.name);
   const [purpose, setPurpose] = useState(group.purpose);
   const [leader, setLeader] = useState(group.leaderIds[0] ?? "");
+  const [headTitle, setHeadTitle] = useState(group.headTitle ?? "");
   const [overseer, setOverseer] = useState(group.overseerId ?? "");
   const [unit, setUnit] = useState("");
   const [unitPurpose, setUnitPurpose] = useState("");
@@ -226,7 +227,7 @@ function EditGroup({ group, members, onClose }: { group: Group; members: string[
       <form className="space-y-4" onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return setErr("Give it a name.");
-        updateGroup(group.id, { name: name.trim(), purpose: purpose.trim(), leaderIds: leader ? [leader, ...group.leaderIds.filter((x) => x !== leader).slice(1)] : group.leaderIds, overseerId: overseer || undefined });
+        updateGroup(group.id, { name: name.trim(), purpose: purpose.trim(), leaderIds: leader ? [leader, ...group.leaderIds.filter((x) => x !== leader).slice(1)] : group.leaderIds, overseerId: overseer || undefined, headTitle: headTitle.trim() || undefined });
         onClose();
       }}>
         <Field label="Name"><input className={inputCls} value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} /></Field>
@@ -236,6 +237,9 @@ function EditGroup({ group, members, onClose }: { group: Group; members: string[
             <option value="">No one yet</option>
             {candidates.map((id) => <option key={id} value={id}>{fullName(person(id))}</option>)}
           </select>
+        </Field>
+        <Field label="What you call the head (optional)" hint="E.g. Head Usher, Choir Coordinator, HOD. Whatever you call it, they are the head and a Leader.">
+          <input className={inputCls} value={headTitle} onChange={(e) => setHeadTitle(e.target.value)} placeholder={group.kind === "unit" ? "Unit head" : "Department head"} />
         </Field>
         {group.kind === "department" && (
           <Field label="Overseeing pastor">

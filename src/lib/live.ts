@@ -126,7 +126,7 @@ const person = (r: Row): Person => ({
   anniversary: (r.anniversary as string) ?? undefined, feedback: (r.feedback as Person["feedback"]) ?? undefined, prefs: (r.prefs as Person["prefs"]) ?? undefined, custom: (r.custom as Person["custom"]) ?? undefined,
   confirmedAt: (r.confirmed_at as string) ?? undefined, joinedVia: (r.joined_via as Person["joinedVia"]) ?? undefined,
   branchId: (r.branch_id as string) ?? undefined,
-  ...((r.extra as Pick<Person, "possibleMatchId" | "unavailable" | "probation" | "awaitingStage" | "formerHead" | "notConfirmed" | "removed">) ?? {}),
+  ...((r.extra as Pick<Person, "possibleMatchId" | "unavailable" | "probation" | "awaitingStage" | "formerHead" | "notConfirmed" | "removed" | "leftAll">) ?? {}),
 });
 
 // ---------- app -> database rows ----------
@@ -138,12 +138,12 @@ const personRow = (p: Person, c: string): Row => ({
   consent_at: p.consent?.at ?? null, consent_via: p.consent?.via ?? null,
   photo_url: nul(p.photo), inactive: p.inactive ?? null, is_leader: !!p.isLeader, anniversary: nul(p.anniversary), feedback: p.feedback ?? [], prefs: p.prefs ?? {}, custom: p.custom ?? {},
   confirmed_at: p.confirmedAt ?? null, joined_via: p.joinedVia ?? null, branch_id: nul(p.branchId),
-  extra: { possibleMatchId: p.possibleMatchId, unavailable: p.unavailable, probation: p.probation, awaitingStage: p.awaitingStage, formerHead: p.formerHead, notConfirmed: p.notConfirmed, removed: p.removed },
+  extra: { possibleMatchId: p.possibleMatchId, unavailable: p.unavailable, probation: p.probation, awaitingStage: p.awaitingStage, formerHead: p.formerHead, notConfirmed: p.notConfirmed, removed: p.removed, leftAll: p.leftAll },
 });
 const groupRow = (g: Group, c: string): Row => ({
   id: g.id, church_id: c, name: g.name, kind: g.kind, purpose: nul(g.purpose), parent_id: nul(g.parentId),
   supervisor_id: nul(g.supervisorId), overseer_id: nul(g.overseerId), tags: g.tags ?? [], branch_id: nul(g.branchId),
-  extra: { whatsapp: g.whatsapp, assistants: g.assistants ?? [], requiresStage: g.requiresStage, requiresClassId: g.requiresClassId, followup: g.followup, meetings: g.meetings ?? [] },
+  extra: { whatsapp: g.whatsapp, assistants: g.assistants ?? [], requiresStage: g.requiresStage, requiresClassId: g.requiresClassId, followup: g.followup, meetings: g.meetings ?? [], headTitle: g.headTitle },
 });
 const roleRow = (r: Role, c: string): Row => ({ id: r.id, church_id: c, key: r.key, name: r.name, description: nul(r.description), level: r.level, is_default: r.isDefault, permissions: r.permissions });
 const assignmentRow = (a: RoleAssignment, c: string): Row => ({

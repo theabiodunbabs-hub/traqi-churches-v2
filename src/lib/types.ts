@@ -37,6 +37,8 @@ export type Person = {
   formerHead?: { groupId: string; at: string };
   /** The church didn't confirm this person yet: they keep member access and see "Your membership status needs one more step". */
   notConfirmed?: { at: string; byId?: string };
+  /** Removed from their last department or unit: still a worker; the admin decides. */
+  leftAll?: { groupId: string; at: string };
   /** Removed (e.g. a test or double entry): hidden everywhere, kept 30 days so it can be undone. */
   removed?: { reason: string; note?: string; byId?: string; at: string };
   confirmedAt?: string;
@@ -90,6 +92,8 @@ export type Group = {
   whatsapp?: string;
   /** Assistants the head appoints, each with a title and what they may do. */
   assistants?: Assistant[];
+  /** What this church calls the head, e.g. "Head Usher" or "Choir Coordinator". Always counted as the head. */
+  headTitle?: string;
   /** Optional: only people at this stage (or later) can join. */
   requiresStage?: string;
   meetings?: DeptMeeting[];
